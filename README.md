@@ -13,6 +13,7 @@
     - [Special Features](#special-features)
   - [Extraction Mode](#extraction-mode)
   - [Validation Mode](#validation-mode)
+- [Installation](#installation)
   
 Originally written in Perl, this script has been converted to Python for easier use and maintenance. This script is used to create Dialogflow ES Intents. It can be used in two modes: Standard and Natural Language (NL). The Standard mode is used to create intents based on the `intent.cfg` file. The NL mode is used to create intents based on the training phrases in the NL directory and uses `intents_nl.cfg` file. Standard mode is the default mode when not setting the NL flag.
 
@@ -53,7 +54,8 @@ PS> python -m intentional_py nl --help
 │ --reuse      -r             Reuse the previously created NL config file.                                            │
 │ --vertical   -v       TEXT  Vertical prefix abbreviation used for the NL intent names. Rebuilds the NL config file  │
 │ --context    -c       TEXT  Context used for the NL intent names. Rebuilds the NL config file [default: GetIntent]  │
-│ --lowercase  -lc            Certain clients coded the NL actions in lowercase instead of the standard uppercase.    │        ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+│ --lowercase  -lc            Certain clients coded the NL actions in lowercase instead of the standard uppercase.    │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
 PS> python -m intentional_py extract --help
@@ -207,3 +209,22 @@ Use this setting as an alternative to exporting data from an excel file. These a
 ## Validation Mode
 
 This setting can be used to find possible issues BEFORE running the script. It highlights potential issues in missing directories, phrase files, and common typos in intent and context names. No files is created when using this setting, only information to the screen.
+
+# Installation
+
+This script is designed to be run from the command line. It is recommended to use a virtual environment to run the script. The script is written in Python 3.8.5.
+There is an alternative method to run the script on windows using the `intentional.exe` file, still using the command line. This is a standalone executable file and does not require Python to be installed on the machine. This can be found [here]([here](https://github.com/andrewjstuart/intentional)):
+
+It was built using the following commands:
+```
+uv build
+pyinstaller --onefile src/intentional_py/intentional.py
+```
+
+Once the executable is either created or pulled from the repository, it can be run from the command line using the following commands:
+```
+./intentional.exe
+./intentional.exe nl -v FIN -c GetIntent -lc
+./intentional.exe nl --reuse
+./intentional.exe extract
+```

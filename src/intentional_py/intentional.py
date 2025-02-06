@@ -13,7 +13,7 @@ from intentional_py import validate as valid
 class AliasGroup(typer.core.TyperGroup):
     """Typer Group subclass that supports commands with aliases.
     To alias a command, include the aliases in the command name,
-    separated by commas.
+    separated by pipes or commas.
     """
 
     _CMD_SPLIT_P = re.compile(r" ?[,|] ?")
