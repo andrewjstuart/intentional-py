@@ -1,8 +1,8 @@
-import os
 import shutil
 import pyxlsb
 import openpyxl
 import datetime
+from pathlib import Path
 from rich import print
 from rich.console import Console
 from rich.table import Table
@@ -19,21 +19,21 @@ from time import perf_counter
 from intentional_py import utils as utils
 
 
-def excel_data(xl_file: str, mode: str, language: str, quiet: bool) -> None:
+def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
     t1_start = perf_counter()
-    # xl_file = os.path.join(os.getcwd(), xl_file)
-    # print(f"Adjusting file name: [green]{xl_file}[/green]") if not quiet else None
-    xl_file_path: str = xl_file
-    if os.path.dirname(xl_file):
-        xl_file_path = os.path.dirname(xl_file)  # pull filepath from file
-        file = os.path.basename(xl_file)  # pull filename from filepath
-        (file, file_extension) = os.path.splitext(file)  # remove extension
-        xl_file = f"{file}.{file_extension}"
+    xl_file_path: Path
+    if xl_file.parent:
+        xl_file_path = xl_file.parent  # pull filepath from file
+        file_with_extension: str = xl_file.name  # pull filename from filepath
+        file: str = xl_file.stem
+        file_extension: str = xl_file.suffix  # store extension
+        xl_file = Path(f"{file}{file_extension}")
 
     else:
-        (file, file_extension) = os.path.splitext(xl_file)  # remove extension
-        xl_file_path = os.getcwd()  # assume CWD for path
-        xl_file = f"{file}{file_extension}"
+        file: str = xl_file.stem
+        file_extension: str = xl_file.suffix  # store extension
+        xl_file_path = Path.cwd()  # assume CWD for path
+        xl_file = Path(f"{file}{file_extension}")
 
     if file_extension not in [".xlsb", ".xlsm", ".xlsx"]:
         print(f"Extension {file_extension} is not a valid EXCEL extension supported.")
@@ -58,29 +58,31 @@ def excel_data(xl_file: str, mode: str, language: str, quiet: bool) -> None:
 
     # set up path to save files
     # set phrase file path
-    phrase_file_path: str = os.path.join(os.getcwd(), "Training Phrases", language)
+    phrase_file_path: Path = Path(Path.cwd(), "Training Phrases", language)
     phrase_file_path = (
-        os.path.join(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
+        Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
     )
+
     # zip existing file if it already exists, so nothing is overwritten
-    if os.path.exists(phrase_file_path):
-        zip_file_name: str = os.path.basename(phrase_file_path)
+    if phrase_file_path.exists():
+        zip_file_name: str = phrase_file_path.name
         now = datetime.datetime.now()
         formatted_datetime = now.strftime("%Y-%m-%d_%H%M%S")
         zip_file_name = f"{zip_file_name}_{formatted_datetime}"
-        (zip_save_location, last_dir) = os.path.split(phrase_file_path)
-        zip_file_path: str = os.path.join(zip_save_location, f"{zip_file_name}.zip")
+        zip_save_location: Path = phrase_file_path.parent
+        zip_file_path: Path = Path(zip_save_location, f"{zip_file_name}.zip")
         print(f"[green]Zip existing directory[/green]") if not quiet else None
         utils.zip_directory(phrase_file_path, zip_file_path)
-        shutil.rmtree(phrase_file_path)
+        shutil.rmtree(str(phrase_file_path))
     # create the directory, which may have just been removed, or doesn't exist
-    os.mkdir(phrase_file_path)
+    phrase_file_path.mkdir(parents=True, exist_ok=True)
 
     print(f"Exporting data to: [blue]{phrase_file_path}[/blue]") if not quiet else None
 
     # read XL file, check if xlsb or xlsm
     with progress_bar as p:
         phrase_dict: dict = {}
+        phrase_file: Path
         if file_extension == ".xlsb":
             # uses pyxlsb
             with pyxlsb.open_workbook(xl_file) as wb:
@@ -95,9 +97,7 @@ def excel_data(xl_file: str, mode: str, language: str, quiet: bool) -> None:
                         phrase_list: list = list(phrases)
                         phrase_list = sorted(phrase_list)
                         # print the list
-                        phrase_file: str = os.path.join(
-                            phrase_file_path, sheet + ".txt"
-                        )
+                        phrase_file = Path(phrase_file_path, f"{sheet}.txt")
                         # add to dictionary
                         phrase_dict[phrase_file] = phrase_list
         elif file_extension in [".xlsm", ".xlsx"]:
@@ -114,7 +114,7 @@ def excel_data(xl_file: str, mode: str, language: str, quiet: bool) -> None:
                 phrase_list: list = list(phrases)
                 phrase_list = sorted(phrase_list)
                 # print the list
-                phrase_file: str = os.path.join(phrase_file_path, sheet_name + ".txt")
+                phrase_file = Path(phrase_file_path, f"{sheet_name}.txt")
                 phrase_dict[phrase_file] = phrase_list
         else:
             print(f"[red]File not supported[/red]: {xl_file}")
@@ -125,10 +125,11 @@ def excel_data(xl_file: str, mode: str, language: str, quiet: bool) -> None:
         phrases_cnt: int = 0
         for phrase_file, phrases in phrase_dict.items():
             file_cnt += 1
-            with open(phrase_file, mode="w", encoding="utf-8") as file:
+            # with open(phrase_file, mode="w", encoding="utf-8") as f:
+            with phrase_file.open(mode="w", encoding="utf-8") as f:
                 for line in phrases:
                     phrases_cnt += 1
-                    file.write(f"{"".join(line)}\n")
+                    f.write(f"{"".join(line)}\n")
 
     t1_stop = perf_counter()
     time = f"{t1_stop - t1_start:.3f} s"

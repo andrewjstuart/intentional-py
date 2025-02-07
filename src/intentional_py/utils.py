@@ -3,15 +3,15 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 import re
-import os
+from pathlib import Path
 import zipfile
 
 
-def check_for_duplicate_phrases(directory: str, lang: str, quiet: bool) -> set:
+def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
     """Checks text files in the directory for duplicate phrases across all files
 
     Args:
-        directory (str): directory to search
+        directory (Path): directory to search
         lang (str): the language being searched
 
     Returns:
@@ -20,10 +20,10 @@ def check_for_duplicate_phrases(directory: str, lang: str, quiet: bool) -> set:
     all_lines: set = set()
     duplicates: set = set()
     phrases_to_review: list = []
-
-    for filename in os.listdir(directory):
+    filenames: list = [item.name for item in directory.iterdir() if item.is_file()]
+    for filename in filenames:
         if filename.endswith(".txt"):
-            filepath = os.path.join(directory, filename)
+            filepath: Path = Path(directory, filename)
             with open(filepath, "r") as file:
                 for line in file:
                     line = line.strip()
@@ -240,19 +240,15 @@ def clean_phrase(string: str) -> str:
     return string
 
 
-def zip_directory(directory_path: str, zip_path: str) -> None:
+def zip_directory(directory_path: Path, zip_path: Path) -> None:
     """Zip a directory provided
 
     Args:
-        directory_path (_type_): directory to zip
-        zip_path (_type_): path to save the zip file
+        directory_path (Path): directory to zip
+        zip_path (Path): path to save the zip file
     """
-    with zipfile.ZipFile(zip_path, "w") as zipf:
-        for root, dirs, files in os.walk(directory_path):
-            for file in files:
-                zipf.write(
-                    os.path.join(root, file),
-                    os.path.relpath(
-                        os.path.join(root, file), os.path.join(directory_path, "..")
-                    ),
-                )
+    with zipfile.ZipFile(
+        zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as zippy:
+        for file_path in directory_path.rglob("*"):
+            zippy.write(file_path, arcname=file_path.relative_to(directory_path))

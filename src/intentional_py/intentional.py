@@ -1,9 +1,9 @@
 import typer
+import re
+import typer.core
 from rich import print
 from typing_extensions import Annotated
-import re
-import os
-import typer.core
+from pathlib import Path
 from intentional_py import __app_name__, __version__
 from intentional_py import build_intents as build
 from intentional_py import extract as xtract
@@ -52,13 +52,13 @@ def main(
         ),
     ] = False,
     config: Annotated[
-        str,
+        Path,
         typer.Option(
             "--config",
             "-config",
             help="Name of the config file when not using the standard files.",
         ),
-    ] = "intents.cfg",
+    ] = Path("intents.cfg"),
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
@@ -76,12 +76,12 @@ def main(
 @app.command("nl | natural-language")
 def natural_language(
     config: Annotated[
-        str,
+        Path,
         typer.Option(
             "--config",
             help="Name of the config file when not using the standard files.",
         ),
-    ] = "intents_nl.cfg",
+    ] = Path("intents_nl.cfg"),
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
@@ -128,7 +128,7 @@ def natural_language(
     """
 
     # check if file exists, otherwise prompt for nl config file name
-    file_not_exist: bool = not os.path.exists(config)
+    file_not_exist: bool = not config.exists()
     if not reuse or file_not_exist:
         if file_not_exist:
             print(
@@ -151,14 +151,14 @@ def natural_language(
 @app.command("extract")
 def extract(
     xl_file: Annotated[
-        str,
+        Path,
         typer.Option(
             "--file",
             "-f",
             help="Name of the EXCEL file used to extract data",
             rich_help_panel="Extract File Options",
         ),
-    ] = "",
+    ] = Path(""),
     mode: Annotated[
         str,
         typer.Option(
@@ -225,7 +225,7 @@ def extract(
         )
         xl_file = new_xl_file
 
-    if not os.path.exists(xl_file) and not os.path.isfile(xl_file):
+    if not xl_file.exists() and not xl_file.is_file():
         print(
             f"{xl_file} does [red]NOT[/red] exist as a file.\n[bold][red]Abort processing...[/bold][/red]"
         )
@@ -237,12 +237,12 @@ def extract(
 @app.command("validate")
 def validate(
     config: Annotated[
-        str,
+        Path,
         typer.Option(
             "--config",
             help="Name of the config file when not using the standard files.",
         ),
-    ] = "",
+    ] = Path(""),
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),

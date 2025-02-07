@@ -11,7 +11,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 import csv
-import os
+from pathlib import Path
 import uuid
 import json
 from time import perf_counter
@@ -20,18 +20,18 @@ from intentional_py import utils as utils
 
 def intents(
     mode: str,
-    config: str,
+    config: Path,
     quiet: bool,
 ) -> None:
     """Build the intents described in the config file. Perform simple sanity checking on input to enforce standards.
 
     Args:
         mode (str): Determine if it's directed dialog (DD) or Natural Language (NL) which selects the appropriate phrase directories and config files.
-        config (str): The name of the config file to use to build intents.
+        config (Path): The name of the config file to use to build intents.
         quiet (bool): Suppress most standard output to terminal.
     """
     # check if config file exists
-    if not os.path.exists(config):
+    if not Path(config).exists():
         print(f"\n[red]Config file [blue]{config}[/blue] does not exist![/red]\n")
         return
 
@@ -295,17 +295,14 @@ def create_json(
         )
 
     # set output file paths
-    output_file_path = os.path.join(os.getcwd(), "intents")
+    output_file_path: Path = Path(Path.cwd(), "intents")
     # create new directory for the intents if it does not exist
-    os.makedirs(output_file_path, exist_ok=True)
+    Path(output_file_path).mkdir(parents=True, exist_ok=True)
 
-    output_file: str = f"{df_intent}.json"
-    output_file = os.path.join(output_file_path, output_file)
-    output_phrase_file: str = f"{df_intent}_usersays_{language}.json"
-    output_phrase_file = os.path.join(
-        output_file_path,
-        output_phrase_file,
-    )
+    output_file: Path = Path(f"{df_intent}.json")
+    output_file = Path(output_file_path, output_file)
+    output_phrase_file: Path = Path(f"{df_intent}_usersays_{language}.json")
+    output_phrase_file = Path(output_file_path, output_phrase_file)
 
     # create intent JSON
     intent_json = """
@@ -405,23 +402,16 @@ def create_json(
         files_to_write[output_file] = intent_data
 
     # set phrase file path
-    phrase_file_path = os.path.join(os.getcwd(), "Training Phrases", language)
+    phrase_file_path: Path = Path(Path.cwd(), "Training Phrases", language)
     phrase_file_path = (
-        os.path.join(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
+        Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
     )
-    if not os.path.exists(phrase_file_path):
+
+    if not phrase_file_path.exists():
         print(
-            f"\n[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]\n"
+            f"\n[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]\nCreating Path...\n"
         )
-        return (
-            files_to_write,
-            intents_cnt,
-            phrases_cnt,
-            entities_cnt,
-            langs_used,
-            nomatch_cnt,
-            ml_disabled_str,
-        )
+        phrase_file_path.mkdir(parents=True, exist_ok=True)
 
     # create phrase JSON
     phrase_list: list = []
@@ -449,9 +439,9 @@ def create_json(
 
     if not dtmf_only:
         # read the phrase file
-        phrase_file: str = f"{action}.txt"
-        phrase_file_path = os.path.join(phrase_file_path, phrase_file)
-        if os.path.exists(phrase_file_path):
+        phrase_file: Path = Path(f"{action}.txt")
+        phrase_file_path = Path(phrase_file_path, phrase_file)
+        if phrase_file_path.exists():
             with open(phrase_file_path, mode="r", encoding="utf-8") as file:
                 reader = csv.reader(file)
                 rows = [row for row in reader if any(row)]  # Filter out empty rows
@@ -506,7 +496,9 @@ def create_json(
                     phrase_list.append(phrase_data)
                     phrases_cnt += 1  # store for return
         else:
-            if not phrase_file == "nomatch.txt":  # don't print when nomatch is the file
+            if (
+                not str(phrase_file) == "nomatch.txt"
+            ):  # don't print when nomatch is the file
                 print(
                     f"\n[red]Phrase file [blue]{phrase_file}[/blue] does not exist in {phrase_file_path}![/red]\n"
                 )
@@ -528,14 +520,14 @@ def create_json(
 
 
 def nl_config(
-    config: str, vertical: str, context: str, lowercase: bool, quiet: bool
+    config: Path, vertical: str, context: str, lowercase: bool, quiet: bool
 ) -> None:
     """Builds a config file for NL intent creation. It creates the file by reading the existing NL directories
     looking for text file corresponding the to intent names. These files contain training phrases for the
     intent the same as the directed dialog intent creation.
 
     Args:
-        config (str): name of the config file to create
+        config (Path): name of the config file to create
         vertical (str): vertical abbreviation used in the intent names
         context (str): context used to reference all the intents at the same time
         lowercase (bool): flag to adjust the action to be lowercase and is only used by specific clients
@@ -559,30 +551,35 @@ def nl_config(
         table_row.append(f"[cyan]{lowercase}[/cyan]")
 
     # set phrase file path
-    phrase_file_path = os.path.join(os.getcwd(), "Training Phrases")
+    phrase_file_path: Path = Path(Path.cwd(), "Training Phrases")
 
     # determine languages available by the files available, and then which are used by the having text files
     languages_used: set = set()
-    languages_available: list = os.listdir(phrase_file_path)
-    for lang in languages_available:
-        lang_path: str = os.path.join(phrase_file_path, lang, "NL")
-        if os.path.exists(lang_path):
-            for filename in os.listdir(lang_path):
+    for lang in phrase_file_path.iterdir():
+        lang_path: Path = Path(phrase_file_path, lang, "NL")
+        if lang_path.exists():
+            filenames: list = [
+                item.name for item in lang_path.iterdir() if item.is_file()
+            ]
+            for filename in filenames:
                 if filename.endswith(".txt"):
                     languages_used.add(lang)
 
     # remove config file before creating a new one
-    os.remove(config) if os.path.exists(config) else None
+    config.unlink() if config.exists() else None
+
     # build the intent file
     for lang in sorted(languages_used):
-        lang_path: str = os.path.join(phrase_file_path, lang, "NL")
+        lang = Path(lang.stem)
+        lang_path: Path = Path(phrase_file_path, lang, "NL")
         files_to_add: list = []
         entity_dict: dict = {}
         entity_set: set = set()
-        for filename in os.listdir(lang_path):
-            filepath = os.path.join(lang_path, filename)
-            if os.path.isfile(filepath) and filename.endswith(".txt"):
-                files_to_add.append(filename)
+        filenames: list = [item.name for item in lang_path.iterdir() if item.is_file()]
+        for filename in filenames:
+            filepath = Path(lang_path, filename)
+            if filepath.is_file() and filename.endswith(".txt"):
+                files_to_add.append(Path(filename))
 
                 # read phrase files looking for entities
                 with open(filepath, mode="r", encoding="utf-8") as file:
@@ -596,11 +593,12 @@ def nl_config(
                                 # add to set to only keep unique entities
                                 entity_set.add(str(entity))
                             # add them to dictionary to pull out later by filename
-                            entity_dict[filename] = entity_set
+                            entity_dict[Path(filename)] = entity_set
 
         with open(config, mode="a", encoding="utf-8") as config_file:
             for file in files_to_add:
-                (action, file_extension) = os.path.splitext(file)  # remove extension
+                action = file.with_suffix("")  # remove extension
+                action: str = str(action)
                 # remove any underscores and format intent correctly
                 temp: list = action.split("_")
                 res: str = temp[0].title() + "".join(ele.title() for ele in temp[1:])
@@ -638,7 +636,7 @@ def nl_config(
                 )
 
     nl_table.add_column("Status")
-    if not os.path.exists(config):
+    if not config.exists():
         table_row.append("[red]FAIL[/red]")
         print(f"[red][bold]Abort processing...[/bold][/red]")
         exit()
@@ -651,7 +649,7 @@ def nl_config(
 
     # check for duplicate phrases in the training phrases
     for lang in sorted(languages_used):
-        lang_path: str = os.path.join(phrase_file_path, lang, "NL")
+        lang_path: Path = Path(phrase_file_path, lang, "NL")
         duplicates: set = utils.check_for_duplicate_phrases(lang_path, lang, quiet)
         if duplicates:
             duplicate_table = Table(

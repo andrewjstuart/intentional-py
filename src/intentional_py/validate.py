@@ -1,12 +1,18 @@
-import os
 import csv
+from pathlib import Path
 from rich import print
 from rich.table import Table
 from rich import box
 from intentional_py import utils as utils
 
 
-def validate(config: str, quiet: bool) -> None:
+def validate(config: Path, quiet: bool) -> None:
+    """Validates the directories and files for the project.
+
+    Args:
+        config (Path): config file to use for validation
+        quiet (bool): minimize output, only alerting for issues if found
+    """
     grid = Table.grid(expand=False)
     grid.add_column(ratio=1, no_wrap=True)
     grid.add_column(ratio=1, no_wrap=True)  # for ellipsis separation
@@ -16,50 +22,51 @@ def validate(config: str, quiet: bool) -> None:
 
     # check for directory structure
     # set phrase file path
-    phrase_path = os.path.join(os.getcwd(), "Training Phrases")
+    phrase_path: Path = Path(Path.cwd(), "Training Phrases")
     column1: str = "Training Phrases path"
     column2: str = " " + "." * 10 + " "
-    if not os.path.exists(phrase_path):
+    test_path: Path
+    if not phrase_path.exists():
         grid.add_row(column1, column2, "[red]:x:[/red]")
     else:
         grid.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
         # English
-        test_path = os.path.join(phrase_path, "en")
+        test_path = Path(phrase_path, "en")
         column1 = "English path"
-        if not os.path.exists(test_path):
+        if not test_path.exists():
             grid.add_row(column1, column2, "[red]:x:[/red]")
         else:
             grid.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
-            test_path = os.path.join(test_path, "NL")
+            test_path = Path(test_path, "NL")
             column1 = "English NL path"
-            if not os.path.exists(test_path):
+            if not test_path.exists():
                 grid.add_row(column1, column2, "[red]:x:[/red]")
             else:
                 grid.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
         # Spanish
-        test_path = os.path.join(phrase_path, "es")
+        test_path = Path(phrase_path, "es")
         column1 = "Spanish path"
-        if not os.path.exists(test_path):
+        if not test_path.exists():
             grid.add_row(column1, column2, "[red]:x:[/red]")
         else:
             grid.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
-            test_path = os.path.join(test_path, "NL")
+            test_path = Path(test_path, "NL")
             column1 = "Spanish NL path"
-            if not os.path.exists(test_path):
+            if not test_path.exists():
                 grid.add_row(column1, column2, "[red]:x:[/red]")
             else:
                 grid.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
         # French
-        test_path = os.path.join(phrase_path, "fr")
+        test_path = Path(phrase_path, "fr")
         column1 = "French path"
-        if not os.path.exists(test_path):
+        if not test_path.exists():
             grid.add_row(column1, column2, "[red]:x:[/red]")
         else:
             grid.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
-            test_path = os.path.join(test_path, "NL")
+            test_path = Path(test_path, "NL")
             print(f"French NL path ... ", end="")
             column1 = "French NL path"
-            if not os.path.exists(test_path):
+            if not test_path.exists():
                 grid.add_row(column1, column2, "[red]:x:[/red]")
             else:
                 grid.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
@@ -82,10 +89,12 @@ def validate(config: str, quiet: bool) -> None:
     final_grid.add_column(ratio=1, no_wrap=True, justify="center")
 
     config_list: list = []
-    if not config:
+    if not config.is_file():
         # check both standard config files
         print(f"Using [purple]STANDARD[/purple] config files") if not quiet else None
-        config_list.extend(["intents.cfg", "intents_nl.cfg"])
+        config_list.extend(
+            [Path(Path.cwd(), "intents.cfg"), Path(Path.cwd(), "intents_nl.cfg")]
+        )
     else:
         # check for this config file
         config_list.append(config)
@@ -93,9 +102,9 @@ def validate(config: str, quiet: bool) -> None:
     found_list: list = []
     # check if config files exist
     for file in config_list:
-        file_path = os.path.join(os.getcwd(), file)
-        column1 = f"Checking {file}"
-        if os.path.exists(file_path):
+        file_path = Path(Path.cwd(), file)
+        column1 = f"Checking {file.name}"
+        if file_path.exists():
             grid2.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
             found_list.append(file)
         else:
@@ -108,7 +117,7 @@ def validate(config: str, quiet: bool) -> None:
     # read config files if they exist
     for files in found_list:
         issues_found: bool = False
-        with open(files, mode="r", encoding="utf-8") as file:
+        with files.open(mode="r", encoding="utf-8") as file:
             reader = csv.reader(file)
             rows = [row for row in reader if any(row)]  # Filter out empty rows
             for row in rows:
@@ -181,21 +190,20 @@ def validate(config: str, quiet: bool) -> None:
                     # check that action exists in language
                     phrase_file: str = f"{action}.txt"
                     # set phrase file path
-                    phrase_file_path = os.path.join(
-                        os.getcwd(), "Training Phrases", language
+                    phrase_file_path: Path = Path(
+                        Path.cwd(), "Training Phrases", language
                     )
-                    # phrase_file_path = (os.path.join(phrase_file_path, "NL") if mode == "NL" else phrase_file_path    )
-                    test_path = os.path.join(phrase_file_path, phrase_file)
-                    if not os.path.exists(test_path):
+                    # phrase_file_path = Path(phrase_file_path,"NL") if mode == "NL" else phrase_file_path    )
+                    test_path = Path(phrase_file_path, phrase_file)
+                    if not test_path.exists():
                         # check for it in NL path
-                        phrase_file_path = os.path.join(phrase_file_path, "NL")
-                        test_path = os.path.join(phrase_file_path, phrase_file)
-                        if not os.path.exists(test_path):
+                        phrase_file_path = Path(phrase_file_path, "NL")
+                        test_path = Path(phrase_file_path, phrase_file)
+                        if not test_path.exists():
                             # still not found
-                            # print(f"\t[red]Phrase file not found:[/red] [purple]{action}[/purple]")
                             errors.add_row(
                                 error_column1,
-                                f"[red]Phrase file not found:[/red] [purple]{action}[/purple]",
+                                f"[red]Phrase file not found:[/red] [yellow]{language} {action}[/yellow]",
                                 "",
                             )
                             issues_found = True
@@ -227,7 +235,7 @@ def validate(config: str, quiet: bool) -> None:
                     )
                     issues_found = True
             # print(f"Validating {files} ... ", end="")
-            column1 = f"Validating {files}"
+            column1 = f"Validating {files.name}"
 
             if issues_found:
                 # print(f"[red][bold]FAIL[/bold][/red]")
