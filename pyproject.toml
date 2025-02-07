@@ -9,7 +9,6 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "openpyxl>=3.1.5",
-    "pathlib>=1.0.1",
     "pyinstaller>=6.11.1",
     "pyxlsb>=1.0.10",
     "rich>=13.9.4",
