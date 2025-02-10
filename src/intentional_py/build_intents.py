@@ -7,7 +7,6 @@ from rich.progress import (
     MofNCompleteColumn,
     Progress,
     TextColumn,
-    TimeElapsedColumn,
     TimeRemainingColumn,
 )
 import csv
@@ -647,7 +646,7 @@ def nl_config(
     nl_table.add_column("Status")
     if not config.exists():
         table_row.append("[red]FAIL[/red]")
-        print(f"[red][bold]Abort processing...[/bold][/red]")
+        print("[red][bold]Abort processing...[/bold][/red]")
         exit()
     else:
         table_row.append("[green]COMPLETE[/green]")

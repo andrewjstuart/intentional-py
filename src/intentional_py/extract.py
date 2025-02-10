@@ -12,7 +12,6 @@ from rich.progress import (
     MofNCompleteColumn,
     Progress,
     TextColumn,
-    TimeElapsedColumn,
     TimeRemainingColumn,
 )
 from time import perf_counter
@@ -24,7 +23,7 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
     xl_file_path: Path
     if xl_file.parent:
         xl_file_path = xl_file.parent  # pull filepath from file
-        file_with_extension: str = xl_file.name  # pull filename from filepath
+        # file_with_extension: str = xl_file.name  # pull filename from filepath
         file: str = xl_file.stem
         file_extension: str = xl_file.suffix  # store extension
         xl_file = Path(f"{file}{file_extension}")
@@ -58,7 +57,7 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
 
     # set up path to save files
     # set phrase file path
-    phrase_file_path: Path = Path(Path.cwd(), "Training Phrases", language)
+    phrase_file_path: Path = Path(xl_file_path, "Training Phrases", language)
     phrase_file_path = (
         Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
     )
@@ -71,7 +70,7 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
         zip_file_name = f"{zip_file_name}_{formatted_datetime}"
         zip_save_location: Path = phrase_file_path.parent
         zip_file_path: Path = Path(zip_save_location, f"{zip_file_name}.zip")
-        print(f"[green]Zip existing directory[/green]") if not quiet else None
+        print("[green]Zip existing directory[/green]") if not quiet else None
         utils.zip_directory(phrase_file_path, zip_file_path)
         shutil.rmtree(str(phrase_file_path))
     # create the directory, which may have just been removed, or doesn't exist

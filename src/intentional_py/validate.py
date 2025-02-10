@@ -2,7 +2,6 @@ import csv
 from pathlib import Path
 from rich import print
 from rich.table import Table
-from rich import box
 from intentional_py import utils as utils
 
 
@@ -18,7 +17,7 @@ def validate(config: Path, quiet: bool) -> None:
     grid.add_column(ratio=1, no_wrap=True)  # for ellipsis separation
     grid.add_column(ratio=1, no_wrap=True, justify="center")
 
-    print(f"[yellow]Validating directories and files[/yellow]\n") if not quiet else None
+    print("[yellow]Validating directories and files[/yellow]\n") if not quiet else None
 
     # check for directory structure
     # set phrase file path
@@ -64,7 +63,7 @@ def validate(config: Path, quiet: bool) -> None:
         else:
             grid.add_row(column1, column2, "[green]:heavy_check_mark:[/green]")
             test_path = Path(test_path, "NL")
-            print(f"French NL path ... ", end="")
+            print("French NL path ... ", end="")
             column1 = "French NL path"
             if not test_path.exists():
                 grid.add_row(column1, column2, "[red]:x:[/red]")
@@ -91,7 +90,7 @@ def validate(config: Path, quiet: bool) -> None:
     config_list: list = []
     if not config.is_file():
         # check both standard config files
-        print(f"Using [purple]STANDARD[/purple] config files") if not quiet else None
+        print("Using [purple]STANDARD[/purple] config files") if not quiet else None
         config_list.extend(
             [Path(Path.cwd(), "intents.cfg"), Path(Path.cwd(), "intents_nl.cfg")]
         )
@@ -242,14 +241,14 @@ def validate(config: Path, quiet: bool) -> None:
                 final_grid.add_row(
                     column1,
                     column2,
-                    f"[red]:x:[/red]",
+                    "[red]:x:[/red]",
                 )
             else:
                 # print(f"[green]SUCCESS[/green]")
                 final_grid.add_row(
                     column1,
                     column2,
-                    f"[green]:heavy_check_mark:[/green]",
+                    "[green]:heavy_check_mark:[/green]",
                 )
 
     print(grid2) if not quiet else None

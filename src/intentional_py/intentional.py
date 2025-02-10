@@ -195,25 +195,25 @@ def extract(
     valid_modes: list = ["dd", "nl"]
     # we'll always have a language and mode because of defaults
     if language.lower() not in valid_langs:
-        print(f"[red]Invalid language code used![/red]")
+        print("[red]Invalid language code used![/red]")
         new_language: str = typer.prompt(
             f"Please provide a valid language code such as {valid_langs}: "
         )
         if new_language.lower() not in valid_langs:
             print(
-                f"[red]Invalid language code used![/red]\n[bold][red]Abort processing...[/bold][/red]"
+                "[red]Invalid language code used![/red]\n[bold][red]Abort processing...[/bold][/red]"
             )
             exit()
         else:
             language = new_language
     if mode.lower() not in valid_modes:
-        print(f"[red]Invalid mode used![/red]")
+        print("[red]Invalid mode used![/red]")
         new_mode: str = typer.prompt(
             f"Please provide a valid mode such as {valid_modes}: "
         )
         if new_mode.lower() not in valid_modes:
             print(
-                f"[red]Invalid mode used![/red]\n[bold][red]Abort processing...[/bold][/red]"
+                "[red]Invalid mode used![/red]\n[bold][red]Abort processing...[/bold][/red]"
             )
             exit()
         else:

@@ -13,7 +13,7 @@
     - [Special Features](#special-features)
   - [Extraction Mode](#extraction-mode)
   - [Validation Mode](#validation-mode)
-- [Installation/Running the script](#installationrunning-the-script)
+  - [Installation/Running the script](#installationrunning-the-script)
   
 Originally written in Perl, this script has been converted to Python for easier use and maintenance. This script is used to create Dialogflow ES Intents. It can be used in two modes: Standard and Natural Language (NL). The Standard mode is used to create intents based on the `intent.cfg` file. The NL mode is used to create intents based on the training phrases in the NL directory and uses `intents_nl.cfg` file. Standard mode is the default mode when not setting the NL flag.
 
@@ -214,13 +214,13 @@ Use this setting as an alternative to exporting data from an excel file. These a
 
 This setting can be used to find possible issues BEFORE running the script. It highlights potential issues in missing directories, phrase files, and common typos in intent and context names. No files is created when using this setting, only information to the screen.
 
-# Installation/Running the script
+## Installation/Running the script
 
 This script is designed to be run from the command line. It is recommended to use a virtual environment to run the script. The script is written in Python 3.13.1.
 
 Clone this repository as normal and ensure you have python installed locally. Once the repository is cloned, open the directory with VSCode and run these commands to create a virtual environment and install the necessary packages when first ran:
 
-```
+```bash
 uv venv
 uv run .\src\intentional_py\intentional.py --help
 ```
@@ -228,14 +228,16 @@ uv run .\src\intentional_py\intentional.py --help
 There is an alternative method to run the script on windows using the `intentional.exe` file, still using the command line. This is a standalone executable file and does not require Python to be installed on the machine. This is available in the [repository release](https://github.com/andrewjstuart/intentional-py/releases).
 
 It was built using the following commands:
-```
+
+```bash
 uv lock --upgrade
 uv build
 uv run pyinstaller --onefile src/intentional_py/intentional.py
 ```
 
 Once the executable is either created or pulled from the repository, it can be run from the command line using the following commands:
-```
+
+```bash
 ./intentional.exe
 ./intentional.exe nl -v FIN -c GetIntent -lc
 ./intentional.exe nl --reuse
