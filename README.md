@@ -221,7 +221,7 @@ uv venv
 uv run .\src\intentional_py\intentional.py --help
 ```
 
-There is an alternative method to run the script on windows using the `intentional.exe` file, still using the command line. This is a standalone executable file and does not require Python to be installed on the machine. This is available in the repository release.
+There is an alternative method to run the script on windows using the `intentional.exe` file, still using the command line. This is a standalone executable file and does not require Python to be installed on the machine. This is available in the [repository release](https://github.com/andrewjstuart/intentional-py/releases).
 
 It was built using the following commands:
 ```
