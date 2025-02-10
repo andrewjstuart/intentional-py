@@ -229,6 +229,7 @@ There is an alternative method to run the script on windows using the `intention
 
 It was built using the following commands:
 ```
+uv lock --upgrade
 uv build
 uv run pyinstaller --onefile src/intentional_py/intentional.py
 ```
