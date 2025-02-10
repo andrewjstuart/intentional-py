@@ -66,6 +66,11 @@ def intents(
     with open(config, mode="r", encoding="utf-8") as file:
         reader = csv.reader(file)
         rows = [row for row in reader if any(row)]  # Filter out empty rows
+        if len(rows) == 0:
+            print(
+                f"[red]Config file does not contain data[/red]: [cyan]{config}[/cyan]"
+            )
+            return
         # Use custom progress bar
         with progress_bar as p:
             for row in p.track(rows):
@@ -552,7 +557,11 @@ def nl_config(
 
     # set phrase file path
     phrase_file_path: Path = Path(Path.cwd(), "Training Phrases")
-
+    if not phrase_file_path.exists():
+        print(
+            f"[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]"
+        )
+        return
     # determine languages available by the files available, and then which are used by the having text files
     languages_used: set = set()
     for lang in phrase_file_path.iterdir():
