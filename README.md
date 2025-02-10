@@ -19,10 +19,14 @@ Originally written in Perl, this script has been converted to Python for easier 
 
 ## Usage
 
-```unix
-PS> python -m intentional_py --help
+The script is run from the command line using the `intentional.py` file. The script can be run using the `python -m` command or using the `uv run` command. The script has three main commands: `nl`, `extract`, and `validate`. The `nl` command is used to create intents using the NL mode. The `extract` command is used to extract data from an excel file and save the phrases into the correct directory. The `validate` command is used to validate directories, phrase files, and config files before running the script.
 
- Usage: python -m intentional_py [OPTIONS] COMMAND [ARGS]...                                                                                                                                 
+More information on using `uv run` and the `uv` tool can be found [here](https://astral.sh/blog/uv).
+
+```unix
+PS> uv run .\src\intentional_py\intentional.py --help
+
+ Usage: intentional.py [OPTIONS] COMMAND [ARGS]...                                                                                                                                 
 
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ --version             -v                 Show the application's version and exit                                            │
@@ -39,9 +43,9 @@ PS> python -m intentional_py --help
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> python -m intentional_py nl --help
+PS> uv run .\src\intentional_py\intentional.py nl --help
 
- Usage: python -m intentional_py nl [OPTIONS]                                                                                                                                                
+ Usage: intentional.py nl [OPTIONS]                                                                                                                                                
 
  Use specific NL config and directories for training phrases.
 
@@ -58,9 +62,9 @@ PS> python -m intentional_py nl --help
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> python -m intentional_py extract --help
+PS> uv run .\src\intentional_py\intentional.py extract --help
 
- Usage: python -m intentional_py extract [OPTIONS]                                                                                                                                                             
+ Usage: intentional.py extract [OPTIONS]                                                                                                                                                             
 
  Extract data from EXCEL file, saving phrases into correct directory
 
@@ -75,29 +79,29 @@ PS> python -m intentional_py extract --help
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> python -m intentional_py validate --help
+PS> uv run .\src\intentional_py\intentional.py validate --help
 
-Usage: python -m intentional_py validate [OPTIONS]                                                                                                                                                            
+Usage: intentional.py validate [OPTIONS]                                                                                                                                                            
 
  Optionally validate directories, phrase files, config files before running script
 
-╭─ Options ──────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --config          TEXT  Name of the config file when not using the standard files.                                     │
-│ --quiet   -q            Use this flag to suppress most output.                                                         │
-│ --help                  Show this message and exit.                                                                    │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --config          TEXT  Name of the config file when not using the standard files.                                   │
+│ --quiet   -q            Use this flag to suppress most output.                                                       │
+│ --help                  Show this message and exit.                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
   ```
   
 ### Examples
 
-- `python -m intentional.py`
-- `python -m intentional.py nl -v FIN -c GetIntent -lc`
-- `python -m intentional.py nl --reuse`
-- `python -m intentional_py extract`
-- `python -m intentional_py extract --file 'NL English Data.xlsm'`
-- `python -m intentional_py validate --file test.cfg`
-- `python -m intentional_py validate`
+- `uv run .\src\intentional_py\intentional.py`
+- `uv run .\src\intentional_py\intentional.py nl -v FIN -c GetIntent -lc`
+- `uv run .\src\intentional_py\intentional.py nl --reuse`
+- `uv run .\src\intentional_py\intentional.py extract`
+- `uv run .\src\intentional_py\intentional.py extract --file 'NL English Data.xlsm'`
+- `uv run .\src\intentional_py\intentional.py validate --file test.cfg`
+- `uv run .\src\intentional_py\intentional.py validate`
 
 ## Directory Structure
 
