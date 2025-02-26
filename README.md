@@ -25,9 +25,9 @@ The script is run from the command line using the `intentional.py` file. The scr
 More information on using `uv run` and the `uv` tool can be found [here](https://astral.sh/blog/uv).
 
 ```unix
-PS> uv run python -m intentional.py --help
+PS> uv run python -m intentional_py --help
 
- Usage: intentional.py [OPTIONS] COMMAND [ARGS]...                                                                                                                                 
+ Usage: intentional_py [OPTIONS] COMMAND [ARGS]...                                                                                                                                 
 
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ --version             -v                 Show the application's version and exit                                            │
@@ -44,9 +44,9 @@ PS> uv run python -m intentional.py --help
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run python -m intentional.py nl --help
+PS> uv run python -m intentional_py nl --help
 
- Usage: intentional.py nl [OPTIONS]                                                                                                                                                
+ Usage: intentional_py nl [OPTIONS]                                                                                                                                                
 
  Use specific NL config and directories for training phrases.
 
@@ -63,9 +63,9 @@ PS> uv run python -m intentional.py nl --help
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run python -m intentional.py extract --help
+PS> uv run python -m intentional_py extract --help
 
- Usage: intentional.py extract [OPTIONS]                                                                                                                                                             
+ Usage: intentional_py extract [OPTIONS]                                                                                                                                                             
 
  Extract data from EXCEL file, saving phrases into correct directory
 
@@ -80,9 +80,9 @@ PS> uv run python -m intentional.py extract --help
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run python -m intentional.py validate --help
+PS> uv run python -m intentional_py validate --help
 
-Usage: intentional.py validate [OPTIONS]                                                                                                                                                            
+Usage: intentional_py validate [OPTIONS]                                                                                                                                                            
 
  Optionally validate directories, phrase files, config files before running script
 
@@ -96,13 +96,13 @@ Usage: intentional.py validate [OPTIONS]
   
 ### Examples
 
-- `uv run python -m intentional.py`
-- `uv run python -m intentional.py nl -v FIN -c GetIntent -lc`
-- `uv run python -m intentional.py nl --reuse`
-- `uv run python -m intentional.py extract`
-- `uv run python -m intentional.py extract --file 'NL English Data.xlsm'`
-- `uv run python -m intentional.py validate --file test.cfg`
-- `uv run python -m intentional.py validate`
+- `uv run python -m intentional_py`
+- `uv run python -m intentional_py nl -v FIN -c GetIntent -lc`
+- `uv run python -m intentional_py nl --reuse`
+- `uv run python -m intentional_py extract`
+- `uv run python -m intentional_py extract --file 'NL English Data.xlsm'`
+- `uv run python -m intentional_py validate --file test.cfg`
+- `uv run python -m intentional_py validate`
 
 ## Directory Structure
 
@@ -221,7 +221,7 @@ Clone this repository as normal and ensure you have python installed locally. On
 
 ```bash
 uv venv
-uv run python -m intentional.py --help
+uv run python -m intentional_py --help
 ```
 
 There is an alternative method to run the script on windows using the `intentional.exe` file, still using the command line. This is a standalone executable file and does not require Python to be installed on the machine. This is available in the [repository release](https://github.com/andrewjstuart/intentional-py/releases).
