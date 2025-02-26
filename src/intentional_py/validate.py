@@ -14,7 +14,6 @@ def validate(config: Path, quiet: bool) -> None:
     """
     grid = Table.grid(expand=False)
     grid.add_column(ratio=1, no_wrap=True)
-    # grid.add_column(ratio=1, no_wrap=True)  # for ellipsis separation
     grid.add_column(ratio=1, no_wrap=True, justify="center")
 
     print("[yellow]Validating directories and files[/yellow]\n") if not quiet else None
@@ -23,7 +22,6 @@ def validate(config: Path, quiet: bool) -> None:
     # set phrase file path
     phrase_path: Path = Path(Path.cwd(), "Training Phrases")
     column1: str = "Training Phrases path"
-    # column2: str = " " + "." * 10 + " "
     test_path: Path
     if not phrase_path.exists():
         grid.add_row(column1, " [red]:x:[/red]")
@@ -73,18 +71,15 @@ def validate(config: Path, quiet: bool) -> None:
 
     grid2 = Table.grid(expand=False)
     grid2.add_column(ratio=1, no_wrap=True)
-    # grid2.add_column(ratio=1, no_wrap=True)  # for ellipsis separation
     grid2.add_column(ratio=1, no_wrap=True, justify="center")
 
     errors = Table.grid(expand=False)
     errors.add_column(ratio=1, no_wrap=True)
-    # errors.add_column(ratio=1, no_wrap=True)  # for ellipsis separation
     errors.add_column(ratio=1, no_wrap=True, justify="center")
     error_column1 = "." * 5 + " "
 
     final_grid = Table.grid(expand=False)
     final_grid.add_column(ratio=1, no_wrap=True)
-    # final_grid.add_column(ratio=1, no_wrap=True)  # for ellipsis separation
     final_grid.add_column(ratio=1, no_wrap=True, justify="center")
 
     config_list: list = []
@@ -112,7 +107,6 @@ def validate(config: Path, quiet: bool) -> None:
                 reader = csv.reader(config_file)
                 rows = [row for row in reader if any(row)]  # Filter out empty rows
                 if len(rows) == 0:
-                    # grid2.add_row(f"{error_column1}[red]No data![/red]", "", "")
                     error_list.append("[red]No data![/red]")
                     issues_found = True
                 for row in rows:
@@ -136,42 +130,30 @@ def validate(config: Path, quiet: bool) -> None:
 
                     # validate values of config file
                     if not df_intent:
-                        # print(f" [red]No intent provided![/red]: {row}")
-                        # grid2.add_row(error_column1, f"[red]No intent provided![/red]: {row}", "")
                         error_list.append(f"[red]No intent provided![/red]: {row}")
                         issues_found = True
                     if "-" in df_intent:
-                        # print(f" [red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]")
-                        # grid2.add_row(error_column1,f"[red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]","",)
                         error_list.append(
                             f"[red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]"
                         )
                         issues_found = True
 
                     if not df_context:
-                        # print(f" [red]No context provided![/red]: {row}")
-                        # grid2.add_row(error_column1, f"[red]No context provided![/red]: {row}", "")
                         error_list.append(f"[red]No context provided![/red]: {row}")
                         issues_found = True
                     if "." in df_context:
-                        # print(f" [red]Incorrect context name:[/red] [blue]{df_context}[/blue]")
-                        # grid2.add_row(error_column1,f"[red]Incorrect context name:[/red] [blue]{df_context}[/blue]","",)
                         error_list.append(
                             f"[red]Incorrect context name:[/red] [blue]{df_context}[/blue]"
                         )
                         issues_found = True
 
                     if language not in {"en", "es", "fr", "dtmf"}:
-                        # print(f" [red]Invalid language:[/red] [yellow]'{language}'[/yellow] for [blue]{df_intent}[/blue]")
-                        # grid2.add_row(error_column1,f"[red]Invalid language:[/red] [yellow]'{language}'[/yellow] for [blue]{df_intent}[/blue]","",)
                         error_list.append(
                             f"[red]Invalid language:[/red] [yellow]'{language}'[/yellow] for [blue]{df_intent}[/blue]"
                         )
                         issues_found = True
 
                     if not action:
-                        # print(f" [red]No action provided![/red]: {row}")
-                        # grid2.add_row(error_column1, f"[red]No action provided![/red]: {row}", "")
                         error_list.append(f"[red]No action provided![/red]: {row}")
                         issues_found = True
 
@@ -182,7 +164,6 @@ def validate(config: Path, quiet: bool) -> None:
                         phrase_file_path: Path = Path(
                             Path.cwd(), "Training Phrases", language
                         )
-                        # phrase_file_path = Path(phrase_file_path,"NL") if mode == "NL" else phrase_file_path    )
                         test_path = Path(phrase_file_path, phrase_file)
                         if not test_path.exists():
                             # check for it in NL path
@@ -190,7 +171,6 @@ def validate(config: Path, quiet: bool) -> None:
                             test_path = Path(phrase_file_path, phrase_file)
                             if not test_path.exists():
                                 # still not found
-                                # grid2.add_row(error_column1,f"[red]Phrase file not found:[/red] [yellow]{language} {action}[/yellow]","",)
                                 error_list.append(
                                     f"[red]Phrase file not found:[/red] [yellow]{language} {action}[/yellow]"
                                 )
@@ -216,8 +196,6 @@ def validate(config: Path, quiet: bool) -> None:
                                 ]
                             )
                         ):
-                            # print(f" [red]INVALID DTMF VALUE! [blue]{dtmf_list}[/blue][/red]")
-                            # grid2.add_row(error_column1,f"[red]INVALID DTMF VALUE! [blue]{dtmf_list}[/blue][/red]","",)
                             error_list.append(
                                 f"[red]INVALID DTMF VALUE! [blue]{dtmf_list}[/blue][/red]"
                             )
@@ -227,17 +205,13 @@ def validate(config: Path, quiet: bool) -> None:
                         "true",
                         "false",
                     }:
-                        # print(f"\t Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}")
-                        # grid2.add_row(error_column1,f"Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}","",)
                         error_list.append(
                             f"Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}"
                         )
                         issues_found = True
-                # print(f"Validating {files} ... ", end="")
                 column1 = f"Validating {file.name}"
 
                 if issues_found:
-                    # print(f"[red][bold]FAIL[/bold][/red]")
                     final_grid.add_row(
                         column1,
                         " [red]:x:[/red]",
@@ -247,7 +221,6 @@ def validate(config: Path, quiet: bool) -> None:
                             final_grid.add_row(f"{error_column1}{error}", "")
                     error_list = []
                 else:
-                    # print(f"[green]SUCCESS[/green]")
                     final_grid.add_row(
                         column1,
                         " [green]:heavy_check_mark:[/green]",

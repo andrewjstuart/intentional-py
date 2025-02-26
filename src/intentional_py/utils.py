@@ -255,7 +255,7 @@ def zip_directory(directory_path: Path, zip_path: Path) -> None:
 
 
 def check_for_path(file_to_check: Path) -> tuple[Path, Path, str]:
-    """_summary_
+    """check the file to determine if there is a path value prefixed
 
     Args:
         file_to_check (Path): file to check if it contains a path or uses implied CWD
