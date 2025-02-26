@@ -20,19 +20,11 @@ from intentional_py import utils as utils
 
 def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
     t1_start = perf_counter()
-    xl_file_path: Path
-    if xl_file.parent:
-        xl_file_path = xl_file.parent  # pull filepath from file
-        # file_with_extension: str = xl_file.name  # pull filename from filepath
-        file: str = xl_file.stem
-        file_extension: str = xl_file.suffix  # store extension
-        xl_file = Path(f"{file}{file_extension}")
 
-    else:
-        file: str = xl_file.stem
-        file_extension: str = xl_file.suffix  # store extension
-        xl_file_path = Path.cwd()  # assume CWD for path
-        xl_file = Path(f"{file}{file_extension}")
+    xl_file_path: Path
+    file_extension: str
+
+    (xl_file_path, xl_file, file_extension) = utils.check_for_path(xl_file)
 
     if file_extension not in [".xlsb", ".xlsm", ".xlsx"]:
         print(f"Extension {file_extension} is not a valid EXCEL extension supported.")
@@ -82,9 +74,10 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
     with progress_bar as p:
         phrase_dict: dict = {}
         phrase_file: Path
+        xl = Path(xl_file_path, xl_file)
         if file_extension == ".xlsb":
             # uses pyxlsb
-            with pyxlsb.open_workbook(xl_file) as wb:
+            with pyxlsb.open_workbook(xl) as wb:
                 for sheet in p.track(wb.sheets):
                     phrases: set = set()
                     for row in wb.get_sheet(sheet).rows():
@@ -101,7 +94,7 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
                         phrase_dict[phrase_file] = phrase_list
         elif file_extension in [".xlsm", ".xlsx"]:
             # uses openpyxl
-            wb = openpyxl.load_workbook(xl_file)
+            wb = openpyxl.load_workbook(xl)
             sheets: list = wb.sheetnames
             for sheet_name in p.track(sheets):
                 phrases: set = set()

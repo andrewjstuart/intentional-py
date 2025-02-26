@@ -60,6 +60,9 @@ def intents(
     file_cnt: int = 0
     ml_disabled_set: set = set()
 
+    # check if config file contains a path, the training phrases will match the config location
+    (default_path, temp_file, temp_file_extension) = utils.check_for_path(config)
+
     t1_start = perf_counter()
     # read the config file
     with open(config, mode="r", encoding="utf-8") as file:
@@ -81,7 +84,7 @@ def intents(
                     temp_lang,
                     temp_nomatch,
                     temp_ml,
-                ) = create_json(row, mode, quiet)
+                ) = create_json(row, mode, default_path, quiet)
 
                 # store output variables
                 files_to_write.update(data)
@@ -142,6 +145,7 @@ def intents(
 def create_json(
     row: list,
     mode: str,
+    default_path: Path,
     quiet: bool,
 ) -> tuple[dict, int, int, int, str, int, str]:
     """Create JSON files described by config rows
@@ -299,7 +303,7 @@ def create_json(
         )
 
     # set output file paths
-    output_file_path: Path = Path(Path.cwd(), "intents")
+    output_file_path: Path = Path(default_path, "intents")
     # create new directory for the intents if it does not exist
     Path(output_file_path).mkdir(parents=True, exist_ok=True)
 
@@ -406,7 +410,7 @@ def create_json(
         files_to_write[output_file] = intent_data
 
     # set phrase file path
-    phrase_file_path: Path = Path(Path.cwd(), "Training Phrases", language)
+    phrase_file_path: Path = Path(default_path, "Training Phrases", language)
     phrase_file_path = (
         Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
     )
@@ -537,6 +541,11 @@ def nl_config(
         lowercase (bool): flag to adjust the action to be lowercase and is only used by specific clients
         quiet (bool): Suppress most standard output to terminal.
     """
+    # check if config file contains a path, the training phrases will match the config location
+    (config_file_path, config_file_name, temp_file_extension) = utils.check_for_path(
+        config
+    )
+
     nl_table = Table(
         "Building Config",
         "Vertical",
@@ -545,7 +554,7 @@ def nl_config(
         box=box.ROUNDED,
     )
     table_row: list = [
-        f"{config}",
+        f"{config_file_name}",
         f"{vertical}",
         f"{context}",
     ]
@@ -555,16 +564,17 @@ def nl_config(
         table_row.append(f"[cyan]{lowercase}[/cyan]")
 
     # set phrase file path
-    phrase_file_path: Path = Path(Path.cwd(), "Training Phrases")
+    phrase_file_path: Path = Path(config_file_path, "Training Phrases")
     if not phrase_file_path.exists():
         print(
             f"[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]"
         )
         return
+
     # determine languages available by the files available, and then which are used by the having text files
     languages_used: set = set()
     for lang in phrase_file_path.iterdir():
-        lang_path: Path = Path(phrase_file_path, lang, "NL")
+        lang_path: Path = Path(lang, "NL")
         if lang_path.exists():
             filenames: list = [
                 item.name for item in lang_path.iterdir() if item.is_file()
@@ -578,8 +588,8 @@ def nl_config(
 
     # build the intent file
     for lang in sorted(languages_used):
+        lang_path: Path = Path(lang, "NL")
         lang = Path(lang.stem)
-        lang_path: Path = Path(phrase_file_path, lang, "NL")
         files_to_add: list = []
         entity_dict: dict = {}
         entity_set: set = set()
@@ -657,8 +667,9 @@ def nl_config(
 
     # check for duplicate phrases in the training phrases
     for lang in sorted(languages_used):
-        lang_path: Path = Path(phrase_file_path, lang, "NL")
-        duplicates: set = utils.check_for_duplicate_phrases(lang_path, lang, quiet)
+        lang_path: Path = Path(lang, "NL")
+        lang = Path(lang.stem)
+        duplicates: set = utils.check_for_duplicate_phrases(lang_path, str(lang), quiet)
         if duplicates:
             duplicate_table = Table(
                 f"[red]Duplicate phrases found in [yellow]'{lang}'[/yellow][/red]",

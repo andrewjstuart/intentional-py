@@ -148,7 +148,7 @@ def natural_language(
     build.intents("NL", config, quiet)
 
 
-@app.command("extract")
+@app.command("x | extract")
 def extract(
     xl_file: Annotated[
         Path,

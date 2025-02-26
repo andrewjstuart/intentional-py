@@ -252,3 +252,28 @@ def zip_directory(directory_path: Path, zip_path: Path) -> None:
     ) as zippy:
         for file_path in directory_path.rglob("*"):
             zippy.write(file_path, arcname=file_path.relative_to(directory_path))
+
+
+def check_for_path(file_to_check: Path) -> tuple[Path, Path, str]:
+    """_summary_
+
+    Args:
+        file_to_check (Path): file to check if it contains a path or uses implied CWD
+
+    Returns:
+        tuple[Path, Path, str]: returns the path, the file name with the extension, and the file extension
+    """
+    if file_to_check.parent:
+        file_to_check_path = file_to_check.parent  # pull filepath from file
+        # file_with_extension: str = file_to_check.name  # pull filename from filepath
+        file: str = file_to_check.stem
+        file_extension: str = file_to_check.suffix  # store extension
+        file_to_check = Path(f"{file}{file_extension}")
+
+    else:
+        file: str = file_to_check.stem
+        file_extension: str = file_to_check.suffix  # store extension
+        file_to_check_path = Path.cwd()  # assume CWD for path
+        file_to_check = Path(f"{file}{file_extension}")
+
+    return (file_to_check_path, file_to_check, file_extension)
