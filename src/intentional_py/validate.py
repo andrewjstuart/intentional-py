@@ -5,7 +5,7 @@ from rich.table import Table
 from intentional_py import utils as utils
 
 
-def validate(config: Path, quiet: bool) -> None:
+def validate(config: Path, quiet: bool, test: bool) -> None:
     """Validates the directories and files for the project.
 
     Args:
@@ -67,7 +67,9 @@ def validate(config: Path, quiet: bool) -> None:
                 grid.add_row(column1, " [red]:x:[/red]")
             else:
                 grid.add_row(column1, " [green]:heavy_check_mark:[/green]")
-    print(grid) if not quiet else None
+
+    if not test and not quiet:
+        print(grid)
 
     grid2 = Table.grid(expand=False)
     grid2.add_column(ratio=1, no_wrap=True)
@@ -85,7 +87,8 @@ def validate(config: Path, quiet: bool) -> None:
     config_list: list = []
     if not config.is_file():
         # check both standard config files
-        print("Using [purple]STANDARD[/purple] config files") if not quiet else None
+        if not test and not quiet:
+            print("Using [purple]STANDARD[/purple] config files")
         config_list.extend(
             [Path(Path.cwd(), "intents.cfg"), Path(Path.cwd(), "intents_nl.cfg")]
         )
@@ -229,6 +232,9 @@ def validate(config: Path, quiet: bool) -> None:
         else:
             grid2.add_row(column1, " [red]:x:[/red]")
 
-    print(grid2) if not quiet else None
-    print(errors) if not quiet else None
-    print(final_grid)
+    if test:
+        print("validation complete")
+    else:
+        print(grid2) if not quiet else None
+        print(errors) if not quiet else None
+        print(final_grid)

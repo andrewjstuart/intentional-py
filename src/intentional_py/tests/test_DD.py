@@ -31,8 +31,11 @@ def test_DD_exceptions():
 
 def test_DD():
     # correct config
-    result = runner.invoke(app, ["--config", f"{data_src}/intents.cfg"])
+    result = runner.invoke(app, ["--config", f"{data_src}/intents.cfg", "--test"])
     assert result.exit_code == 0
+    assert (
+        "Creating DD intents using src\\intentional_py\\tests\\data\\intents.cfg\nbuild complete"
+    ) in result.stdout
 
     # clean up intents directory
     intent_path: Path = Path(data_src, "intents")

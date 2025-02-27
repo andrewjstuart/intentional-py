@@ -6,7 +6,6 @@ from pathlib import Path
 runner = CliRunner()
 
 app = intentional.app
-
 data_src: str = "./src/intentional_py/tests/data"
 
 
@@ -38,6 +37,19 @@ def test_NL():
             "RTL",
             "-c",
             "GetIntent",
+        ],
+    )
+    assert result.exit_code == 0
+
+
+def test_NL_reuse():
+    result = runner.invoke(
+        app,
+        [
+            "natural-language",
+            "--config",
+            f"{data_src}/intents_nl.cfg",
+            "--reuse",
         ],
     )
     assert result.exit_code == 0

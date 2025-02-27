@@ -9,6 +9,7 @@ def pytest_collection_modifyitems(session, config, items):
         "test_DD",
         "test_NL_exceptions",
         "test_NL",
+        "test_NL_reuse",
     ]
     # OR
     # function_order = ["test_one[1]", "test_two[2]"]

@@ -246,3 +246,20 @@ Once the executable is either created or pulled from the repository, it can be r
 ## Testing
 
 Test files are included within this repository and can be ran using `uv run pytest`. The tests are basic sanity checks and written located in the `tests` directory. These should be expanded on in the future.
+
+```bash
+[~\Documents\Code\Python\intentional-py]> uv run pytest
+========================================= test session starts =========================================
+platform win32 -- Python 3.13.2, pytest-8.3.4, pluggy-1.5.0
+rootdir: ~\Documents\Code\Python\intentional-py
+configfile: pyproject.toml
+collected 9 items                                                                                                                                                                                             
+
+src\intentional_py\tests\test_version.py .                                                       [ 11%] 
+src\intentional_py\tests\test_validate.py .                                                      [ 22%]
+src\intentional_py\tests\test_extract.py ..                                                      [ 44%]
+src\intentional_py\tests\test_DD.py ..                                                           [ 66%]
+src\intentional_py\tests\test_NL.py ...                                                          [100%]
+
+========================================= 9 passed in 4.79s ========================================= 
+```

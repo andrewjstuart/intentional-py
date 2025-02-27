@@ -10,5 +10,9 @@ app = intentional.app
 def test_validate():
 
     # validate
-    result = runner.invoke(app, ["validate"])
+    result = runner.invoke(app, ["validate", "--test"])
     assert result.exit_code == 0
+    assert (
+        "Validating directories and files" + "\n\nvalidation complete\n"
+        in result.stdout
+    )

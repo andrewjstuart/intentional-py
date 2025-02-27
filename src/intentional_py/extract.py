@@ -18,7 +18,9 @@ from time import perf_counter
 from intentional_py import utils as utils
 
 
-def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
+def excel_data(
+    xl_file: Path, mode: str, language: str, quiet: bool, test: bool
+) -> None:
     t1_start = perf_counter()
 
     xl_file_path: Path
@@ -32,20 +34,23 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
 
     # setup progress bars
     # Define custom progress bar
-    progress_bar = Progress(
-        TextColumn(
-            f"Processing [green]{xl_file}[/green]:"
-            + " [progress.percentage]{task.percentage:>3.0f}%\n"
-        ),
-        BarColumn(bar_width=15),
-        MofNCompleteColumn(),
-        # TextColumn("•"),
-        TextColumn("|"),
-        # TimeElapsedColumn(),
-        TimeRemainingColumn(elapsed_when_finished=True),
-        # TextColumn("|"),
-        # TimeRemainingColumn(),
-    )
+    if test:
+        progress_bar = Progress(TextColumn(f"Processing [green]{xl_file}[/green]"))
+    else:
+        progress_bar = Progress(
+            TextColumn(
+                f"Processing [green]{xl_file}[/green]:"
+                + " [progress.percentage]{task.percentage:>3.0f}%\n"
+            ),
+            BarColumn(bar_width=15),
+            MofNCompleteColumn(),
+            # TextColumn("•"),
+            TextColumn("|"),
+            # TimeElapsedColumn(),
+            TimeRemainingColumn(elapsed_when_finished=True),
+            # TextColumn("|"),
+            # TimeRemainingColumn(),
+        )
 
     # set up path to save files
     # set phrase file path
@@ -137,6 +142,8 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
         str(file_cnt),
         str(phrases_cnt),
     )
-
-    console = Console()
-    console.print(table) if not quiet else None
+    if test:
+        print("extract complete")
+    else:
+        console = Console()
+        console.print(table) if not quiet else None

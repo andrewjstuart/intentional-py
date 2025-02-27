@@ -21,6 +21,7 @@ def intents(
     mode: str,
     config: Path,
     quiet: bool,
+    test: bool,
 ) -> None:
     """Build the intents described in the config file. Perform simple sanity checking on input to enforce standards.
 
@@ -35,20 +36,27 @@ def intents(
         return
 
     # Define custom progress bar
-    progress_bar = Progress(
-        TextColumn(
-            f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]:"
-            + " [progress.percentage]{task.percentage:>3.0f}%\n"
-        ),
-        BarColumn(bar_width=15),
-        MofNCompleteColumn(),
-        # TextColumn("•"),
-        TextColumn("|"),
-        # TimeElapsedColumn(),
-        TimeRemainingColumn(elapsed_when_finished=True),
-        # TextColumn("|"),
-        # TimeRemainingColumn(),
-    )
+    if test:
+        progress_bar = Progress(
+            TextColumn(
+                f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"
+            ),
+        )
+    else:
+        progress_bar = Progress(
+            TextColumn(
+                f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]:"
+                + " [progress.percentage]{task.percentage:>3.0f}%\n"
+            ),
+            BarColumn(bar_width=15),
+            MofNCompleteColumn(),
+            # TextColumn("•"),
+            TextColumn("|"),
+            # TimeElapsedColumn(),
+            TimeRemainingColumn(elapsed_when_finished=True),
+            # TextColumn("|"),
+            # TimeRemainingColumn(),
+        )
     files_to_write: dict = {}
     data: dict = {}
     # counters
@@ -84,7 +92,7 @@ def intents(
                     temp_lang,
                     temp_nomatch,
                     temp_ml,
-                ) = create_json(row, mode, default_path, quiet)
+                ) = create_json(row, mode, default_path, quiet, test)
 
                 # store output variables
                 files_to_write.update(data)
@@ -132,14 +140,17 @@ def intents(
             str(file_cnt),
         )
 
-    console = Console()
-    console.print(table) if not quiet else None
+    if test:
+        print("build complete")
+    else:
+        console = Console()
+        console.print(table) if not quiet else None
 
-    if ml_disabled_set:
-        ml_table = Table("Intents with ML Disabled", box=box.ROUNDED)
-        for phrase in ml_disabled_set:
-            ml_table.add_row(phrase)
-        console.print(ml_table) if not quiet else None
+        if ml_disabled_set:
+            ml_table = Table("Intents with ML Disabled", box=box.ROUNDED)
+            for phrase in ml_disabled_set:
+                ml_table.add_row(phrase)
+            console.print(ml_table) if not quiet else None
 
 
 def create_json(
@@ -147,6 +158,7 @@ def create_json(
     mode: str,
     default_path: Path,
     quiet: bool,
+    test: bool,
 ) -> tuple[dict, int, int, int, str, int, str]:
     """Create JSON files described by config rows
 
@@ -504,11 +516,14 @@ def create_json(
                     phrase_list.append(phrase_data)
                     phrases_cnt += 1  # store for return
         else:
-            if (
-                not str(phrase_file) == "nomatch.txt"
-            ):  # don't print when nomatch is the file
-                print(
-                    f"\n[red]Phrase file [blue]{phrase_file}[/blue] does not exist in {phrase_file_path}![/red]\n"
+            # don't print when nomatch is the file
+            if not str(phrase_file) == "nomatch.txt":
+                (
+                    print(
+                        f"\n[red]Phrase file [blue]{phrase_file}[/blue] does not exist in {phrase_file_path}![/red]\n"
+                    )
+                    if not test
+                    else None
                 )
 
     # print JSON file for phrase
@@ -528,7 +543,7 @@ def create_json(
 
 
 def nl_config(
-    config: Path, vertical: str, context: str, lowercase: bool, quiet: bool
+    config: Path, vertical: str, context: str, lowercase: bool, quiet: bool, test: bool
 ) -> None:
     """Builds a config file for NL intent creation. It creates the file by reading the existing NL directories
     looking for text file corresponding the to intent names. These files contain training phrases for the
