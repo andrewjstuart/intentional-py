@@ -8,6 +8,7 @@ from intentional_py import __app_name__, __version__
 from intentional_py import build_intents as build
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
+from typing import Optional
 
 
 class AliasGroup(typer.core.TyperGroup):
@@ -171,14 +172,14 @@ def natural_language(
 @app.command("x | extract")
 def extract(
     xl_file: Annotated[
-        Path,
+        Optional[Path],
         typer.Option(
             "--file",
             "-f",
             help="Name of the EXCEL file used to extract data",
             rich_help_panel="Extract File Options",
         ),
-    ] = Path(""),
+    ] = None,
     mode: Annotated[
         str,
         typer.Option(
@@ -248,11 +249,11 @@ def extract(
         else:
             mode = new_mode
 
-    if not xl_file:
+    if xl_file is None:
         new_xl_file: str = typer.prompt(
-            "Please provide an EXCEL filename (or path) to use for extraction: "
+            "Please provide an EXCEL filename (or path) to use for extraction"
         )
-        xl_file = new_xl_file
+        xl_file = Path(new_xl_file)
 
     if not xl_file.exists() and not xl_file.is_file():
         print(

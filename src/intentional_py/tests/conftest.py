@@ -3,6 +3,7 @@ def pytest_collection_modifyitems(session, config, items):
     function_order = [
         "test_version",
         "test_validate",
+        "test_extract_exceptions",
         "test_extract_XLSM",
         "test_extract_XLSB",
         "test_DD_exceptions",
