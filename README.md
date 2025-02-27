@@ -14,6 +14,7 @@
   - [Extraction Mode](#extraction-mode)
   - [Validation Mode](#validation-mode)
   - [Installation/Running the script](#installationrunning-the-script)
+  - [Testing](#testing)
   
 Originally written in Perl, this script has been converted to Python for easier use and maintenance. This script is used to create Dialogflow ES Intents. It can be used in two modes: Standard and Natural Language (NL). The Standard mode is used to create intents based on the `intent.cfg` file. The NL mode is used to create intents based on the training phrases in the NL directory and uses `intents_nl.cfg` file. Standard mode is the default mode when not setting the NL flag.
 
@@ -24,9 +25,9 @@ The script is run from the command line using the `intentional.py` file. The scr
 More information on using `uv run` and the `uv` tool can be found [here](https://astral.sh/blog/uv).
 
 ```unix
-PS> uv run .\src\intentional_py\intentional.py --help
+PS> uv run python -m intentional_py --help
 
- Usage: intentional.py [OPTIONS] COMMAND [ARGS]...                                                                                                                                 
+ Usage: intentional_py [OPTIONS] COMMAND [ARGS]...                                                                                                                                 
 
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ --version             -v                 Show the application's version and exit                                            │
@@ -38,14 +39,14 @@ PS> uv run .\src\intentional_py\intentional.py --help
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ nl | natural-language   Use specific NL config and directories for training phrases.                                        │
-│ extract                 Extract data from EXCEL file, saving phrases into correct directory                                 │
+│ x | extract             Extract data from EXCEL file, saving phrases into correct directory                                 │
 │ validate                Optionally validate directories, phrase files, config files before running script                   |    
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run .\src\intentional_py\intentional.py nl --help
+PS> uv run python -m intentional_py nl --help
 
- Usage: intentional.py nl [OPTIONS]                                                                                                                                                
+ Usage: intentional_py nl [OPTIONS]                                                                                                                                                
 
  Use specific NL config and directories for training phrases.
 
@@ -62,9 +63,9 @@ PS> uv run .\src\intentional_py\intentional.py nl --help
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run .\src\intentional_py\intentional.py extract --help
+PS> uv run python -m intentional_py extract --help
 
- Usage: intentional.py extract [OPTIONS]                                                                                                                                                             
+ Usage: intentional_py extract [OPTIONS]                                                                                                                                                             
 
  Extract data from EXCEL file, saving phrases into correct directory
 
@@ -79,9 +80,9 @@ PS> uv run .\src\intentional_py\intentional.py extract --help
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run .\src\intentional_py\intentional.py validate --help
+PS> uv run python -m intentional_py validate --help
 
-Usage: intentional.py validate [OPTIONS]                                                                                                                                                            
+Usage: intentional_py validate [OPTIONS]                                                                                                                                                            
 
  Optionally validate directories, phrase files, config files before running script
 
@@ -95,13 +96,13 @@ Usage: intentional.py validate [OPTIONS]
   
 ### Examples
 
-- `uv run .\src\intentional_py\intentional.py`
-- `uv run .\src\intentional_py\intentional.py nl -v FIN -c GetIntent -lc`
-- `uv run .\src\intentional_py\intentional.py nl --reuse`
-- `uv run .\src\intentional_py\intentional.py extract`
-- `uv run .\src\intentional_py\intentional.py extract --file 'NL English Data.xlsm'`
-- `uv run .\src\intentional_py\intentional.py validate --file test.cfg`
-- `uv run .\src\intentional_py\intentional.py validate`
+- `uv run python -m intentional_py`
+- `uv run python -m intentional_py nl -v FIN -c GetIntent -lc`
+- `uv run python -m intentional_py nl --reuse`
+- `uv run python -m intentional_py extract`
+- `uv run python -m intentional_py extract --file 'NL_English_Data.xlsm'`
+- `uv run python -m intentional_py validate --file test.cfg`
+- `uv run python -m intentional_py validate`
 
 ## Directory Structure
 
@@ -115,8 +116,6 @@ Intent Creation/
 |   │   └───NL
 │   ├───es/
 |   │   └───NL
-├─README.md
-├─intentional.py
 ├─intents.cfg
 ├─intents_nl.cfg    
 ```
@@ -222,7 +221,7 @@ Clone this repository as normal and ensure you have python installed locally. On
 
 ```bash
 uv venv
-uv run .\src\intentional_py\intentional.py --help
+uv run python -m intentional_py --help
 ```
 
 There is an alternative method to run the script on windows using the `intentional.exe` file, still using the command line. This is a standalone executable file and does not require Python to be installed on the machine. This is available in the [repository release](https://github.com/andrewjstuart/intentional-py/releases).
@@ -242,4 +241,26 @@ Once the executable is either created or pulled from the repository, it can be r
 ./intentional.exe nl -v FIN -c GetIntent -lc
 ./intentional.exe nl --reuse
 ./intentional.exe extract
+```
+
+## Testing
+
+Test files are included within this repository and can be ran using `uv run pytest`. The tests are basic sanity checks and written located in the `tests` directory. These should be expanded on in the future.
+
+```bash
+[~intentional-py]> uv run pytest
+========================================= test session starts =========================================
+platform win32 -- Python 3.13.2, pytest-8.3.4, pluggy-1.5.0
+rootdir: ~\intentional-py
+configfile: pyproject.toml
+collected 11 items     
+
+src\intentional_py\tests\test_version.py .                                                      [  9%] 
+src\intentional_py\tests\test_validate.py ..                                                    [ 27%]
+src\intentional_py\tests\test_extract.py ...                                                    [ 54%]
+src\intentional_py\tests\test_DD.py ..                                                          [ 72%]
+src\intentional_py\tests\test_NL.py ...                                                         [100%]
+
+
+========================================= 11 passed in 5.10s ========================================= 
 ```

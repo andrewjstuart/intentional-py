@@ -1,13 +1,15 @@
 import typer
 import re
 import typer.core
+import sys
 from rich import print
 from typing_extensions import Annotated
 from pathlib import Path
 from intentional_py import __app_name__, __version__
 from intentional_py import build_intents as build
-from intentional_py import extract as xtract
-from intentional_py import validate as valid
+from intentional_py import extract as extracting
+from intentional_py import validate as validating
+from typing import Optional
 
 
 class AliasGroup(typer.core.TyperGroup):
@@ -63,11 +65,21 @@ def main(
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
     ] = False,
+    test: Annotated[
+        bool,
+        typer.Option(
+            "--test",
+            "-t",
+            help="This is only used for testing to alter output",
+            hidden=True,
+        ),
+    ] = False,
     ctx: typer.Context = typer.Option(None),
 ) -> None:
     # default to standard DD functionality
     if ctx.invoked_subcommand is None:
-        build.intents("DD", config, quiet)
+        quiet = False if test else quiet
+        build.intents("DD", config, quiet, test)
     else:
         # Using another mode i.e. NL, Validate, Extract
         pass
@@ -122,6 +134,15 @@ def natural_language(
             rich_help_panel="Natural Language Options",
         ),
     ] = False,
+    test: Annotated[
+        bool,
+        typer.Option(
+            "--test",
+            "-t",
+            help="This is only used for testing to alter output",
+            hidden=True,
+        ),
+    ] = False,
 ) -> None:
     """
     Use specific NL config and directories for training phrases.
@@ -140,25 +161,26 @@ def natural_language(
                 "No vertical prefix abbreviation provided.\nEnter a vertical prefix abbreviation: "
             )
             vertical = use_vertical
-        build.nl_config(config, vertical, context, lowercase, quiet)
+        build.nl_config(config, vertical, context, lowercase, quiet, test)
     else:
         # print("Reusing the previously created NL config file")
         pass
 
-    build.intents("NL", config, quiet)
+    quiet = False if test else quiet
+    build.intents("NL", config, quiet, test)
 
 
-@app.command("extract")
+@app.command("x | extract")
 def extract(
     xl_file: Annotated[
-        Path,
+        Optional[Path],
         typer.Option(
             "--file",
             "-f",
             help="Name of the EXCEL file used to extract data",
             rich_help_panel="Extract File Options",
         ),
-    ] = Path(""),
+    ] = None,
     mode: Annotated[
         str,
         typer.Option(
@@ -186,6 +208,15 @@ def extract(
             help="Use this flag to suppress most output.",
         ),
     ] = False,
+    test: Annotated[
+        bool,
+        typer.Option(
+            "--test",
+            "-t",
+            help="This is only used for testing to alter output",
+            hidden=True,
+        ),
+    ] = False,
 ) -> None:
     """
     Extract data from EXCEL file, saving phrases into correct directory
@@ -203,7 +234,7 @@ def extract(
             print(
                 "[red]Invalid language code used![/red]\n[bold][red]Abort processing...[/bold][/red]"
             )
-            exit()
+            sys.exit(1)
         else:
             language = new_language
     if mode.lower() not in valid_modes:
@@ -215,23 +246,23 @@ def extract(
             print(
                 "[red]Invalid mode used![/red]\n[bold][red]Abort processing...[/bold][/red]"
             )
-            exit()
+            sys.exit(1)
         else:
             mode = new_mode
 
-    if not xl_file:
+    if xl_file is None:
         new_xl_file: str = typer.prompt(
-            "Please provide an EXCEL filename (or path) to use for extraction: "
+            "Please provide an EXCEL filename (or path) to use for extraction"
         )
-        xl_file = new_xl_file
+        xl_file = Path(new_xl_file)
 
     if not xl_file.exists() and not xl_file.is_file():
         print(
             f"{xl_file} does [red]NOT[/red] exist as a file.\n[bold][red]Abort processing...[/bold][/red]"
         )
-        exit()
-
-    xtract.excel_data(xl_file, mode.upper(), language.lower(), quiet)
+        sys.exit(1)
+    quiet = False if test else quiet
+    extracting.excel_data(xl_file, mode.upper(), language.lower(), quiet, test)
 
 
 @app.command("validate")
@@ -247,12 +278,21 @@ def validate(
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
     ] = False,
+    test: Annotated[
+        bool,
+        typer.Option(
+            "--test",
+            "-t",
+            help="This is only used for testing to alter output",
+            hidden=True,
+        ),
+    ] = False,
 ) -> None:
     """
     Optionally validate directories, phrase files, config files before running script
     """
-
-    valid.validate(config, quiet)
+    quiet = False if test else quiet
+    validating.validate(config, quiet, test)
 
 
 if __name__ == "__main__":

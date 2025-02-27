@@ -2,6 +2,7 @@ import shutil
 import pyxlsb
 import openpyxl
 import datetime
+import sys
 from pathlib import Path
 from rich import print
 from rich.console import Console
@@ -18,46 +19,46 @@ from time import perf_counter
 from intentional_py import utils as utils
 
 
-def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
+def excel_data(
+    xl_file: Path, mode: str, language: str, quiet: bool, test: bool
+) -> None:
     t1_start = perf_counter()
-    xl_file_path: Path
-    if xl_file.parent:
-        xl_file_path = xl_file.parent  # pull filepath from file
-        # file_with_extension: str = xl_file.name  # pull filename from filepath
-        file: str = xl_file.stem
-        file_extension: str = xl_file.suffix  # store extension
-        xl_file = Path(f"{file}{file_extension}")
 
-    else:
-        file: str = xl_file.stem
-        file_extension: str = xl_file.suffix  # store extension
-        xl_file_path = Path.cwd()  # assume CWD for path
-        xl_file = Path(f"{file}{file_extension}")
+    xl_file_path: Path
+    file_extension: str
+
+    (xl_file_path, xl_file, file_extension) = utils.check_for_path(xl_file)
+    # this may have changed, especially for testing, but we want to keep the
+    # phrase file in the same directory we're running this from
+    default_path: Path = Path.cwd() if not test else xl_file_path
 
     if file_extension not in [".xlsb", ".xlsm", ".xlsx"]:
         print(f"Extension {file_extension} is not a valid EXCEL extension supported.")
-        exit()
+        sys.exit(1)
 
     # setup progress bars
     # Define custom progress bar
-    progress_bar = Progress(
-        TextColumn(
-            f"Processing [green]{xl_file}[/green]:"
-            + " [progress.percentage]{task.percentage:>3.0f}%\n"
-        ),
-        BarColumn(bar_width=15),
-        MofNCompleteColumn(),
-        # TextColumn("•"),
-        TextColumn("|"),
-        # TimeElapsedColumn(),
-        TimeRemainingColumn(elapsed_when_finished=True),
-        # TextColumn("|"),
-        # TimeRemainingColumn(),
-    )
+    if test:
+        progress_bar = Progress(TextColumn(f"Processing [green]{xl_file}[/green]"))
+    else:
+        progress_bar = Progress(
+            TextColumn(
+                f"Processing [green]{xl_file}[/green]:"
+                + " [progress.percentage]{task.percentage:>3.0f}%\n"
+            ),
+            BarColumn(bar_width=15),
+            MofNCompleteColumn(),
+            # TextColumn("•"),
+            TextColumn("|"),
+            # TimeElapsedColumn(),
+            TimeRemainingColumn(elapsed_when_finished=True),
+            # TextColumn("|"),
+            # TimeRemainingColumn(),
+        )
 
     # set up path to save files
     # set phrase file path
-    phrase_file_path: Path = Path(xl_file_path, "Training Phrases", language)
+    phrase_file_path: Path = Path(default_path, "Training Phrases", language)
     phrase_file_path = (
         Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
     )
@@ -82,9 +83,10 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
     with progress_bar as p:
         phrase_dict: dict = {}
         phrase_file: Path
+        xl = Path(xl_file_path, xl_file)
         if file_extension == ".xlsb":
             # uses pyxlsb
-            with pyxlsb.open_workbook(xl_file) as wb:
+            with pyxlsb.open_workbook(xl) as wb:
                 for sheet in p.track(wb.sheets):
                     phrases: set = set()
                     for row in wb.get_sheet(sheet).rows():
@@ -101,7 +103,7 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
                         phrase_dict[phrase_file] = phrase_list
         elif file_extension in [".xlsm", ".xlsx"]:
             # uses openpyxl
-            wb = openpyxl.load_workbook(xl_file)
+            wb = openpyxl.load_workbook(xl)
             sheets: list = wb.sheetnames
             for sheet_name in p.track(sheets):
                 phrases: set = set()
@@ -117,7 +119,7 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
                 phrase_dict[phrase_file] = phrase_list
         else:
             print(f"[red]File not supported[/red]: {xl_file}")
-            exit()
+            sys.exit(1)
 
         # print the rows from the dictionary
         file_cnt: int = 0
@@ -144,6 +146,8 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool) -> None:
         str(file_cnt),
         str(phrases_cnt),
     )
-
-    console = Console()
-    console.print(table) if not quiet else None
+    if test:
+        print("extract complete")
+    else:
+        console = Console()
+        console.print(table) if not quiet else None

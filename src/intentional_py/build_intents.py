@@ -1,3 +1,7 @@
+import csv
+import sys
+import uuid
+import json
 from rich import print
 from rich.console import Console
 from rich.table import Table
@@ -9,10 +13,7 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
-import csv
 from pathlib import Path
-import uuid
-import json
 from time import perf_counter
 from intentional_py import utils as utils
 
@@ -21,6 +22,7 @@ def intents(
     mode: str,
     config: Path,
     quiet: bool,
+    test: bool,
 ) -> None:
     """Build the intents described in the config file. Perform simple sanity checking on input to enforce standards.
 
@@ -35,20 +37,27 @@ def intents(
         return
 
     # Define custom progress bar
-    progress_bar = Progress(
-        TextColumn(
-            f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]:"
-            + " [progress.percentage]{task.percentage:>3.0f}%\n"
-        ),
-        BarColumn(bar_width=15),
-        MofNCompleteColumn(),
-        # TextColumn("•"),
-        TextColumn("|"),
-        # TimeElapsedColumn(),
-        TimeRemainingColumn(elapsed_when_finished=True),
-        # TextColumn("|"),
-        # TimeRemainingColumn(),
-    )
+    if test:
+        progress_bar = Progress(
+            TextColumn(
+                f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"
+            ),
+        )
+    else:
+        progress_bar = Progress(
+            TextColumn(
+                f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]:"
+                + " [progress.percentage]{task.percentage:>3.0f}%\n"
+            ),
+            BarColumn(bar_width=15),
+            MofNCompleteColumn(),
+            # TextColumn("•"),
+            TextColumn("|"),
+            # TimeElapsedColumn(),
+            TimeRemainingColumn(elapsed_when_finished=True),
+            # TextColumn("|"),
+            # TimeRemainingColumn(),
+        )
     files_to_write: dict = {}
     data: dict = {}
     # counters
@@ -59,6 +68,10 @@ def intents(
     nomatch_cnt: int = 0
     file_cnt: int = 0
     ml_disabled_set: set = set()
+
+    # check if config file contains a path, the training phrases will be in CWD unless testing
+    (config_path, temp_file, temp_file_extension) = utils.check_for_path(config)
+    default_path = Path.cwd() if not test else config_path
 
     t1_start = perf_counter()
     # read the config file
@@ -81,7 +94,7 @@ def intents(
                     temp_lang,
                     temp_nomatch,
                     temp_ml,
-                ) = create_json(row, mode, quiet)
+                ) = create_json(row, mode, default_path, quiet, test)
 
                 # store output variables
                 files_to_write.update(data)
@@ -129,20 +142,25 @@ def intents(
             str(file_cnt),
         )
 
-    console = Console()
-    console.print(table) if not quiet else None
+    if test:
+        print("build complete")
+    else:
+        console = Console()
+        console.print(table) if not quiet else None
 
-    if ml_disabled_set:
-        ml_table = Table("Intents with ML Disabled", box=box.ROUNDED)
-        for phrase in ml_disabled_set:
-            ml_table.add_row(phrase)
-        console.print(ml_table) if not quiet else None
+        if ml_disabled_set:
+            ml_table = Table("Intents with ML Disabled", box=box.ROUNDED)
+            for phrase in ml_disabled_set:
+                ml_table.add_row(phrase)
+            console.print(ml_table) if not quiet else None
 
 
 def create_json(
     row: list,
     mode: str,
+    default_path: Path,
     quiet: bool,
+    test: bool,
 ) -> tuple[dict, int, int, int, str, int, str]:
     """Create JSON files described by config rows
 
@@ -299,7 +317,7 @@ def create_json(
         )
 
     # set output file paths
-    output_file_path: Path = Path(Path.cwd(), "intents")
+    output_file_path: Path = Path(default_path, "intents")
     # create new directory for the intents if it does not exist
     Path(output_file_path).mkdir(parents=True, exist_ok=True)
 
@@ -406,7 +424,7 @@ def create_json(
         files_to_write[output_file] = intent_data
 
     # set phrase file path
-    phrase_file_path: Path = Path(Path.cwd(), "Training Phrases", language)
+    phrase_file_path: Path = Path(default_path, "Training Phrases", language)
     phrase_file_path = (
         Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
     )
@@ -500,11 +518,14 @@ def create_json(
                     phrase_list.append(phrase_data)
                     phrases_cnt += 1  # store for return
         else:
-            if (
-                not str(phrase_file) == "nomatch.txt"
-            ):  # don't print when nomatch is the file
-                print(
-                    f"\n[red]Phrase file [blue]{phrase_file}[/blue] does not exist in {phrase_file_path}![/red]\n"
+            # don't print when nomatch is the file
+            if not str(phrase_file) == "nomatch.txt":
+                (
+                    print(
+                        f"\n[red]Phrase file [blue]{phrase_file}[/blue] does not exist in {phrase_file_path}![/red]\n"
+                    )
+                    if not test
+                    else None
                 )
 
     # print JSON file for phrase
@@ -524,7 +545,7 @@ def create_json(
 
 
 def nl_config(
-    config: Path, vertical: str, context: str, lowercase: bool, quiet: bool
+    config: Path, vertical: str, context: str, lowercase: bool, quiet: bool, test: bool
 ) -> None:
     """Builds a config file for NL intent creation. It creates the file by reading the existing NL directories
     looking for text file corresponding the to intent names. These files contain training phrases for the
@@ -537,6 +558,11 @@ def nl_config(
         lowercase (bool): flag to adjust the action to be lowercase and is only used by specific clients
         quiet (bool): Suppress most standard output to terminal.
     """
+    # check if config file contains a path, the training phrases will match the config location
+    (config_file_path, config_file_name, temp_file_extension) = utils.check_for_path(
+        config
+    )
+
     nl_table = Table(
         "Building Config",
         "Vertical",
@@ -545,7 +571,7 @@ def nl_config(
         box=box.ROUNDED,
     )
     table_row: list = [
-        f"{config}",
+        f"{config_file_name}",
         f"{vertical}",
         f"{context}",
     ]
@@ -555,16 +581,17 @@ def nl_config(
         table_row.append(f"[cyan]{lowercase}[/cyan]")
 
     # set phrase file path
-    phrase_file_path: Path = Path(Path.cwd(), "Training Phrases")
+    phrase_file_path: Path = Path(config_file_path, "Training Phrases")
     if not phrase_file_path.exists():
         print(
             f"[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]"
         )
         return
+
     # determine languages available by the files available, and then which are used by the having text files
     languages_used: set = set()
     for lang in phrase_file_path.iterdir():
-        lang_path: Path = Path(phrase_file_path, lang, "NL")
+        lang_path: Path = Path(lang, "NL")
         if lang_path.exists():
             filenames: list = [
                 item.name for item in lang_path.iterdir() if item.is_file()
@@ -578,8 +605,8 @@ def nl_config(
 
     # build the intent file
     for lang in sorted(languages_used):
+        lang_path: Path = Path(lang, "NL")
         lang = Path(lang.stem)
-        lang_path: Path = Path(phrase_file_path, lang, "NL")
         files_to_add: list = []
         entity_dict: dict = {}
         entity_set: set = set()
@@ -647,7 +674,7 @@ def nl_config(
     if not config.exists():
         table_row.append("[red]FAIL[/red]")
         print("[red][bold]Abort processing...[/bold][/red]")
-        exit()
+        sys.exit(1)
     else:
         table_row.append("[green]COMPLETE[/green]")
 
@@ -657,8 +684,9 @@ def nl_config(
 
     # check for duplicate phrases in the training phrases
     for lang in sorted(languages_used):
-        lang_path: Path = Path(phrase_file_path, lang, "NL")
-        duplicates: set = utils.check_for_duplicate_phrases(lang_path, lang, quiet)
+        lang_path: Path = Path(lang, "NL")
+        lang = Path(lang.stem)
+        duplicates: set = utils.check_for_duplicate_phrases(lang_path, str(lang), quiet)
         if duplicates:
             duplicate_table = Table(
                 f"[red]Duplicate phrases found in [yellow]'{lang}'[/yellow][/red]",
@@ -677,6 +705,8 @@ def nl_config(
                         break
                     else:
                         print("\n[bold][red]Abort processing...[/bold][/red]")
-                        exit()  # quit the program, after notifying of the duplications
+                        sys.exit(
+                            1
+                        )  # quit the program, after notifying of the duplications
                 except ValueError:
                     print("Invalid input. Please enter 'yes' or 'no'")
