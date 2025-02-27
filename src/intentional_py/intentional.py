@@ -1,6 +1,7 @@
 import typer
 import re
 import typer.core
+import sys
 from rich import print
 from typing_extensions import Annotated
 from pathlib import Path
@@ -233,7 +234,7 @@ def extract(
             print(
                 "[red]Invalid language code used![/red]\n[bold][red]Abort processing...[/bold][/red]"
             )
-            exit()
+            sys.exit(1)
         else:
             language = new_language
     if mode.lower() not in valid_modes:
@@ -245,7 +246,7 @@ def extract(
             print(
                 "[red]Invalid mode used![/red]\n[bold][red]Abort processing...[/bold][/red]"
             )
-            exit()
+            sys.exit(1)
         else:
             mode = new_mode
 
@@ -259,7 +260,7 @@ def extract(
         print(
             f"{xl_file} does [red]NOT[/red] exist as a file.\n[bold][red]Abort processing...[/bold][/red]"
         )
-        exit()
+        sys.exit(1)
     quiet = False if test else quiet
     extracting.excel_data(xl_file, mode.upper(), language.lower(), quiet, test)
 

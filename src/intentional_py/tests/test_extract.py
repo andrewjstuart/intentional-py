@@ -1,7 +1,8 @@
 from typer.testing import CliRunner
 from intentional_py import intentional
-import shutil
 from pathlib import Path
+import shutil
+
 
 runner = CliRunner()
 
@@ -16,7 +17,7 @@ def test_extract_exceptions():
     file: str = "sample_file.xlsx"
 
     result = runner.invoke(app, ["extract", "--file", f"{data_src}/{file}"])
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert (
         f"{temp_output_path}{file} does NOT exist as a file."
         + "\nAbort processing...\n"

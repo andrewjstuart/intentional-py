@@ -20,7 +20,18 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
 
     # check for directory structure
     # set phrase file path
-    phrase_path: Path = Path(Path.cwd(), "Training Phrases")
+    phrase_path: Path
+    config_file_name: Path
+    file_extension: str
+
+    (phrase_path, config_file_name, file_extension) = utils.check_for_path(config)
+    # this may have changed, especially for testing, but we want to keep the
+    # phrase file in the same directory we're running this from
+    if test:
+        phrase_path = Path(phrase_path, "Training Phrases")
+    else:
+        phrase_path = Path(Path.cwd(), "Training Phrases")
+
     column1: str = "Training Phrases path"
     test_path: Path
     if not phrase_path.exists():
@@ -99,14 +110,17 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
     # check if config files exist
     error_list: list = []
     for file in config_list:
-        file_path = Path(Path.cwd(), file)
+        file_path: Path
+        file_extension: str
+        (file_path, file, file_extension) = utils.check_for_path(file)
+
         column1 = f"Checking for {file.name}"
         if file_path.exists():
             grid2.add_row(column1, " [green]:heavy_check_mark:[/green]")
 
             # read config files if they exist
             issues_found: bool = False
-            with file_path.open(mode="r", encoding="utf-8") as config_file:
+            with Path(file_path, file).open(mode="r", encoding="utf-8") as config_file:
                 reader = csv.reader(config_file)
                 rows = [row for row in reader if any(row)]  # Filter out empty rows
                 if len(rows) == 0:

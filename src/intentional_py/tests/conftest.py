@@ -2,6 +2,7 @@ def pytest_collection_modifyitems(session, config, items):
     """Modifies test items in place to ensure test functions run in a given order"""
     function_order = [
         "test_version",
+        "test_validate_exceptions",
         "test_validate",
         "test_extract_exceptions",
         "test_extract_XLSM",

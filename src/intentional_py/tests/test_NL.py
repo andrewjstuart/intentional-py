@@ -21,6 +21,7 @@ def test_NL_exceptions():
             "RTL",
             "-c",
             "GetIntent",
+            "--test",
         ],
     )
     assert result.exit_code == 0
@@ -37,6 +38,7 @@ def test_NL():
             "RTL",
             "-c",
             "GetIntent",
+            "--test",
         ],
     )
     assert result.exit_code == 0
@@ -50,6 +52,7 @@ def test_NL_reuse():
             "--config",
             f"{data_src}/intents_nl.cfg",
             "--reuse",
+            "--test",
         ],
     )
     assert result.exit_code == 0

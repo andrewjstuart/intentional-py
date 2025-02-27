@@ -1,10 +1,10 @@
+import re
+import zipfile
 from rich import print
 from rich.console import Console
 from rich.table import Table
 from rich import box
-import re
 from pathlib import Path
-import zipfile
 
 
 def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:

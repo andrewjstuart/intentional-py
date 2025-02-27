@@ -253,14 +253,14 @@ Test files are included within this repository and can be ran using `uv run pyte
 platform win32 -- Python 3.13.2, pytest-8.3.4, pluggy-1.5.0
 rootdir: ~\intentional-py
 configfile: pyproject.toml
-collected 10 items                                                                                                                                                                                            
+collected 11 items     
 
-src\intentional_py\tests\test_version.py .                                                      [ 10%] 
-src\intentional_py\tests\test_validate.py .                                                     [ 20%]
-src\intentional_py\tests\test_extract.py ...                                                    [ 50%]
-src\intentional_py\tests\test_DD.py ..                                                          [ 70%]
+src\intentional_py\tests\test_version.py .                                                      [  9%] 
+src\intentional_py\tests\test_validate.py ..                                                    [ 27%]
+src\intentional_py\tests\test_extract.py ...                                                    [ 54%]
+src\intentional_py\tests\test_DD.py ..                                                          [ 72%]
 src\intentional_py\tests\test_NL.py ...                                                         [100%]
 
 
-========================================= 10 passed in 4.97s ========================================= 
+========================================= 11 passed in 5.10s ========================================= 
 ```

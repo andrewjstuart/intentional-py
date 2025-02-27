@@ -1,3 +1,7 @@
+import csv
+import sys
+import uuid
+import json
 from rich import print
 from rich.console import Console
 from rich.table import Table
@@ -9,10 +13,7 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
-import csv
 from pathlib import Path
-import uuid
-import json
 from time import perf_counter
 from intentional_py import utils as utils
 
@@ -68,8 +69,9 @@ def intents(
     file_cnt: int = 0
     ml_disabled_set: set = set()
 
-    # check if config file contains a path, the training phrases will match the config location
-    (default_path, temp_file, temp_file_extension) = utils.check_for_path(config)
+    # check if config file contains a path, the training phrases will be in CWD unless testing
+    (config_path, temp_file, temp_file_extension) = utils.check_for_path(config)
+    default_path = Path.cwd() if not test else config_path
 
     t1_start = perf_counter()
     # read the config file
@@ -672,7 +674,7 @@ def nl_config(
     if not config.exists():
         table_row.append("[red]FAIL[/red]")
         print("[red][bold]Abort processing...[/bold][/red]")
-        exit()
+        sys.exit(1)
     else:
         table_row.append("[green]COMPLETE[/green]")
 
@@ -703,6 +705,8 @@ def nl_config(
                         break
                     else:
                         print("\n[bold][red]Abort processing...[/bold][/red]")
-                        exit()  # quit the program, after notifying of the duplications
+                        sys.exit(
+                            1
+                        )  # quit the program, after notifying of the duplications
                 except ValueError:
                     print("Invalid input. Please enter 'yes' or 'no'")

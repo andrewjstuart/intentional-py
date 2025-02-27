@@ -2,6 +2,7 @@ import shutil
 import pyxlsb
 import openpyxl
 import datetime
+import sys
 from pathlib import Path
 from rich import print
 from rich.console import Console
@@ -27,10 +28,13 @@ def excel_data(
     file_extension: str
 
     (xl_file_path, xl_file, file_extension) = utils.check_for_path(xl_file)
+    # this may have changed, especially for testing, but we want to keep the
+    # phrase file in the same directory we're running this from
+    default_path: Path = Path.cwd() if not test else xl_file_path
 
     if file_extension not in [".xlsb", ".xlsm", ".xlsx"]:
         print(f"Extension {file_extension} is not a valid EXCEL extension supported.")
-        exit()
+        sys.exit(1)
 
     # setup progress bars
     # Define custom progress bar
@@ -54,7 +58,7 @@ def excel_data(
 
     # set up path to save files
     # set phrase file path
-    phrase_file_path: Path = Path(xl_file_path, "Training Phrases", language)
+    phrase_file_path: Path = Path(default_path, "Training Phrases", language)
     phrase_file_path = (
         Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
     )
@@ -115,7 +119,7 @@ def excel_data(
                 phrase_dict[phrase_file] = phrase_list
         else:
             print(f"[red]File not supported[/red]: {xl_file}")
-            exit()
+            sys.exit(1)
 
         # print the rows from the dictionary
         file_cnt: int = 0
