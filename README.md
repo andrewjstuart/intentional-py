@@ -245,7 +245,8 @@ Once the executable is either created or pulled from the repository, it can be r
 
 ## Testing
 
-Test files are included within this repository and can be ran using `uv run pytest`. The tests are basic sanity checks and written located in the `tests` directory. These should be expanded on in the future.
+Test files are included within this repository. The tests are basic sanity checks and written located in the `tests` directory. These should be expanded on in the future.
+First install pytest using `uv pip install pytest`, then run the test using `uv run pytest`.
 
 ```bash
 [~intentional-py]> uv run pytest
