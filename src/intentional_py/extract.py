@@ -20,9 +20,7 @@ from rich.table import Table
 from intentional_py import utils as utils
 
 
-def excel_data(
-    xl_file: Path, mode: str, language: str, quiet: bool, test: bool
-) -> None:
+def excel_data(xl_file: Path, mode: str, language: str, quiet: bool, test: bool) -> None:
     t1_start = perf_counter()
 
     xl_file_path: Path
@@ -43,10 +41,7 @@ def excel_data(
         progress_bar = Progress(TextColumn(f"Processing [green]{xl_file}[/green]"))
     else:
         progress_bar = Progress(
-            TextColumn(
-                f"Processing [green]{xl_file}[/green]:"
-                + " [progress.percentage]{task.percentage:>3.0f}%\n"
-            ),
+            TextColumn(f"Processing [green]{xl_file}[/green]:" + " [progress.percentage]{task.percentage:>3.0f}%\n"),
             BarColumn(bar_width=15),
             MofNCompleteColumn(),
             # TextColumn("•"),
@@ -60,9 +55,7 @@ def excel_data(
     # set up path to save files
     # set phrase file path
     phrase_file_path: Path = Path(default_path, "Training Phrases", language)
-    phrase_file_path = (
-        Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
-    )
+    phrase_file_path = Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
 
     # zip existing file if it already exists, so nothing is overwritten
     if phrase_file_path.exists():

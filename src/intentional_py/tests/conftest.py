@@ -15,10 +15,7 @@ def pytest_collection_modifyitems(session, config, items):
     ]
     # OR
     # function_order = ["test_one[1]", "test_two[2]"]
-    function_mapping = {
-        item: item.name.split("[")[0] if "]" not in function_order[0] else item.name
-        for item in items
-    }
+    function_mapping = {item: item.name.split("[")[0] if "]" not in function_order[0] else item.name for item in items}
 
     sorted_items = items.copy()
     for func_ in function_order:

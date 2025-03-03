@@ -154,9 +154,7 @@ def natural_language(
     file_not_exist: bool = not config.exists()
     if not reuse or file_not_exist:
         if file_not_exist:
-            print(
-                f"Existing config [red]{config}[/red] not found, creating [yellow]new config[/yellow]"
-            )
+            print(f"Existing config [red]{config}[/red] not found, creating [yellow]new config[/yellow]")
             # uses default name and intent
         if not vertical:
             use_vertical: str = typer.prompt(
@@ -229,39 +227,27 @@ def extract(
     # we'll always have a language and mode because of defaults
     if language.lower() not in valid_langs:
         print("[red]Invalid language code used![/red]")
-        new_language: str = typer.prompt(
-            f"Please provide a valid language code such as {valid_langs}: "
-        )
+        new_language: str = typer.prompt(f"Please provide a valid language code such as {valid_langs}: ")
         if new_language.lower() not in valid_langs:
-            print(
-                "[red]Invalid language code used![/red]\n[bold][red]Abort processing...[/bold][/red]"
-            )
+            print("[red]Invalid language code used![/red]\n[bold][red]Abort processing...[/bold][/red]")
             sys.exit(1)
         else:
             language = new_language
     if mode.lower() not in valid_modes:
         print("[red]Invalid mode used![/red]")
-        new_mode: str = typer.prompt(
-            f"Please provide a valid mode such as {valid_modes}: "
-        )
+        new_mode: str = typer.prompt(f"Please provide a valid mode such as {valid_modes}: ")
         if new_mode.lower() not in valid_modes:
-            print(
-                "[red]Invalid mode used![/red]\n[bold][red]Abort processing...[/bold][/red]"
-            )
+            print("[red]Invalid mode used![/red]\n[bold][red]Abort processing...[/bold][/red]")
             sys.exit(1)
         else:
             mode = new_mode
 
     if xl_file is None:
-        new_xl_file: str = typer.prompt(
-            "Please provide an EXCEL filename (or path) to use for extraction"
-        )
+        new_xl_file: str = typer.prompt("Please provide an EXCEL filename (or path) to use for extraction")
         xl_file = Path(new_xl_file)
 
     if not xl_file.exists() and not xl_file.is_file():
-        print(
-            f"{xl_file} does [red]NOT[/red] exist as a file.\n[bold][red]Abort processing...[/bold][/red]"
-        )
+        print(f"{xl_file} does [red]NOT[/red] exist as a file.\n[bold][red]Abort processing...[/bold][/red]")
         sys.exit(1)
     quiet = False if test else quiet
     extracting.excel_data(xl_file, mode.upper(), language.lower(), quiet, test)

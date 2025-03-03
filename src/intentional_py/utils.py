@@ -247,9 +247,7 @@ def zip_directory(directory_path: Path, zip_path: Path) -> None:
         directory_path (Path): directory to zip
         zip_path (Path): path to save the zip file
     """
-    with zipfile.ZipFile(
-        zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
-    ) as zippy:
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zippy:
         for file_path in directory_path.rglob("*"):
             zippy.write(file_path, arcname=file_path.relative_to(directory_path))
 

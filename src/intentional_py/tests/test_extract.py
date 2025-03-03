@@ -19,11 +19,7 @@ def test_extract_exceptions():
 
     result = runner.invoke(app, ["extract", "--file", f"{data_src}/{file}"])
     assert result.exit_code == 1
-    assert (
-        f"{temp_output_path}{file} does NOT exist as a file."
-        + "\nAbort processing...\n"
-        in result.stdout
-    )
+    assert f"{temp_output_path}{file} does NOT exist as a file." + "\nAbort processing...\n" in result.stdout
 
 
 def test_extract_XLSM():
@@ -32,12 +28,7 @@ def test_extract_XLSM():
     xl_output_path: str = f"{output_path}\\en\\NL"
     result = runner.invoke(app, ["extract", "--file", f"{data_src}/{file}", "--test"])
     assert result.exit_code == 0
-    assert (
-        f"Exporting data to: {xl_output_path}"
-        + f"\nProcessing {file}"
-        + "\nextract complete\n"
-        in result.stdout
-    )
+    assert f"Exporting data to: {xl_output_path}" + f"\nProcessing {file}" + "\nextract complete\n" in result.stdout
 
     file: str = "NL_Spanish_Data.xlsm"
     xl_output_path: str = f"{output_path}\\es\\NL"
@@ -53,12 +44,7 @@ def test_extract_XLSM():
         ],
     )
     assert result.exit_code == 0
-    assert (
-        f"Exporting data to: {xl_output_path}"
-        + f"\nProcessing {file}"
-        + "\nextract complete\n"
-        in result.stdout
-    )
+    assert f"Exporting data to: {xl_output_path}" + f"\nProcessing {file}" + "\nextract complete\n" in result.stdout
     # clean up Training Phrase directory
     training_phrase_path: Path = Path(data_src, "Training Phrases")
     if training_phrase_path.exists():
@@ -71,12 +57,7 @@ def test_extract_XLSB():
     xl_output_path: str = f"{output_path}\\en\\NL"
     result = runner.invoke(app, ["extract", "--file", f"{data_src}/{file}", "--test"])
     assert result.exit_code == 0
-    assert (
-        f"Exporting data to: {xl_output_path}"
-        + f"\nProcessing {file}"
-        + "\nextract complete\n"
-        in result.stdout
-    )
+    assert f"Exporting data to: {xl_output_path}" + f"\nProcessing {file}" + "\nextract complete\n" in result.stdout
 
     file: str = "NL_Spanish_Data.xlsb"
     xl_output_path: str = f"{output_path}\\es\\NL"
@@ -92,11 +73,6 @@ def test_extract_XLSB():
         ],
     )
     assert result.exit_code == 0
-    assert (
-        f"Exporting data to: {xl_output_path}"
-        + f"\nProcessing {file}"
-        + "\nextract complete\n"
-        in result.stdout
-    )
+    assert f"Exporting data to: {xl_output_path}" + f"\nProcessing {file}" + "\nextract complete\n" in result.stdout
 
     # does not clean up, because they're used by the NL test
