@@ -57,11 +57,11 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pyinstaller", specifier = ">=6.11.1" },
+    { name = "pyinstaller", specifier = ">=6.12.0" },
     { name = "pyxlsb", specifier = ">=1.0.10" },
     { name = "rich", specifier = ">=13.9.4" },
-    { name = "ruff", specifier = ">=0.8.4" },
-    { name = "typer", specifier = ">=0.15.1" },
+    { name = "ruff", specifier = ">=0.9.9" },
+    { name = "typer", specifier = ">=0.15.2" },
 ]
 
 [[package]]
