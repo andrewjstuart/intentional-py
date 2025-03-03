@@ -1,8 +1,9 @@
-from typer.testing import CliRunner
-from intentional_py import intentional
-from pathlib import Path
 import shutil
+from pathlib import Path
 
+from typer.testing import CliRunner
+
+from intentional_py import intentional
 
 runner = CliRunner()
 
@@ -65,7 +66,6 @@ def test_extract_XLSM():
 
 
 def test_extract_XLSB():
-
     # Extract Data XLSB
     file: str = "NL_English_Data.xlsb"
     xl_output_path: str = f"{output_path}\\en\\NL"

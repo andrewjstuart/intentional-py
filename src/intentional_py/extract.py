@@ -1,13 +1,13 @@
-import shutil
-import pyxlsb
-import openpyxl
 import datetime
+import shutil
 import sys
 from pathlib import Path
-from rich import print
+from time import perf_counter
+
+import openpyxl
+import pyxlsb
+from rich import box, print
 from rich.console import Console
-from rich.table import Table
-from rich import box
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -15,7 +15,8 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
-from time import perf_counter
+from rich.table import Table
+
 from intentional_py import utils as utils
 
 
@@ -130,7 +131,7 @@ def excel_data(
             with phrase_file.open(mode="w", encoding="utf-8") as f:
                 for line in phrases:
                     phrases_cnt += 1
-                    f.write(f"{"".join(line)}\n")
+                    f.write(f"{''.join(line)}\n")
 
     t1_stop = perf_counter()
     time = f"{t1_stop - t1_start:.3f} s"

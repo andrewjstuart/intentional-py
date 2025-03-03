@@ -20,7 +20,6 @@ def test_validate_exceptions():
 
 
 def test_validate():
-
     # validate
     result = runner.invoke(app, ["validate", "--test"])
     assert result.exit_code == 0

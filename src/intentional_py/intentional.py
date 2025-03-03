@@ -1,15 +1,17 @@
-import typer
 import re
-import typer.core
 import sys
+from pathlib import Path
+from typing import Optional
+
+import typer
+import typer.core
 from rich import print
 from typing_extensions import Annotated
-from pathlib import Path
+
 from intentional_py import __app_name__, __version__
 from intentional_py import build_intents as build
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
-from typing import Optional
 
 
 class AliasGroup(typer.core.TyperGroup):

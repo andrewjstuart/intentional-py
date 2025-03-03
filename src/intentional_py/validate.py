@@ -1,7 +1,9 @@
 import csv
 from pathlib import Path
+
 from rich import print
 from rich.table import Table
+
 from intentional_py import utils as utils
 
 

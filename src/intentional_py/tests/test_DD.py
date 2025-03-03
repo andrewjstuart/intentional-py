@@ -1,7 +1,9 @@
-from typer.testing import CliRunner
-from intentional_py import intentional
 import shutil
 from pathlib import Path
+
+from typer.testing import CliRunner
+
+from intentional_py import intentional
 
 runner = CliRunner()
 
@@ -11,7 +13,6 @@ data_src: str = "./src/intentional_py/tests/data"
 
 # tests the DD functionality of intentional
 def test_DD_exceptions():
-
     # empty config
     result = runner.invoke(app, ["--config", f"{data_src}/empty_intents.cfg"])
     assert result.exit_code == 0

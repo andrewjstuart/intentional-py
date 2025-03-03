@@ -1,11 +1,12 @@
 import csv
+import json
 import sys
 import uuid
-import json
-from rich import print
+from pathlib import Path
+from time import perf_counter
+
+from rich import box, print
 from rich.console import Console
-from rich.table import Table
-from rich import box
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -13,8 +14,8 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
-from pathlib import Path
-from time import perf_counter
+from rich.table import Table
+
 from intentional_py import utils as utils
 
 

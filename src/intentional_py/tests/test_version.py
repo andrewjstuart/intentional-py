@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
-from intentional_py import intentional
 
+from intentional_py import intentional
 
 runner = CliRunner()
 
