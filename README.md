@@ -116,8 +116,8 @@ Intent Creation/
 |   │   └───NL
 │   ├───es/
 |   │   └───NL
-├─intents.cfg
-├─intents_nl.cfg    
+├───intents.cfg
+├───intents_nl.cfg    
 ```
 
 The output will be created in the `intents` directory.

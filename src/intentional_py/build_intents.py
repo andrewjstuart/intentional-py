@@ -50,12 +50,8 @@ def intents(
             ),
             BarColumn(bar_width=15),
             MofNCompleteColumn(),
-            # TextColumn("•"),
             TextColumn("|"),
-            # TimeElapsedColumn(),
             TimeRemainingColumn(elapsed_when_finished=True),
-            # TextColumn("|"),
-            # TimeRemainingColumn(),
         )
     files_to_write: dict = {}
     data: dict = {}
@@ -192,10 +188,6 @@ def create_json(
         dtmf_value,
         machine_learning,
     ) = row
-    # print(row)
-    # print(
-    #    f"Intent: {df_intent} | Context: {df_context} | Language: {language} | Action: {action} | Entity: {df_entity} | DTMF: {dtmf_value} | ML: {machine_learning}"
-    # )
 
     files_to_write: dict = {}  # variable to store all the files to write
     # counters
@@ -456,7 +448,7 @@ def create_json(
                     row_str: str = "".join(row)  # convert to string
                     phrase_data: dict = json.loads(phrase_json)
                     phrase_data["id"] = str(uuid.uuid4())
-                    (entity_list, temp_phrase_list) = utils.check_phrase_for_entity(row_str)
+                    (_, temp_phrase_list) = utils.check_phrase_for_entity(row_str)  # temp variable for entity_list
                     if len(temp_phrase_list) > 1:
                         new_phrase_list: list = []
                         for phrase in temp_phrase_list:
@@ -471,7 +463,9 @@ def create_json(
                                 }
                                 """
                                 entity_code: list = phrase.split("|")  # splits it between the entity and the phrase
-                                (ent_type, ent_name, ent_value, ent_required) = utils.check_alias(entity_code[0])
+                                (ent_type, ent_name, _, _) = utils.check_alias(
+                                    entity_code[0]
+                                )  # temp variable for ent_value, ent_required
                                 entity_data: dict = json.loads(entity_json)
                                 entity_data["text"] = entity_code[1]
                                 entity_data["meta"] = ent_type
@@ -498,7 +492,7 @@ def create_json(
                     phrases_cnt += 1  # store for return
         else:
             # don't print when nomatch is the file
-            if not str(phrase_file) == "nomatch.txt":
+            if str(phrase_file) != "nomatch.txt":
                 (
                     print(
                         f"\n[red]Phrase file [blue]{phrase_file}[/blue] does not exist in {phrase_file_path}![/red]\n"
@@ -534,6 +528,7 @@ def nl_config(config: Path, vertical: str, context: str, lowercase: bool, quiet:
         context (str): context used to reference all the intents at the same time
         lowercase (bool): flag to adjust the action to be lowercase and is only used by specific clients
         quiet (bool): Suppress most standard output to terminal.
+        test (bool): not currently used in this function, but included for consistency
     """
     # check if config file contains a path, the training phrases will match the config location
     (config_file_path, config_file_name, temp_file_extension) = utils.check_for_path(config)
@@ -625,7 +620,6 @@ def nl_config(config: Path, vertical: str, context: str, lowercase: bool, quiet:
                 # if ACTION ends in "-NM", the action changes to 'nomatch', and the intent name is adjusted
                 # and because we're already returning as a lowercase 'nomatch', the lowercase option is redundant
                 if action.endswith("-NM"):
-                    # intent = f"{vertical}.{str(action).rstrip("-NM").capitalize()}"
                     intent = intent.rstrip("-Nm")
                     config_file.write(f"{intent},{context},{lang},nomatch,{entity},{dtmf},{str(ml).upper()}\n")
 
