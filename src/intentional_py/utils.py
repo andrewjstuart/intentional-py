@@ -1,10 +1,10 @@
 import re
 import zipfile
-from rich import print
+from pathlib import Path
+
+from rich import box, print
 from rich.console import Console
 from rich.table import Table
-from rich import box
-from pathlib import Path
 
 
 def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
@@ -247,9 +247,7 @@ def zip_directory(directory_path: Path, zip_path: Path) -> None:
         directory_path (Path): directory to zip
         zip_path (Path): path to save the zip file
     """
-    with zipfile.ZipFile(
-        zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
-    ) as zippy:
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zippy:
         for file_path in directory_path.rglob("*"):
             zippy.write(file_path, arcname=file_path.relative_to(directory_path))
 

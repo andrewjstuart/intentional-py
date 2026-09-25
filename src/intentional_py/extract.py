@@ -1,13 +1,13 @@
-import shutil
-import pyxlsb
-import openpyxl
 import datetime
+import shutil
 import sys
 from pathlib import Path
-from rich import print
+from time import perf_counter
+
+import openpyxl
+import pyxlsb
+from rich import box, print
 from rich.console import Console
-from rich.table import Table
-from rich import box
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -15,13 +15,12 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
-from time import perf_counter
+from rich.table import Table
+
 from intentional_py import utils as utils
 
 
-def excel_data(
-    xl_file: Path, mode: str, language: str, quiet: bool, test: bool
-) -> None:
+def excel_data(xl_file: Path, mode: str, language: str, quiet: bool, test: bool) -> None:
     t1_start = perf_counter()
 
     xl_file_path: Path
@@ -42,10 +41,7 @@ def excel_data(
         progress_bar = Progress(TextColumn(f"Processing [green]{xl_file}[/green]"))
     else:
         progress_bar = Progress(
-            TextColumn(
-                f"Processing [green]{xl_file}[/green]:"
-                + " [progress.percentage]{task.percentage:>3.0f}%\n"
-            ),
+            TextColumn(f"Processing [green]{xl_file}[/green]:" + " [progress.percentage]{task.percentage:>3.0f}%\n"),
             BarColumn(bar_width=15),
             MofNCompleteColumn(),
             # TextColumn("•"),
@@ -59,9 +55,7 @@ def excel_data(
     # set up path to save files
     # set phrase file path
     phrase_file_path: Path = Path(default_path, "Training Phrases", language)
-    phrase_file_path = (
-        Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
-    )
+    phrase_file_path = Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
 
     # zip existing file if it already exists, so nothing is overwritten
     if phrase_file_path.exists():
@@ -130,7 +124,7 @@ def excel_data(
             with phrase_file.open(mode="w", encoding="utf-8") as f:
                 for line in phrases:
                     phrases_cnt += 1
-                    f.write(f"{"".join(line)}\n")
+                    f.write(f"{''.join(line)}\n")
 
     t1_stop = perf_counter()
     time = f"{t1_stop - t1_start:.3f} s"

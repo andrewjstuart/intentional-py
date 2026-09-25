@@ -1,6 +1,6 @@
 [project]
 name = "intentional-py"
-version = "1.0.2"
+version = "1.0.3"
 description = "This is a script to create Dialogflow ES Intents"
 readme = "README.md"
 authors = [
@@ -9,11 +9,11 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "openpyxl>=3.1.5",
-    "pyinstaller>=6.11.1",
+    "pyinstaller>=6.22.3",
     "pyxlsb>=1.0.10",
-    "rich>=13.9.4",
-    "ruff>=0.8.4",
-    "typer>=0.15.1",
+    "rich>=14.2.0",
+    "ruff>=0.16.9",
+    "typer>=0.27.2",
 ]
 
 [project.scripts]

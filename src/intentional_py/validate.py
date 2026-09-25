@@ -1,7 +1,9 @@
 import csv
 from pathlib import Path
+
 from rich import print
 from rich.table import Table
+
 from intentional_py import utils as utils
 
 
@@ -100,9 +102,7 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
         # check both standard config files
         if not test and not quiet:
             print("Using [purple]STANDARD[/purple] config files")
-        config_list.extend(
-            [Path(Path.cwd(), "intents.cfg"), Path(Path.cwd(), "intents_nl.cfg")]
-        )
+        config_list.extend([Path(Path.cwd(), "intents.cfg"), Path(Path.cwd(), "intents_nl.cfg")])
     else:
         # check for this config file
         config_list.append(config)
@@ -150,18 +150,14 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
                         error_list.append(f"[red]No intent provided![/red]: {row}")
                         issues_found = True
                     if "-" in df_intent:
-                        error_list.append(
-                            f"[red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]"
-                        )
+                        error_list.append(f"[red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]")
                         issues_found = True
 
                     if not df_context:
                         error_list.append(f"[red]No context provided![/red]: {row}")
                         issues_found = True
                     if "." in df_context:
-                        error_list.append(
-                            f"[red]Incorrect context name:[/red] [blue]{df_context}[/blue]"
-                        )
+                        error_list.append(f"[red]Incorrect context name:[/red] [blue]{df_context}[/blue]")
                         issues_found = True
 
                     if language not in {"en", "es", "fr", "dtmf"}:
@@ -178,9 +174,7 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
                         # check that action exists in language
                         phrase_file: str = f"{action}.txt"
                         # set phrase file path
-                        phrase_file_path: Path = Path(
-                            Path.cwd(), "Training Phrases", language
-                        )
+                        phrase_file_path: Path = Path(Path.cwd(), "Training Phrases", language)
                         test_path = Path(phrase_file_path, phrase_file)
                         if not test_path.exists():
                             # check for it in NL path
@@ -213,9 +207,7 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
                                 ]
                             )
                         ):
-                            error_list.append(
-                                f"[red]INVALID DTMF VALUE! [blue]{dtmf_list}[/blue][/red]"
-                            )
+                            error_list.append(f"[red]INVALID DTMF VALUE! [blue]{dtmf_list}[/blue][/red]")
                             issues_found = True
 
                     if machine_learning and machine_learning.lower() not in {

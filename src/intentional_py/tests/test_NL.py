@@ -1,7 +1,9 @@
-from typer.testing import CliRunner
-from intentional_py import intentional
 import shutil
 from pathlib import Path
+
+from typer.testing import CliRunner
+
+from intentional_py import intentional
 
 runner = CliRunner()
 

@@ -1,11 +1,12 @@
 import csv
+import json
 import sys
 import uuid
-import json
-from rich import print
+from pathlib import Path
+from time import perf_counter
+
+from rich import box, print
 from rich.console import Console
-from rich.table import Table
-from rich import box
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -13,8 +14,8 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
-from pathlib import Path
-from time import perf_counter
+from rich.table import Table
+
 from intentional_py import utils as utils
 
 
@@ -39,9 +40,7 @@ def intents(
     # Define custom progress bar
     if test:
         progress_bar = Progress(
-            TextColumn(
-                f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"
-            ),
+            TextColumn(f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"),
         )
     else:
         progress_bar = Progress(
@@ -51,12 +50,8 @@ def intents(
             ),
             BarColumn(bar_width=15),
             MofNCompleteColumn(),
-            # TextColumn("•"),
             TextColumn("|"),
-            # TimeElapsedColumn(),
             TimeRemainingColumn(elapsed_when_finished=True),
-            # TextColumn("|"),
-            # TimeRemainingColumn(),
         )
     files_to_write: dict = {}
     data: dict = {}
@@ -79,9 +74,7 @@ def intents(
         reader = csv.reader(file)
         rows = [row for row in reader if any(row)]  # Filter out empty rows
         if len(rows) == 0:
-            print(
-                f"[red]Config file does not contain data[/red]: [cyan]{config}[/cyan]"
-            )
+            print(f"[red]Config file does not contain data[/red]: [cyan]{config}[/cyan]")
             return
         # Use custom progress bar
         with progress_bar as p:
@@ -117,9 +110,7 @@ def intents(
     time = f"{t1_stop - t1_start:.3f} s"
 
     # print a table with useful or interesting stats
-    table = Table(
-        "Time", "Intents", "Phrases", "Entities", "Languages", "Files", box=box.ROUNDED
-    )
+    table = Table("Time", "Intents", "Phrases", "Entities", "Languages", "Files", box=box.ROUNDED)
 
     if nomatch_cnt:
         table.add_column("NoMatch")
@@ -197,10 +188,6 @@ def create_json(
         dtmf_value,
         machine_learning,
     ) = row
-    # print(row)
-    # print(
-    #    f"Intent: {df_intent} | Context: {df_context} | Language: {language} | Action: {action} | Entity: {df_entity} | DTMF: {dtmf_value} | ML: {machine_learning}"
-    # )
 
     files_to_write: dict = {}  # variable to store all the files to write
     # counters
@@ -292,20 +279,14 @@ def create_json(
     dtmf_list: list = []
     if dtmf_value:
         dtmf_list = dtmf_value.split("|")
-        if not (
-            set(dtmf_list).issubset(
-                ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "#", "*"]
-            )
-        ):
+        if not (set(dtmf_list).issubset(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "#", "*"])):
             print(f"[red]INVALID DTMF VALUE! [blue]{dtmf_list}[/blue][/red]")
 
     if not machine_learning:
         machine_learning = "TRUE"  # default to true
     machine_learning = machine_learning.lower()
     if machine_learning not in {"true", "false"}:
-        print(
-            f"Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}"
-        )
+        print(f"Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}")
         return (
             files_to_write,
             intents_cnt,
@@ -425,14 +406,10 @@ def create_json(
 
     # set phrase file path
     phrase_file_path: Path = Path(default_path, "Training Phrases", language)
-    phrase_file_path = (
-        Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
-    )
+    phrase_file_path = Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
 
     if not phrase_file_path.exists():
-        print(
-            f"\n[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]\nCreating Path...\n"
-        )
+        print(f"\n[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]\nCreating Path...\n")
         phrase_file_path.mkdir(parents=True, exist_ok=True)
 
     # create phrase JSON
@@ -471,9 +448,7 @@ def create_json(
                     row_str: str = "".join(row)  # convert to string
                     phrase_data: dict = json.loads(phrase_json)
                     phrase_data["id"] = str(uuid.uuid4())
-                    (entity_list, temp_phrase_list) = utils.check_phrase_for_entity(
-                        row_str
-                    )
+                    (_, temp_phrase_list) = utils.check_phrase_for_entity(row_str)  # temp variable for entity_list
                     if len(temp_phrase_list) > 1:
                         new_phrase_list: list = []
                         for phrase in temp_phrase_list:
@@ -487,12 +462,10 @@ def create_json(
                                 "userDefined": true
                                 }
                                 """
-                                entity_code: list = phrase.split(
-                                    "|"
-                                )  # splits it between the entity and the phrase
-                                (ent_type, ent_name, ent_value, ent_required) = (
-                                    utils.check_alias(entity_code[0])
-                                )
+                                entity_code: list = phrase.split("|")  # splits it between the entity and the phrase
+                                (ent_type, ent_name, _, _) = utils.check_alias(
+                                    entity_code[0]
+                                )  # temp variable for ent_value, ent_required
                                 entity_data: dict = json.loads(entity_json)
                                 entity_data["text"] = entity_code[1]
                                 entity_data["meta"] = ent_type
@@ -519,7 +492,7 @@ def create_json(
                     phrases_cnt += 1  # store for return
         else:
             # don't print when nomatch is the file
-            if not str(phrase_file) == "nomatch.txt":
+            if str(phrase_file) != "nomatch.txt":
                 (
                     print(
                         f"\n[red]Phrase file [blue]{phrase_file}[/blue] does not exist in {phrase_file_path}![/red]\n"
@@ -544,9 +517,7 @@ def create_json(
     )
 
 
-def nl_config(
-    config: Path, vertical: str, context: str, lowercase: bool, quiet: bool, test: bool
-) -> None:
+def nl_config(config: Path, vertical: str, context: str, lowercase: bool, quiet: bool, test: bool) -> None:
     """Builds a config file for NL intent creation. It creates the file by reading the existing NL directories
     looking for text file corresponding the to intent names. These files contain training phrases for the
     intent the same as the directed dialog intent creation.
@@ -557,11 +528,10 @@ def nl_config(
         context (str): context used to reference all the intents at the same time
         lowercase (bool): flag to adjust the action to be lowercase and is only used by specific clients
         quiet (bool): Suppress most standard output to terminal.
+        test (bool): not currently used in this function, but included for consistency
     """
     # check if config file contains a path, the training phrases will match the config location
-    (config_file_path, config_file_name, temp_file_extension) = utils.check_for_path(
-        config
-    )
+    (config_file_path, config_file_name, temp_file_extension) = utils.check_for_path(config)
 
     nl_table = Table(
         "Building Config",
@@ -583,9 +553,7 @@ def nl_config(
     # set phrase file path
     phrase_file_path: Path = Path(config_file_path, "Training Phrases")
     if not phrase_file_path.exists():
-        print(
-            f"[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]"
-        )
+        print(f"[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]")
         return
 
     # determine languages available by the files available, and then which are used by the having text files
@@ -593,9 +561,7 @@ def nl_config(
     for lang in phrase_file_path.iterdir():
         lang_path: Path = Path(lang, "NL")
         if lang_path.exists():
-            filenames: list = [
-                item.name for item in lang_path.iterdir() if item.is_file()
-            ]
+            filenames: list = [item.name for item in lang_path.iterdir() if item.is_file()]
             for filename in filenames:
                 if filename.endswith(".txt"):
                     languages_used.add(lang)
@@ -654,21 +620,14 @@ def nl_config(
                 # if ACTION ends in "-NM", the action changes to 'nomatch', and the intent name is adjusted
                 # and because we're already returning as a lowercase 'nomatch', the lowercase option is redundant
                 if action.endswith("-NM"):
-                    # intent = f"{vertical}.{str(action).rstrip("-NM").capitalize()}"
                     intent = intent.rstrip("-Nm")
-                    config_file.write(
-                        f"{intent},{context},{lang},nomatch,{entity},{dtmf},{str(ml).upper()}\n"
-                    )
+                    config_file.write(f"{intent},{context},{lang},nomatch,{entity},{dtmf},{str(ml).upper()}\n")
 
                 elif lowercase:
                     # write it lowercase first, then with uppercase name
-                    config_file.write(
-                        f"{intent},{context},{lang},{action.lower()},{entity},{dtmf},{str(ml).upper()}\n"
-                    )
+                    config_file.write(f"{intent},{context},{lang},{action.lower()},{entity},{dtmf},{str(ml).upper()}\n")
 
-                config_file.write(
-                    f"{intent},{context},{lang},{action},{entity},{dtmf},{str(ml).upper()}\n"
-                )
+                config_file.write(f"{intent},{context},{lang},{action},{entity},{dtmf},{str(ml).upper()}\n")
 
     nl_table.add_column("Status")
     if not config.exists():
@@ -705,8 +664,7 @@ def nl_config(
                         break
                     else:
                         print("\n[bold][red]Abort processing...[/bold][/red]")
-                        sys.exit(
-                            1
-                        )  # quit the program, after notifying of the duplications
+                        # quit the program, after notifying of the duplications
+                        sys.exit(1)
                 except ValueError:
                     print("Invalid input. Please enter 'yes' or 'no'")

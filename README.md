@@ -116,8 +116,8 @@ Intent Creation/
 |   │   └───NL
 │   ├───es/
 |   │   └───NL
-├─intents.cfg
-├─intents_nl.cfg    
+├───intents.cfg
+├───intents_nl.cfg    
 ```
 
 The output will be created in the `intents` directory.
@@ -144,7 +144,7 @@ The config file for either mode can be substituted for the file passed in using 
 
 1. Both the `context` and DTMF values allow multiple entries separated by pipe (`|`)
 2. The `entity` value will allow brackets which are used to as the alias for the returned entity.
-    The default parameter name (alias) used by dialogflow is the entity name. Some clients have
+    The default parameter name (alias) used by Dialogflow is the entity name. Some clients have
     changed this value however and need special handling when using the script.
     - Example from config:
         - `,digits4[last_4],`
@@ -201,7 +201,7 @@ There are some special features of the NL intents.
 
 ### Special Features
 
-1. If an intent ends in `-NM` the return action will contain `nomatch` rather than the normal action. This indicates an intent that will get matched with phrases but is handled as nomatch by nerve and reprompted. This intent could be for phrases that get handled incorrectly by the dialogflow agent.
+1. If an intent ends in `-NM` the return action will contain `nomatch` rather than the normal action. This indicates an intent that will get matched with phrases but is handled as nomatch by nerve and reprompted. This intent could be for phrases that get handled incorrectly by the Dialogflow agent.
 2. If an intent ends with a caret (`^`) in the excel file then that will signal the intent to disable machine learning on that intent only. This can help with greedy phrases. This functions the same as setting the flag for non-NL intents.
 3. The config file that is built for NL will auto-populate fields based on file name (i.e. using ^) and also based on phrase information for entities.
 
@@ -245,15 +245,16 @@ Once the executable is either created or pulled from the repository, it can be r
 
 ## Testing
 
-Test files are included within this repository and can be ran using `uv run pytest`. The tests are basic sanity checks and written located in the `tests` directory. These should be expanded on in the future.
+Test files are included within this repository. The tests are basic sanity checks and written located in the `tests` directory. These should be expanded on in the future.
+First install pytest using `uv pip install pytest`, then run the test using `uv run pytest`.
 
 ```bash
 [~intentional-py]> uv run pytest
 ========================================= test session starts =========================================
-platform win32 -- Python 3.13.2, pytest-8.3.4, pluggy-1.5.0
+platform win32 -- Python 3.13.2, pytest-9.0.2, pluggy-1.6.0
 rootdir: ~\intentional-py
 configfile: pyproject.toml
-collected 11 items     
+collected 11 items 
 
 src\intentional_py\tests\test_version.py .                                                      [  9%] 
 src\intentional_py\tests\test_validate.py ..                                                    [ 27%]
@@ -261,6 +262,5 @@ src\intentional_py\tests\test_extract.py ...                                    
 src\intentional_py\tests\test_DD.py ..                                                          [ 72%]
 src\intentional_py\tests\test_NL.py ...                                                         [100%]
 
-
-========================================= 11 passed in 5.10s ========================================= 
+========================================= 11 passed in 8.97s ========================================= 
 ```
