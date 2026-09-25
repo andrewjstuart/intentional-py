@@ -165,5 +165,6 @@ def details(result: Result) -> list[tuple[Level, str]]:
             lines.append(
                 ("info" if check.ok else "error", f"{'✔' if check.ok else '✖'} {check.label}")
             )
-            lines.extend(("error", f"    {plain_text(d)}") for d in check.details)
+            level = "error" if not check.ok else "warning"
+            lines.extend((level, f"    {plain_text(d)}") for d in check.details)
     return lines

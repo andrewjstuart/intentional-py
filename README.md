@@ -252,7 +252,7 @@ The whole Excel file is read before anything is changed, so a file that cannot b
 
 This setting can be used to find possible issues BEFORE running the script. It highlights potential issues in missing directories, phrase files, and common typos in intent and context names. No files are created when using this setting, only information to the screen (or the GUI log).
 
-The Standard and NL builds also run these checks automatically before creating any JSON. Warnings (such as a missing phrase file or a defaulted language) are shown and the build continues; errors stop the build.
+The Standard and NL builds run the same config checks automatically before creating any JSON, so `validate` reports exactly what a build would. Errors (such as a missing intent, context or action, or an intent name containing `-`) fail the check and would stop a build. Warnings (such as a missing phrase file, a `.` in a context, or a defaulted language) are listed but a build would continue. Phrase files are looked for in both the language folder and its `NL` folder.
 
 ## Installation/Running the script
 

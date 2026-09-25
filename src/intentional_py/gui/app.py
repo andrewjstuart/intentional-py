@@ -58,13 +58,13 @@ class App(ctk.CTk):
         ctk.CTkButton(
             frame, text="Browse…", width=90, command=self._browse_project
         ).grid(row=0, column=2, **PAD)
-        self.version_label = ctk.CTkLabel(frame, text=f"v{__version__}", text_color="gray")
-        self.version_label.grid(row=0, column=3, **PAD)
+        ctk.CTkLabel(frame, text=f"v{__version__}", text_color="gray").grid(
+            row=0, column=3, **PAD
+        )
 
     def _build_tabs(self) -> None:
         tabs = ctk.CTkTabview(self, height=250)
         tabs.grid(row=1, column=0, sticky="ew", padx=10, pady=(6, 0))
-        self.tabs = tabs
         self._build_dd_tab(self._tab(tabs, "Build DD"))
         self._build_nl_tab(self._tab(tabs, "Build NL"))
         self._build_extract_tab(self._tab(tabs, "Extract"))
@@ -143,7 +143,7 @@ class App(ctk.CTk):
         ctk.CTkButton(frame, text="Clear", width=70, command=self._clear_log).grid(
             row=0, column=1, **PAD
         )
-        self.log = ctk.CTkTextbox(frame, wrap="word", font=ctk.CTkFont(family="Courier", size=12))
+        self.log = ctk.CTkTextbox(frame, wrap="word", font=ctk.CTkFont(family="Consolas", size=12))
         self.log.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(0, 10))
         for level, color in LEVEL_COLORS.items():
             self.log.tag_config(level, foreground=color)
@@ -337,7 +337,3 @@ def launch() -> None:
     if len(sys.argv) > 1:
         app.after(200, lambda: app.show_cli_notice(sys.argv[1:]))
     app.mainloop()
-
-
-if __name__ == "__main__":
-    main()

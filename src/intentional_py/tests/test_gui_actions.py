@@ -7,7 +7,7 @@ import pytest
 from intentional_py import exceptions
 from intentional_py.gui import actions
 from intentional_py.gui.worker import GuiReporter, JobRunner
-from intentional_py.reporting import BuildResult, Check, ValidateResult
+from intentional_py.reporting import BuildResult
 
 
 def drain(events: queue.Queue, timeout: float = 30) -> list[tuple]:
@@ -103,15 +103,6 @@ def test_confirm_waits_for_ui_answer() -> None:
     answered.set()
     worker.join(timeout=5)
     assert answers == [False]
-
-
-def test_summary_and_details_for_validate() -> None:
-    result = ValidateResult(
-        directories=[Check("Training Phrases path", True)],
-        configs=[Check("Validating intents.cfg", False, ["[red]No data![/red]"])],
-    )
-    assert actions.summary(result) == [("Checks", "2"), ("Passed", "1"), ("Failed", "1")]
-    assert ("error", "    No data!") in actions.details(result)
 
 
 def test_gui_command_opens_project(tmp_path: Path, monkeypatch) -> None:

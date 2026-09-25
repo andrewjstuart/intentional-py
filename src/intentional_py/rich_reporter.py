@@ -43,15 +43,11 @@ class RichReporter:
             self.console.print(text)
 
     def table(
-        self,
-        columns: list[str],
-        rows: list[list[str]],
-        level: Level = "info",
-        title: str = "",
+        self, columns: list[str], rows: list[list[str]], level: Level = "info"
     ) -> None:
         if self._hidden(level):
             return
-        table = Table(*columns, title=title, box=box.ROUNDED)
+        table = Table(*columns, box=box.ROUNDED)
         for row in rows:
             table.add_row(*row)
         self.console.print(table)
@@ -130,16 +126,19 @@ class RichReporter:
             if result.used_standard_configs:
                 self.console.print("Using [purple]STANDARD[/purple] config files")
             self.console.print(self._grid(result.config_files))
-        self.console.print(self._grid(result.configs, show_details=not self.quiet))
+        for check in result.configs:
+            self.console.print(self._grid([check]))
+            if not self.quiet:
+                for detail in check.details:
+                    # details can contain paths, so they are printed without markup
+                    style = "red" if detail.startswith("Error") else "yellow"
+                    self.console.print(f"    {detail}", style=style, markup=False)
 
     @staticmethod
-    def _grid(checks: list[Check], show_details: bool = False) -> Table:
+    def _grid(checks: list[Check]) -> Table:
         grid = Table.grid(expand=False)
         grid.add_column(ratio=1, no_wrap=True)
         grid.add_column(ratio=1, no_wrap=True, justify="center")
         for check in checks:
             grid.add_row(check.label, _OK if check.ok else _FAIL)
-            if show_details:
-                for detail in check.details:
-                    grid.add_row(f"{'.' * 5} {detail}", "")
         return grid

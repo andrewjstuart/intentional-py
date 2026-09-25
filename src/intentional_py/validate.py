@@ -8,17 +8,18 @@ and reports on missing components with visual feedback.
 import csv
 from pathlib import Path
 
-from intentional_py import constants, exceptions, utils
+from intentional_py import constants, utils
 from intentional_py.reporting import Check, Reporter, ValidateResult
 
 
 def preflight_config(
-    config: Path, base_path: Path, mode: str
+    config: Path, base_path: Path, mode: str | None
 ) -> tuple[list[list[str]], list[str], list[str]]:
     """Validate and normalize config rows before a build starts.
 
     Missing required values and malformed rows are fatal. Values that the
     builder can safely default are normalized and returned as warnings.
+    With mode None, phrase files may be in either the DD or the NL folder.
     """
     fatal_errors: list[str] = []
     warnings: list[str] = []
@@ -94,12 +95,13 @@ def preflight_config(
 
         if action and language != "dtmf" and action != "nomatch":
             phrase_path = base_path / constants.DEFAULT_TRAINING_PHRASES_DIR / language
-            if mode == "NL":
-                phrase_path = phrase_path / "NL"
-            phrase_file = utils.find_phrase_file(phrase_path, action)
-            if not phrase_file.exists():
+            phrase_dirs = {"DD": [phrase_path], "NL": [phrase_path / "NL"]}.get(
+                mode, [phrase_path, phrase_path / "NL"]
+            )
+            phrase_files = [utils.find_phrase_file(path, action) for path in phrase_dirs]
+            if not any(phrase_file.exists() for phrase_file in phrase_files):
                 warnings.append(
-                    f"Row {row_number}: phrase file '{phrase_file}' was not found; "
+                    f"Row {row_number}: phrase file '{phrase_files[0]}' was not found; "
                     "the intent will be generated without those phrases."
                 )
 
@@ -150,116 +152,18 @@ def validate(config: Path, base_dir: Path, reporter: Reporter) -> ValidateResult
         config_list.append(config)
 
     # check if config files exist
-    error_list: list = []
     for file in config_list:
-        file_path: Path
-        (file_path, file, _) = utils.check_for_path(file)
+        if not file.is_file():
+            result.config_files.append(Check(f"Checking for {file.name}", False))
+            continue
+        result.config_files.append(Check(f"Checking for {file.name}", True))
 
-        column1 = f"Checking for {file.name}"
-        if Path(file_path, file).is_file():
-            result.config_files.append(Check(column1, True))
-
-            # read config files if they exist
-            issues_found: bool = False
-            config_path = Path(file_path, file)
-            with utils.file_errors(config_path), config_path.open(
-                mode="r", encoding="utf-8"
-            ) as config_file:
-                reader = csv.reader(config_file)
-                rows = [row for row in reader if any(row)]  # Filter out empty rows
-                if len(rows) == 0:
-                    error_list.append("[red]No data![/red]")
-                    issues_found = True
-                for row_number, row in enumerate(rows, start=1):
-                    if len(row) != 7:
-                        raise exceptions.ValidationError(
-                            f"{file.name}, row {row_number}: expected 7 values, "
-                            f"found {len(row)}."
-                        )
-                    # annotations for variables
-                    df_intent: str
-                    df_context: str
-                    language: str
-                    action: str
-                    dtmf_value: str
-                    machine_learning: str
-                    (
-                        df_intent,
-                        df_context,
-                        language,
-                        action,
-                        _,  # df_entity not validated
-                        dtmf_value,
-                        machine_learning,
-                    ) = row
-
-                    # validate values of config file
-                    if not df_intent:
-                        error_list.append(f"[red]No intent provided![/red]: {row}")
-                        issues_found = True
-                    if "-" in df_intent:
-                        error_list.append(
-                            f"[red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]"
-                        )
-                        issues_found = True
-
-                    if not df_context:
-                        error_list.append(f"[red]No context provided![/red]: {row}")
-                        issues_found = True
-                    if "." in df_context:
-                        error_list.append(
-                            f"[red]Incorrect context name:[/red] [blue]{df_context}[/blue]"
-                        )
-                        issues_found = True
-
-                    if language not in (constants.VALID_LANGUAGES | {"dtmf"}):
-                        error_list.append(
-                            f"[red]Invalid language:[/red] [yellow]'{language}'[/yellow] for [blue]{df_intent}[/blue]"
-                        )
-                        issues_found = True
-
-                    if not action:
-                        error_list.append(f"[red]No action provided![/red]: {row}")
-                        issues_found = True
-
-                    if language != "dtmf" and action != "nomatch":
-                        # check that action exists in language
-                        phrase_file_path: Path = Path(
-                            base_dir, constants.DEFAULT_TRAINING_PHRASES_DIR, language
-                        )
-                        test_path = utils.find_phrase_file(phrase_file_path, action)
-                        if not test_path.exists():
-                            # check for it in NL path
-                            phrase_file_path = Path(phrase_file_path, "NL")
-                            test_path = utils.find_phrase_file(phrase_file_path, action)
-                            if not test_path.exists():
-                                # still not found
-                                error_list.append(
-                                    f"[red]Phrase file not found:[/red] [yellow]{language} {action}[/yellow]"
-                                )
-                                issues_found = True
-
-                    if dtmf_value:
-                        dtmf_list = dtmf_value.split("|")
-                        if not (set(dtmf_list).issubset(constants.VALID_DTMF_VALUES)):
-                            error_list.append(
-                                f"[red]INVALID DTMF VALUE! [blue]{dtmf_list}[/blue][/red]"
-                            )
-                            issues_found = True
-
-                    if machine_learning and machine_learning.lower() not in {
-                        "true",
-                        "false",
-                    }:
-                        error_list.append(
-                            f"Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}"
-                        )
-                        issues_found = True
-                column1 = f"Validating {file.name}"
-                result.configs.append(Check(column1, not issues_found, error_list))
-                error_list = []
-
-        else:
-            result.config_files.append(Check(column1, False))
+        # the same checks a build runs, so validate reports exactly what a build would
+        rows, errors, warnings = preflight_config(file, base_dir, None)
+        if not rows and not errors:
+            errors = ["The config file does not contain data."]
+        details = [f"Error: {error}" for error in errors]
+        details += [f"Warning: {warning}" for warning in warnings]
+        result.configs.append(Check(f"Validating {file.name}", not errors, details))
 
     return result

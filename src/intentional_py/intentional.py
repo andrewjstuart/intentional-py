@@ -28,11 +28,6 @@ from intentional_py.rich_reporter import RichReporter
 console = Console()
 
 
-def _base_dir(file: Path, test: bool) -> Path:
-    # tests keep their data beside the input file instead of the CWD
-    return file.parent if test else Path.cwd()
-
-
 class AliasGroup(typer.core.TyperGroup):
     """Typer Group subclass that supports commands with aliases.
     To alias a command, include the aliases in the command name,
@@ -293,13 +288,11 @@ def extract(
             )
         quiet = False if test else quiet
         reporter = RichReporter(quiet=quiet, test=test)
+        # phrases go to the CWD; tests keep them beside the Excel file instead
+        base_dir = xl_file.parent if test else Path.cwd()
         reporter.show_extract(
             extracting.excel_data(
-                xl_file,
-                mode.upper(),
-                language.lower(),
-                _base_dir(xl_file, test),
-                reporter,
+                xl_file, mode.upper(), language.lower(), base_dir, reporter
             )
         )
     except exceptions.IntentionalException as e:
@@ -380,7 +373,3 @@ def gui(
         )
         raise typer.Exit(code=1)
     gui_app.main(project.resolve() if project else None)
-
-
-if __name__ == "__main__":
-    app()

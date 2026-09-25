@@ -275,25 +275,12 @@ def find_phrase_file(phrase_dir: Path, action: str) -> Path:
 
 
 def check_for_path(file_to_check: Path) -> tuple[Path, Path, str]:
-    """check the file to determine if there is a path value prefixed
+    """Split a file path into its folder, file name and extension.
 
     Args:
-        file_to_check (Path): file to check if it contains a path or uses implied CWD
+        file_to_check (Path): file, with or without a folder; a bare name gives Path(".")
 
     Returns:
         tuple[Path, Path, str]: returns the path, the file name with the extension, and the file extension
     """
-    if file_to_check.parent:
-        file_to_check_path = file_to_check.parent  # pull filepath from file
-        # file_with_extension: str = file_to_check.name  # pull filename from filepath
-        file: str = file_to_check.stem
-        file_extension: str = file_to_check.suffix  # store extension
-        file_to_check = Path(f"{file}{file_extension}")
-
-    else:
-        file: str = file_to_check.stem
-        file_extension: str = file_to_check.suffix  # store extension
-        file_to_check_path = Path.cwd()  # assume CWD for path
-        file_to_check = Path(f"{file}{file_extension}")
-
-    return (file_to_check_path, file_to_check, file_extension)
+    return (file_to_check.parent, Path(file_to_check.name), file_to_check.suffix)

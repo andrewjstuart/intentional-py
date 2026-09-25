@@ -137,68 +137,18 @@ def create_json(
     intents_cnt: int = 0
     phrases_cnt: int = 0
     entities_cnt: int = 0
-    langs_used: str = ""
     nomatch_cnt: int = 0
     ml_disabled_str: str = ""
 
-    # validate values
-    if not df_intent:
-        reporter.message("error", f"[red]No intent provided![/red]: {row}")
-        return (
-            files_to_write,
-            intents_cnt,
-            phrases_cnt,
-            entities_cnt,
-            langs_used,
-            nomatch_cnt,
-            ml_disabled_str,
-        )
-
-    if "-" in df_intent:
-        reporter.message(
-            "error", f"[red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]"
-        )
-
+    # rows come from preflight_config, which rejects missing values and normalizes language and ML
     # check for priority, appended to DF intent name with curly brackets {}
     df_intent, priority = utils.check_priority(df_intent)
 
-    if not df_context:
-        reporter.message("error", f"[red]No context provided![/red]: {row}")
-        return (
-            files_to_write,
-            intents_cnt,
-            phrases_cnt,
-            entities_cnt,
-            langs_used,
-            nomatch_cnt,
-            ml_disabled_str,
-        )
     language = language.lower()
-    dtmf_only: bool = False
-    if language == "dtmf":
-        dtmf_only = True
+    dtmf_only: bool = language == "dtmf"
+    if dtmf_only:
         language = constants.DEFAULT_LANGUAGE
-
-    if language not in constants.VALID_LANGUAGES:
-        reporter.message(
-            "warning",
-            f"[red]Invalid language:[/red] [yellow]'{language}'[/yellow] for [blue]{df_intent}[/blue], using [yellow]'{constants.DEFAULT_LANGUAGE}'[/yellow] as default.",
-        )
-        language = constants.DEFAULT_LANGUAGE
-
-    langs_used = language  # store for return
-
-    if not action:
-        reporter.message("error", f"[red]No action provided![/red]: {row}")
-        return (
-            files_to_write,
-            intents_cnt,
-            phrases_cnt,
-            entities_cnt,
-            langs_used,
-            nomatch_cnt,
-            ml_disabled_str,
-        )
+    langs_used: str = language  # store for return
 
     clean_action: str = action
 
@@ -210,40 +160,8 @@ def create_json(
     if clean_action.endswith("-NM"):
         clean_action = "nomatch"
 
-    # dtmf value is optional, unless language is dtmf
-    if dtmf_only and not dtmf_value:
-        reporter.message("error", f"[red]No DTMF value provided![/red]: {row}")
-        return (
-            files_to_write,
-            intents_cnt,
-            phrases_cnt,
-            entities_cnt,
-            langs_used,
-            nomatch_cnt,
-            ml_disabled_str,
-        )
-
-    dtmf_list: list = []
-    if dtmf_value:
-        dtmf_list = dtmf_value.split("|")
-
-    if not machine_learning:
-        machine_learning = constants.MACHINE_LEARNING_DEFAULT
+    dtmf_list: list = dtmf_value.split("|") if dtmf_value else []
     machine_learning = machine_learning.lower()
-    if machine_learning not in constants.VALID_ML_VALUES:
-        reporter.message(
-            "error",
-            f"Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}",
-        )
-        return (
-            files_to_write,
-            intents_cnt,
-            phrases_cnt,
-            entities_cnt,
-            langs_used,
-            nomatch_cnt,
-            ml_disabled_str,
-        )
 
     # set output file paths
     output_file_path: Path = Path(default_path, constants.DEFAULT_INTENTS_DIR)

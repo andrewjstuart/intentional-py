@@ -33,11 +33,7 @@ class GuiReporter:
         self.events.put(("message", level, plain_text(text).strip("\n")))
 
     def table(
-        self,
-        columns: list[str],
-        rows: list[list[str]],
-        level: Level = "info",
-        title: str = "",
+        self, columns: list[str], rows: list[list[str]], level: Level = "info"
     ) -> None:
         self.events.put(
             (
@@ -66,7 +62,6 @@ class GuiReporter:
 class JobRunner:
     def __init__(self) -> None:
         self.events: queue.Queue = queue.Queue()
-        self.thread: threading.Thread | None = None
 
     def start(self, job: Callable[[GuiReporter], Any]) -> None:
         reporter = GuiReporter(self.events)
@@ -80,5 +75,4 @@ class JobRunner:
                 # surface unexpected errors in the window instead of losing them on this thread
                 self.events.put(("failed", traceback.format_exc()))
 
-        self.thread = threading.Thread(target=run, daemon=True)
-        self.thread.start()
+        threading.Thread(target=run, daemon=True).start()

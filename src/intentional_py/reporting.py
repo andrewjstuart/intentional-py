@@ -18,11 +18,7 @@ class Reporter(Protocol):
     def message(self, level: Level, text: str) -> None: ...
 
     def table(
-        self,
-        columns: list[str],
-        rows: list[list[str]],
-        level: Level = "info",
-        title: str = "",
+        self, columns: list[str], rows: list[list[str]], level: Level = "info"
     ) -> None: ...
 
     def track(self, items: Sequence[T], label: str) -> Iterator[T]: ...
