@@ -6,15 +6,17 @@ readme = "README.md"
 authors = [
     { name = "Andrew Stuart", email = "andrewjstuart4@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
-    "openpyxl>=3.1.5",
-    "pyinstaller>=6.22.3",
-    "pyxlsb>=1.0.10",
-    "rich>=14.2.0",
-    "ruff>=0.16.9",
-    "typer>=0.27.2",
+    "openpyxl>=3.1.5,<4.0.0",
+    "pyxlsb>=1.0.10,<2.0.0",
+    "rich>=14.2.0,<15.0.0",
+    "typer>=0.27.2,<0.30.0",
 ]
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6.22.3,<7.0.0"]
+dev = ["pyinstaller>=6.22.3,<7.0.0", "ruff>=0.16.9,<0.20.0", "pytest>=7.0.0", "pytest-cov>=4.0.0"]
 
 [project.scripts]
 intentional-py = "intentional_py:main"

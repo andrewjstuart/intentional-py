@@ -15,13 +15,13 @@ data_src: str = "./src/intentional_py/tests/data"
 def test_DD_exceptions():
     # empty config
     result = runner.invoke(app, ["--config", f"{data_src}/empty_intents.cfg"])
-    assert result.exit_code == 0
-    assert "Config file does not contain data: \nsrc\\intentional_py\\tests\\data\\empty_intents.cfg\n" in result.stdout
+    assert result.exit_code == 1
+    assert "Config file does not contain data" in result.stdout
 
     # incorrect config, does not exist
     result = runner.invoke(app, ["--config", f"{data_src}/incorrect_config.cfg"])
-    assert result.exit_code == 0
-    assert "\nConfig file src\\intentional_py\\tests\\data\\incorrect_config.cfg does not exist!\n\n" in result.stdout
+    assert result.exit_code == 1
+    assert "Config file does not exist" in result.stdout
 
 
 def test_DD():

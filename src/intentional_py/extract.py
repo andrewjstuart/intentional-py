@@ -1,6 +1,12 @@
+"""Extract training phrases from Excel files.
+
+This module handles reading Excel files (.xlsb, .xlsm, .xlsx) and extracting
+training phrases into organized text files by language and mode (DD or NL).
+Includes backup functionality for existing phrase directories.
+"""
+
 import datetime
 import shutil
-import sys
 from pathlib import Path
 from time import perf_counter
 
@@ -17,10 +23,12 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from intentional_py import utils as utils
+from intentional_py import constants, exceptions, utils
 
 
-def excel_data(xl_file: Path, mode: str, language: str, quiet: bool, test: bool) -> None:
+def excel_data(
+    xl_file: Path, mode: str, language: str, quiet: bool, test: bool
+) -> None:
     t1_start = perf_counter()
 
     xl_file_path: Path
@@ -31,9 +39,10 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool, test: bool)
     # phrase file in the same directory we're running this from
     default_path: Path = Path.cwd() if not test else xl_file_path
 
-    if file_extension not in [".xlsb", ".xlsm", ".xlsx"]:
-        print(f"Extension {file_extension} is not a valid EXCEL extension supported.")
-        sys.exit(1)
+    if file_extension not in constants.SUPPORTED_EXCEL_EXTENSIONS:
+        raise exceptions.ExtractionError(
+            f"Unsupported file extension: {file_extension}. Supported: {constants.SUPPORTED_EXCEL_EXTENSIONS}"
+        )
 
     # setup progress bars
     # Define custom progress bar
@@ -41,7 +50,10 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool, test: bool)
         progress_bar = Progress(TextColumn(f"Processing [green]{xl_file}[/green]"))
     else:
         progress_bar = Progress(
-            TextColumn(f"Processing [green]{xl_file}[/green]:" + " [progress.percentage]{task.percentage:>3.0f}%\n"),
+            TextColumn(
+                f"Processing [green]{xl_file}[/green]:"
+                + " [progress.percentage]{task.percentage:>3.0f}%\n"
+            ),
             BarColumn(bar_width=15),
             MofNCompleteColumn(),
             # TextColumn("•"),
@@ -54,8 +66,12 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool, test: bool)
 
     # set up path to save files
     # set phrase file path
-    phrase_file_path: Path = Path(default_path, "Training Phrases", language)
-    phrase_file_path = Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
+    phrase_file_path: Path = Path(
+        default_path, constants.DEFAULT_TRAINING_PHRASES_DIR, language
+    )
+    phrase_file_path = (
+        Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
+    )
 
     # zip existing file if it already exists, so nothing is overwritten
     if phrase_file_path.exists():
@@ -112,8 +128,9 @@ def excel_data(xl_file: Path, mode: str, language: str, quiet: bool, test: bool)
                 phrase_file = Path(phrase_file_path, f"{sheet_name}.txt")
                 phrase_dict[phrase_file] = phrase_list
         else:
-            print(f"[red]File not supported[/red]: {xl_file}")
-            sys.exit(1)
+            raise exceptions.ExtractionError(
+                f"[red]Unsupported file format[/red]: {xl_file}"
+            )
 
         # print the rows from the dictionary
         file_cnt: int = 0

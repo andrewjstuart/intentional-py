@@ -1,3 +1,14 @@
+"""Utility functions for intentional-py.
+
+Provides helper functions for:
+- Priority parsing from intent names
+- Entity alias checking and handling
+- Phrase entity extraction and processing
+- File path utilities
+- Directory zipping for backups
+- Duplicate phrase detection
+"""
+
 import re
 import zipfile
 from pathlib import Path
@@ -5,6 +16,8 @@ from pathlib import Path
 from rich import box, print
 from rich.console import Console
 from rich.table import Table
+
+from intentional_py import constants
 
 
 def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
@@ -65,22 +78,10 @@ def check_priority(df_intent: str) -> tuple[str, str]:
     Returns:
         tuple[str, str]: The final intent name and the priority value
     """
-    priority: str = "500000"  # default to "normal" priority
+    priority: int = constants.DEFAULT_PRIORITY
     matches: list = re.findall(r"\{(.*?)\}", df_intent)  # search for {}
     if matches:
-        priority_dict: dict = {
-            "1": 1000000,
-            "2": 750000,
-            "3": 500000,
-            "4": 250000,
-            "5": -1,
-            "highest": 1000000,
-            "high": 750000,
-            "normal": 500000,
-            "low": 250000,
-            "ignore": -1,
-        }
-        priority = priority_dict[matches[0]]
+        priority = constants.PRIORITY_MAP.get(matches[0], constants.DEFAULT_PRIORITY)
     intent_split: list = df_intent.split("{", 1)
     intent: str = intent_split[0]
 
@@ -247,7 +248,9 @@ def zip_directory(directory_path: Path, zip_path: Path) -> None:
         directory_path (Path): directory to zip
         zip_path (Path): path to save the zip file
     """
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zippy:
+    with zipfile.ZipFile(
+        zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as zippy:
         for file_path in directory_path.rglob("*"):
             zippy.write(file_path, arcname=file_path.relative_to(directory_path))
 
