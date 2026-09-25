@@ -9,11 +9,11 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "openpyxl>=3.1.5",
-    "pyinstaller>=6.13.0",
+    "pyinstaller>=6.22.3",
     "pyxlsb>=1.0.10",
-    "rich>=14.0.0",
-    "ruff>=0.11.8",
-    "typer>=0.15.3",
+    "rich>=14.2.0",
+    "ruff>=0.16.9",
+    "typer>=0.27.2",
 ]
 
 [project.scripts]
