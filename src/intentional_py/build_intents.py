@@ -11,32 +11,24 @@ import uuid
 from pathlib import Path
 from time import perf_counter
 
-from rich import box, print
-from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    TextColumn,
-    TimeRemainingColumn,
-)
-from rich.table import Table
-
-from intentional_py import constants, exceptions, utils, validate as validating
+from intentional_py import constants, exceptions, utils
+from intentional_py import validate as validating
+from intentional_py.reporting import BuildResult, Reporter
 
 
 def intents(
     mode: str,
     config: Path,
-    quiet: bool,
-    test: bool,
-) -> None:
+    base_dir: Path,
+    reporter: Reporter,
+) -> BuildResult:
     """Build the intents described in the config file. Perform simple sanity checking on input to enforce standards.
 
     Args:
         mode (str): Determine if it's directed dialog (DD) or Natural Language (NL) which selects the appropriate phrase directories and config files.
         config (Path): The name of the config file to use to build intents.
-        quiet (bool): Suppress most standard output to terminal.
+        base_dir (Path): Project directory containing the training phrases and receiving the intents.
+        reporter (Reporter): Receives messages and progress.
     """
     # check if config file exists
     if not Path(config).exists():
@@ -44,46 +36,15 @@ def intents(
             f"[red]Config file does not exist: [blue]{config}[/blue][/red]\n"
         )
 
-    # Define custom progress bar
-    if test:
-        progress_bar = Progress(
-            TextColumn(
-                f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"
-            ),
-        )
-    else:
-        progress_bar = Progress(
-            TextColumn(
-                f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]:"
-                + " [progress.percentage]{task.percentage:>3.0f}%\n"
-            ),
-            BarColumn(bar_width=15),
-            MofNCompleteColumn(),
-            TextColumn("|"),
-            TimeRemainingColumn(elapsed_when_finished=True),
-        )
     files_to_write: dict = {}
-    data: dict = {}
-    # counters
-    intents_cnt: int = 0
-    phrases_cnt: int = 0
-    entities_cnt: int = 0
+    result = BuildResult()
     langs_set: set = set()
-    nomatch_cnt: int = 0
-    file_cnt: int = 0
     ml_disabled_set: set = set()
 
-    # check if config file contains a path, the training phrases will be in CWD unless testing
-    (config_path, _temp_file, _temp_file_extension) = utils.check_for_path(config)
-    default_path = Path.cwd() if not test else config_path
-
     # Perform preflight validation on the config file to catch errors and warnings early
-    rows, fatal_errors, warnings = validating.preflight_config(
-        config, default_path, mode
-    )
-    if warnings and not quiet:
-        for warning in warnings:
-            print(f"[yellow]Warning:[/yellow] {warning}")
+    rows, fatal_errors, warnings = validating.preflight_config(config, base_dir, mode)
+    for warning in warnings:
+        reporter.message("warning", f"[yellow]Warning:[/yellow] {warning}")
     if fatal_errors:
         raise exceptions.ValidationError(
             "Configuration validation failed:\n"
@@ -96,92 +57,51 @@ def intents(
             f"[red]Config file does not contain data[/red]: [cyan]{config}[/cyan]"
         )
 
-    # Use custom progress bar
-    with progress_bar as p:
-        for row in p.track(rows):
-            (
-                data,
-                temp_intents,
-                temp_phrases,
-                temp_entities,
-                temp_lang,
-                temp_nomatch,
-                temp_ml,
-            ) = create_json(row, mode, default_path, quiet, test)
+    label = f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"
+    for row in reporter.track(rows, label):
+        (
+            data,
+            temp_intents,
+            temp_phrases,
+            temp_entities,
+            temp_lang,
+            temp_nomatch,
+            temp_ml,
+        ) = create_json(row, mode, base_dir, reporter)
 
-            # store output variables
-            files_to_write.update(data)
-            intents_cnt += temp_intents
-            phrases_cnt += temp_phrases
-            entities_cnt += temp_entities
+        files_to_write.update(data)
+        result.intents += temp_intents
+        result.phrases += temp_phrases
+        result.entities += temp_entities
+        if temp_lang:
             langs_set.add(temp_lang)
-            nomatch_cnt += temp_nomatch
-            if temp_ml:
-                ml_disabled_set.add(temp_ml)
+        result.nomatch += temp_nomatch
+        if temp_ml:
+            ml_disabled_set.add(temp_ml)
 
-        if files_to_write:
-            for file, data in files_to_write.items():
-                with open(file, mode="w", encoding="utf-8") as output:
-                    json.dump(data, output, indent=4)
+    for file, data in files_to_write.items():
+        with open(file, mode="w", encoding="utf-8") as output:
+            json.dump(data, output, indent=4)
 
-    # assign output variables and format correctly
-    file_cnt = len(files_to_write)
-    langs_used: str = ", ".join(sorted(langs_set))
-    t1_stop = perf_counter()
-    time = f"{t1_stop - t1_start:.3f} s"
-
-    # print a table with useful or interesting stats
-    table = Table(
-        "Time", "Intents", "Phrases", "Entities", "Languages", "Files", box=box.ROUNDED
-    )
-
-    if nomatch_cnt:
-        table.add_column("NoMatch")
-        table.add_row(
-            time,
-            str(intents_cnt),
-            str(phrases_cnt),
-            str(entities_cnt),
-            str(langs_used),
-            str(file_cnt),
-            str(nomatch_cnt),
-        )
-    else:
-        table.add_row(
-            time,
-            str(intents_cnt),
-            str(phrases_cnt),
-            str(entities_cnt),
-            str(langs_used),
-            str(file_cnt),
-        )
-
-    if test:
-        print("build complete")
-    else:
-        console = Console()
-        console.print(table) if not quiet else None
-
-        if ml_disabled_set:
-            ml_table = Table("Intents with ML Disabled", box=box.ROUNDED)
-            for phrase in ml_disabled_set:
-                ml_table.add_row(phrase)
-            console.print(ml_table) if not quiet else None
+    result.files = len(files_to_write)
+    result.languages = sorted(langs_set)
+    result.ml_disabled = sorted(ml_disabled_set)
+    result.elapsed = perf_counter() - t1_start
+    return result
 
 
 def create_json(
     row: list,
     mode: str,
     default_path: Path,
-    quiet: bool,
-    test: bool,
+    reporter: Reporter,
 ) -> tuple[dict, int, int, int, str, int, str]:
     """Create JSON files described by config rows
 
     Args:
         row (list): line from config file
         mode (str): Determine if it's directed dialog (DD) or Natural Language (NL) which selects the appropriate phrase directories
-        quiet (bool): Suppress most standard output to terminal.
+        reporter (Reporter): Receives messages.
 
     Returns:
         tuple[dict,int,int,int,int,int,str]
@@ -223,7 +143,7 @@ def create_json(
 
     # validate values
     if not df_intent:
-        print(f"[red]No intent provided![/red]: {row}")
+        reporter.message("error", f"[red]No intent provided![/red]: {row}")
         return (
             files_to_write,
             intents_cnt,
@@ -235,13 +155,15 @@ def create_json(
         )
 
     if "-" in df_intent:
-        print(f"[red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]")
+        reporter.message(
+            "error", f"[red]Incorrect intent name:[/red] [blue]{df_intent}[/blue]"
+        )
 
     # check for priority, appended to DF intent name with curly brackets {}
     df_intent, priority = utils.check_priority(df_intent)
 
     if not df_context:
-        print(f"[red]No context provided![/red]: {row}")
+        reporter.message("error", f"[red]No context provided![/red]: {row}")
         return (
             files_to_write,
             intents_cnt,
@@ -251,8 +173,6 @@ def create_json(
             nomatch_cnt,
             ml_disabled_str,
         )
-    if "." in df_context:
-        print(f"[red]Incorrect context name:[/red] [blue]{df_context}[/blue]")
     language = language.lower()
     dtmf_only: bool = False
     if language == "dtmf":
@@ -260,15 +180,16 @@ def create_json(
         language = constants.DEFAULT_LANGUAGE
 
     if language not in constants.VALID_LANGUAGES:
-        print(
-            f"[red]Invalid language:[/red] [yellow]'{language}'[/yellow] for [blue]{df_intent}[/blue], using [yellow]'{constants.DEFAULT_LANGUAGE}'[/yellow] as default."
+        reporter.message(
+            "warning",
+            f"[red]Invalid language:[/red] [yellow]'{language}'[/yellow] for [blue]{df_intent}[/blue], using [yellow]'{constants.DEFAULT_LANGUAGE}'[/yellow] as default.",
         )
         language = constants.DEFAULT_LANGUAGE
 
     langs_used = language  # store for return
 
     if not action:
-        print(f"[red]No action provided![/red]: {row}")
+        reporter.message("error", f"[red]No action provided![/red]: {row}")
         return (
             files_to_write,
             intents_cnt,
@@ -291,7 +212,7 @@ def create_json(
 
     # dtmf value is optional, unless language is dtmf
     if dtmf_only and not dtmf_value:
-        print(f"[red]No DTMF value provided![/red]: {row}")
+        reporter.message("error", f"[red]No DTMF value provided![/red]: {row}")
         return (
             files_to_write,
             intents_cnt,
@@ -305,15 +226,14 @@ def create_json(
     dtmf_list: list = []
     if dtmf_value:
         dtmf_list = dtmf_value.split("|")
-        if not (set(dtmf_list).issubset(constants.VALID_DTMF_VALUES)):
-            print(f"[red]INVALID DTMF VALUE! [blue]{dtmf_list}[/blue][/red]")
 
     if not machine_learning:
         machine_learning = constants.MACHINE_LEARNING_DEFAULT
     machine_learning = machine_learning.lower()
     if machine_learning not in constants.VALID_ML_VALUES:
-        print(
-            f"Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}"
+        reporter.message(
+            "error",
+            f"Machine Learning value needs to be [green]TRUE[/green] or [red]FALSE![/red]: {row}",
         )
         return (
             files_to_write,
@@ -441,8 +361,9 @@ def create_json(
     )
 
     if not phrase_file_path.exists():
-        print(
-            f"\n[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]\nCreating Path...\n"
+        reporter.message(
+            "warning",
+            f"\n[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]\nCreating Path...\n",
         )
         phrase_file_path.mkdir(parents=True, exist_ok=True)
 
@@ -473,7 +394,7 @@ def create_json(
     if not dtmf_only:
         # read the phrase file
         phrase_file_path = utils.find_phrase_file(phrase_file_path, action)
-        phrase_file: Path = Path(phrase_file_path.name)
+        # a missing phrase file is already reported by preflight_config
         if phrase_file_path.exists():
             with open(phrase_file_path, mode="r", encoding="utf-8") as file:
                 reader = csv.reader(file)
@@ -528,16 +449,6 @@ def create_json(
                     phrase_data["lang"] = language
                     phrase_list.append(phrase_data)
                     phrases_cnt += 1  # store for return
-        else:
-            # don't print when nomatch is the file
-            if str(phrase_file) != "nomatch.txt":
-                (
-                    print(
-                        f"\n[red]Phrase file [blue]{phrase_file}[/blue] does not exist in {phrase_file_path}![/red]\n"
-                    )
-                    if not test
-                    else None
-                )
 
     # print JSON file for phrase
     # with open(output_phrase_file, mode="w", encoding="utf-8") as phrase_output:
@@ -556,7 +467,7 @@ def create_json(
 
 
 def nl_config(
-    config: Path, vertical: str, context: str, lowercase: bool, quiet: bool, test: bool
+    config: Path, vertical: str, context: str, lowercase: bool, reporter: Reporter
 ) -> None:
     """Builds a config file for NL intent creation. It creates the file by reading the existing NL directories
     looking for text file corresponding the to intent names. These files contain training phrases for the
@@ -567,21 +478,14 @@ def nl_config(
         vertical (str): vertical abbreviation used in the intent names
         context (str): context used to reference all the intents at the same time
         lowercase (bool): flag to adjust the action to be lowercase and is only used by specific clients
-        quiet (bool): Suppress most standard output to terminal.
-        test (bool): not currently used in this function, but included for consistency
+        reporter (Reporter): Receives messages and answers the duplicate phrase prompt.
     """
     # check if config file contains a path, the training phrases will match the config location
     (config_file_path, config_file_name, _temp_file_extension) = utils.check_for_path(
         config
     )
 
-    nl_table = Table(
-        "Building Config",
-        "Vertical",
-        "Context",
-        title="",
-        box=box.ROUNDED,
-    )
+    table_columns: list = ["Building Config", "Vertical", "Context"]
     table_row: list = [
         f"{config_file_name}",
         f"{vertical}",
@@ -589,16 +493,17 @@ def nl_config(
     ]
 
     if lowercase:
-        nl_table.add_column("Lowercase")
+        table_columns.append("Lowercase")
         table_row.append(f"[cyan]{lowercase}[/cyan]")
 
     # set phrase file path
-    phrase_file_path: Path = Path(config_file_path, "Training Phrases")
+    phrase_file_path: Path = Path(
+        config_file_path, constants.DEFAULT_TRAINING_PHRASES_DIR
+    )
     if not phrase_file_path.exists():
-        print(
+        raise exceptions.FileSystemError(
             f"[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]"
         )
-        return
 
     # determine languages available by the files available, and then which are used by the having text files
     languages_used: set = set()
@@ -676,44 +581,35 @@ def nl_config(
                     f"{intent},{context},{lang},{action},{entity},{dtmf},{str(ml).upper()}\n"
                 )
 
-    nl_table.add_column("Status")
+    table_columns.append("Status")
     if not config.exists():
-        table_row.append("[red]FAIL[/red]")
         raise exceptions.ConfigurationError(
             f"Failed to create NL config file: {config}\n[red][bold]Abort processing...[/red][/bold]"
         )
-    else:
-        table_row.append("[green]COMPLETE[/green]")
-
-    nl_table.add_row(*table_row)
-    console = Console()
-    console.print(nl_table) if not quiet else None
+    table_row.append("[green]COMPLETE[/green]")
+    reporter.table(table_columns, [table_row])
 
     # check for duplicate phrases in the training phrases
     for lang in sorted(languages_used):
         lang_path: Path = Path(lang, "NL")
         lang = Path(lang.stem)
-        duplicates: set = utils.check_for_duplicate_phrases(lang_path, str(lang), quiet)
-        if duplicates:
-            duplicate_table = Table(
-                f"[red]Duplicate phrases found in [yellow]'{lang}'[/yellow][/red]",
-                box=box.ROUNDED,
+        duplicates, phrases_to_review = utils.check_for_duplicate_phrases(lang_path)
+        if phrases_to_review:
+            reporter.table(
+                [
+                    f"[red][bright_black]'uh'[/bright_black] and [bright_black]'um'[/bright_black] phrases found in [yellow]{lang}[/yellow][/red]"
+                ],
+                [[phrase] for phrase in phrases_to_review],
+                level="warning",
             )
-            for dup in duplicates:
-                duplicate_table.add_row(dup)
-            console = Console()
-            console.print(duplicate_table)
-
-            while True:
-                continue_yn: str = input("\nContinue processing files Y/N? ")
-                try:
-                    continue_flag: int = utils.strtobool(continue_yn)
-                    if continue_flag:
-                        break
-                    else:  # quit the program, after notifying of the duplications
-                        raise exceptions.IntentionalException(
-                            f"\n[bold][red]Abort processing...[/bold][/red]\n"
-                            "User aborted extraction due to duplicate phrases"
-                        )
-                except ValueError:
-                    print("Invalid input. Please enter 'yes' or 'no'")
+        if duplicates:
+            reporter.table(
+                [f"[red]Duplicate phrases found in [yellow]'{lang}'[/yellow][/red]"],
+                [[dup] for dup in sorted(duplicates)],
+                level="error",
+            )
+            if not reporter.confirm("Continue processing files"):
+                raise exceptions.IntentionalException(
+                    "\n[bold][red]Abort processing...[/bold][/red]\n"
+                    "User aborted due to duplicate phrases"
+                )

@@ -13,22 +13,17 @@ import re
 import zipfile
 from pathlib import Path
 
-from rich import box, print
-from rich.console import Console
-from rich.table import Table
-
 from intentional_py import constants
 
 
-def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
+def check_for_duplicate_phrases(directory: Path) -> tuple[set, list]:
     """Checks text files in the directory for duplicate phrases across all files
 
     Args:
         directory (Path): directory to search
-        lang (str): the language being searched
 
     Returns:
-        set: a set containing all duplicated phrases
+        tuple[set, list]: duplicated phrases, and phrases starting with 'uh' or 'um' to review
     """
     all_lines: set = set()
     duplicates: set = set()
@@ -49,19 +44,7 @@ def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
                     else:
                         all_lines.add(line)
 
-    if phrases_to_review:
-        uhum_table = Table(
-            f"[red][bright_black]'uh'[/bright_black] and [bright_black]'um'[/bright_black] phrases found in [yellow]{lang}[/yellow][/red]",
-            box=box.ROUNDED,
-            header_style="",
-        )
-        for phrase in phrases_to_review:
-            uhum_table.add_row(phrase)
-        console = Console()
-        if not quiet:
-            console.print(uhum_table)
-            print("")  # empty line
-    return duplicates
+    return duplicates, phrases_to_review
 
 
 def check_priority(df_intent: str) -> tuple[str, str]:

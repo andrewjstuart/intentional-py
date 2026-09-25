@@ -6,6 +6,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    from intentional_py.intentional import app
-
-    app()
+    main()

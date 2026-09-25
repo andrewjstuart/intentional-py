@@ -3,6 +3,7 @@
 - [Intentional (Python)](#intentional-python)
   - [Usage](#usage)
     - [Examples](#examples)
+  - [Graphical Interface (GUI)](#graphical-interface-gui)
   - [Directory Structure](#directory-structure)
   - [Configuration Files](#configuration-files)
     - [Design Document](#design-document)
@@ -14,25 +15,28 @@
   - [Extraction Mode](#extraction-mode)
   - [Validation Mode](#validation-mode)
   - [Installation/Running the script](#installationrunning-the-script)
+  - [Packaging the Windows executables](#packaging-the-windows-executables)
   - [Testing](#testing)
   
 Originally written in Perl, this script has been converted to Python for easier use and maintenance. This script is used to create Dialogflow ES Intents. It can be used in two modes: Standard and Natural Language (NL). The Standard mode is used to create intents based on the `intent.cfg` file. The NL mode is used to create intents based on the training phrases in the NL directory and uses `intents_nl.cfg` file. Standard mode is the default mode when not setting the NL flag.
 
+Everything is available from the command line (CLI) on Windows or Linux, and from a [graphical interface (GUI)](#graphical-interface-gui). Both can be run from source with uv, or as standalone Windows executables that do not need Python installed: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI).
+
 ## Usage
 
-The script is run from the command line using the `intentional.py` file. The script can be run using the `python -m` command or using the `uv run` command. The script has three main commands: `nl`, `extract`, and `validate`. The `nl` command is used to create intents using the NL mode. The `extract` command is used to extract data from an excel file and save the phrases into the correct directory. The `validate` command is used to validate directories, phrase files, and config files before running the script.
+The CLI is installed as the `intentional-cli` command and can also be run with `python -m intentional_py`. Besides the default Standard mode, the script has four commands: `nl`, `extract`, `validate`, and `gui`. The `nl` command is used to create intents using the NL mode. The `extract` command is used to extract data from an excel file and save the phrases into the correct directory. The `validate` command is used to validate directories, phrase files, and config files before running the script. The `gui` command opens the graphical interface.
 
-More information on using `uv run` and the `uv` tool can be found [here](https://astral.sh/blog/uv).
+More information on using `uv run` and the `uv` tool can be found [here](https://docs.astral.sh/uv/).
 
 ```unix
-PS> uv run python -m intentional_py --help
+PS> uv run intentional-cli --help
 
- Usage: intentional_py [OPTIONS] COMMAND [ARGS]...                                                                                                                                 
+ Usage: intentional-cli [OPTIONS] COMMAND [ARGS]...                                                                                                                                 
 
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ --version             -v                 Show the application's version and exit                                            │
-│ --config              -config      TEXT  Name of the config file when not using the standard files. [default: intents.cfg]  │
-│ --quiet               -q                 Use this flag to suppress output.                                                  │
+│ --config              -config      PATH  Name of the config file when not using the standard files. [default: intents.cfg]  │
+│ --quiet               -q                 Use this flag to suppress most output.                                             │
 │ --install-completion                     Install completion for the current shell.                                          │
 │ --show-completion                        Show completion for the current shell, to copy it or customize the installation.   │
 │ --help                                   Show this message and exit.                                                        │
@@ -40,13 +44,14 @@ PS> uv run python -m intentional_py --help
 ╭─ Commands ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ nl | natural-language   Use specific NL config and directories for training phrases.                                        │
 │ x | extract             Extract data from EXCEL file, saving phrases into correct directory                                 │
-│ validate                Optionally validate directories, phrase files, config files before running script                   |    
+│ validate                Optionally validate directories, phrase files, config files before running script                   │
+│ gui                     Open the graphical interface.                                                                       │
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run python -m intentional_py nl --help
+PS> uv run intentional-cli nl --help
 
- Usage: intentional_py nl [OPTIONS]                                                                                                                                                
+ Usage: intentional-cli nl [OPTIONS]                                                                                                                                                
 
  Use specific NL config and directories for training phrases.
 
@@ -63,9 +68,9 @@ PS> uv run python -m intentional_py nl --help
 ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run python -m intentional_py extract --help
+PS> uv run intentional-cli extract --help
 
- Usage: intentional_py extract [OPTIONS]                                                                                                                                                             
+ Usage: intentional-cli extract [OPTIONS]                                                                                                                                                             
 
  Extract data from EXCEL file, saving phrases into correct directory
 
@@ -80,9 +85,9 @@ PS> uv run python -m intentional_py extract --help
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
-PS> uv run python -m intentional_py validate --help
+PS> uv run intentional-cli validate --help
 
-Usage: intentional_py validate [OPTIONS]                                                                                                                                                            
+Usage: intentional-cli validate [OPTIONS]                                                                                                                                                            
 
  Optionally validate directories, phrase files, config files before running script
 
@@ -96,13 +101,42 @@ Usage: intentional_py validate [OPTIONS]
   
 ### Examples
 
-- `uv run python -m intentional_py`
-- `uv run python -m intentional_py nl -v FIN -c GetIntent -lc`
-- `uv run python -m intentional_py nl --reuse`
-- `uv run python -m intentional_py extract`
-- `uv run python -m intentional_py extract --file 'NL_English_Data.xlsm'`
-- `uv run python -m intentional_py validate --file test.cfg`
-- `uv run python -m intentional_py validate`
+- `uv run intentional-cli`
+- `uv run intentional-cli --config "C:\Projects\Billing\intents.cfg"`
+- `uv run intentional-cli nl -v FIN -c GetIntent -lc`
+- `uv run intentional-cli nl --reuse`
+- `uv run intentional-cli extract`
+- `uv run intentional-cli extract --file 'NL_English_Data.xlsm'`
+- `uv run intentional-cli validate --config test.cfg`
+- `uv run intentional-cli validate`
+- `uv run intentional-cli gui`
+- `uv run intentional-cli gui --project "C:\Projects\Billing"`
+
+The same commands work with the Windows executable by replacing `uv run intentional-cli` with `intentional-cli.exe`, for example `intentional-cli.exe nl -v FIN`.
+
+When `--config` is passed to the Standard or `nl` mode, the config file's folder is used for the `Training Phrases` input and the `intents` output. Without it, the default config file in the current directory is used. `validate --config` checks the folder of the config file passed in, or the standard config files in the current directory when no valid file is given.
+
+Configuration problems found before a build (missing intent, context or action, an intent name containing `-`, or a row without 7 values) stop the build before any file is written, so they can be fixed first.
+
+## Graphical Interface (GUI)
+
+The GUI provides the same features as the CLI. Start it with any of these:
+
+- `uv run intentional`
+- `uv run intentional-cli gui` (optionally with `--project <folder>` to open a project folder)
+- the standalone `intentional.exe` on Windows (see [Packaging the Windows executables](#packaging-the-windows-executables))
+
+The GUI does not take command-line options. If `intentional` or `intentional.exe` is started with any, it opens normally and shows a reminder to use `intentional-cli` instead.
+
+The window contains:
+
+- **Project folder**: the folder containing `Training Phrases`, the config files and the `intents` output. It defaults to the current directory. The version number is shown next to it.
+- **Build DD**: builds intents from a config file (blank uses `intents.cfg` in the project folder).
+- **Build NL**: builds the NL config and intents using the vertical prefix, context, and the "Reuse existing config" and "Lowercase actions" options.
+- **Extract**: extracts phrases from an Excel file into the project's `Training Phrases` folder for the selected mode and language.
+- **Validate**: validates a config file, or the standard config files when left blank.
+
+Progress, a summary of the results, and a log with warnings and errors are shown below the tabs. If duplicate phrases are found while building the NL config, a dialog asks whether to continue.
 
 ## Directory Structure
 
@@ -211,56 +245,56 @@ Use this setting as an alternative to exporting data from an excel file. These a
 
 ## Validation Mode
 
-This setting can be used to find possible issues BEFORE running the script. It highlights potential issues in missing directories, phrase files, and common typos in intent and context names. No files is created when using this setting, only information to the screen.
+This setting can be used to find possible issues BEFORE running the script. It highlights potential issues in missing directories, phrase files, and common typos in intent and context names. No files are created when using this setting, only information to the screen (or the GUI log).
+
+The Standard and NL builds also run these checks automatically before creating any JSON. Warnings (such as a missing phrase file or a defaulted language) are shown and the build continues; errors stop the build.
 
 ## Installation/Running the script
 
-This script is designed to be run from the command line. It is recommended to use a virtual environment to run the script. The script is written in Python 3.13.1.
+The project uses [uv](https://docs.astral.sh/uv/) to manage Python and the dependencies. Python 3.11 or newer is required. Clone the repository, open the directory with VSCode, and run these commands from the project folder:
 
-Clone this repository as normal and ensure you have python installed locally. Once the repository is cloned, open the directory with VSCode and run these commands to create a virtual environment and install the necessary packages when first ran:
+| Task | Command |
+|-|-|
+| Create or update the environment (CLI, GUI and dev tools) | `uv sync --extra dev --extra gui` |
+| CLI only | `uv sync` |
+| Run the CLI | `uv run intentional-cli --help` |
+| Run the GUI | `uv run intentional` or `uv run intentional-cli gui` |
+| Run the tests | `uv run pytest` |
+| Lint | `uv run ruff check src` |
+| Update the lock file after editing `pyproject.toml` | `uv lock` |
+| Upgrade the dependencies | `uv lock --upgrade` (or `python update_dependencies.py`) |
+
+The GUI packages are optional (`gui` extra), so the CLI can be installed without them. If `intentional-cli gui` is run without them, it explains how to install them.
+
+If uv reports `invalid peer certificate: UnknownIssuer` (common behind a corporate proxy), add `--system-certs` to the uv command to use the operating system's certificates.
+
+## Packaging the Windows executables
+
+The GUI and the CLI can each be built as a standalone Windows executable that does not require Python to be installed:
+
+| Executable | Spec file | Use |
+|-|-|-|
+| `intentional.exe` | `intentional-gui.spec` | The GUI. Opens without a console window. |
+| `intentional-cli.exe` | `intentional-cli.spec` | The CLI. Run it from a terminal with the same options as `intentional-cli`. |
+
+On Windows, from the project folder:
 
 ```bash
-uv venv
-uv run python -m intentional_py --help
+uv sync --extra dev --extra gui
+uv run pyinstaller --noconfirm intentional-gui.spec
+uv run pyinstaller --noconfirm intentional-cli.spec
 ```
 
-There is an alternative method to run the script on windows using the `intentional.exe` file, still using the command line. This is a standalone executable file and does not require Python to be installed on the machine. This is available in the [repository release](https://github.com/andrewjstuart/intentional-py/releases).
+The executables are created in the `dist` folder. The version is shown in the GUI's title bar and next to the project folder, and by `intentional-cli.exe --version`. Both spec files only build on Windows; on Linux the CLI is run with `uv run intentional-cli`.
 
-It was built using the following commands:
-
-```bash
-uv lock --upgrade
-uv build
-uv run pyinstaller --onefile src/intentional_py/intentional.py
-```
-
-Once the executable is either created or pulled from the repository, it can be run from the command line using the following commands:
-
-```bash
-./intentional.exe
-./intentional.exe nl -v FIN -c GetIntent -lc
-./intentional.exe nl --reuse
-./intentional.exe extract
-```
+`intentional-cli.exe` is meant to be run from a terminal (for example `intentional-cli.exe nl -v FIN`). Double-clicking it runs the default Standard mode using `intents.cfg` in the executable's folder, then the console closes immediately. The GUI is not included in `intentional-cli.exe`, so `intentional-cli.exe gui` points to `intentional.exe` instead.
 
 ## Testing
 
-Test files are included within this repository. The tests are basic sanity checks and written located in the `tests` directory. These should be expanded on in the future.
-First install pytest using `uv pip install pytest`, then run the test using `uv run pytest`.
+Test files are included within this repository in the `src/intentional_py/tests` directory. They cover the CLI commands, the preflight config checks, the core functions used by both front ends, and the GUI actions (no display is needed for these). Install the dev tools with `uv sync --extra dev --extra gui`, then run the tests using `uv run pytest`. The GUI command test is skipped if the `gui` extra is not installed.
 
 ```bash
-[~intentional-py]> uv run pytest
-========================================= test session starts =========================================
-platform win32 -- Python 3.13.2, pytest-9.0.2, pluggy-1.6.0
-rootdir: ~\intentional-py
-configfile: pyproject.toml
-collected 11 items 
-
-src\intentional_py\tests\test_version.py .                                                      [  9%] 
-src\intentional_py\tests\test_validate.py ..                                                    [ 27%]
-src\intentional_py\tests\test_extract.py ...                                                    [ 54%]
-src\intentional_py\tests\test_DD.py ..                                                          [ 72%]
-src\intentional_py\tests\test_NL.py ...                                                         [100%]
-
-========================================= 11 passed in 8.97s ========================================= 
+[~intentional-py]> uv run pytest -q
+...............................                                          [100%]
+31 passed in 78.28s (0:01:18)
 ```

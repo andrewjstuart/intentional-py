@@ -8,10 +8,8 @@ and reports on missing components with visual feedback.
 import csv
 from pathlib import Path
 
-from rich import print
-from rich.table import Table
-
 from intentional_py import constants, exceptions, utils
+from intentional_py.reporting import Check, Reporter, ValidateResult
 
 
 def preflight_config(
@@ -108,101 +106,42 @@ def preflight_config(
     return normalized_rows, fatal_errors, warnings
 
 
-def validate(config: Path, quiet: bool, test: bool) -> None:
+def validate(config: Path, base_dir: Path, reporter: Reporter) -> ValidateResult:
     """Validates the directories and files for the project.
 
     Args:
-        config (Path): config file to use for validation
-        quiet (bool): minimize output, only alerting for issues if found
+        config (Path): config file to use for validation; the standard config files are used if it does not exist
+        base_dir (Path): Project directory containing the training phrases and standard config files.
+        reporter (Reporter): Receives messages.
     """
-    grid = Table.grid(expand=False)
-    grid.add_column(ratio=1, no_wrap=True)
-    grid.add_column(ratio=1, no_wrap=True, justify="center")
-
-    print("[yellow]Validating directories and files[/yellow]\n") if not quiet else None
+    result = ValidateResult()
+    reporter.message("info", "[yellow]Validating directories and files[/yellow]\n")
 
     # check for directory structure
-    # set phrase file path
-    phrase_path: Path
-
-    (phrase_path, _, _) = utils.check_for_path(config)
-    # this may have changed, especially for testing, but we want to keep the
-    # phrase file in the same directory we're running this from
-    if test:
-        phrase_path = Path(phrase_path, constants.DEFAULT_TRAINING_PHRASES_DIR)
-    else:
-        phrase_path = Path(Path.cwd(), constants.DEFAULT_TRAINING_PHRASES_DIR)
-
-    column1: str = f"{constants.DEFAULT_TRAINING_PHRASES_DIR} path"
-    test_path: Path
-    if not phrase_path.exists():
-        grid.add_row(column1, " [red]:x:[/red]")
-    else:
-        grid.add_row(column1, " [green]:heavy_check_mark:[/green]")
-        # English
-        test_path = Path(phrase_path, "en")
-        column1 = "English path"
-        if not test_path.exists():
-            grid.add_row(column1, " [red]:x:[/red]")
-        else:
-            grid.add_row(column1, " [green]:heavy_check_mark:[/green]")
-            test_path = Path(test_path, "NL")
-            column1 = "English NL path"
-            if not test_path.exists():
-                grid.add_row(column1, " [red]:x:[/red]")
-            else:
-                grid.add_row(column1, " [green]:heavy_check_mark:[/green]")
-        # Spanish
-        test_path = Path(phrase_path, "es")
-        column1 = "Spanish path"
-        if not test_path.exists():
-            grid.add_row(column1, " [red]:x:[/red]")
-        else:
-            grid.add_row(column1, " [green]:heavy_check_mark:[/green]")
-            test_path = Path(test_path, "NL")
-            column1 = "Spanish NL path"
-            if not test_path.exists():
-                grid.add_row(column1, " [red]:x:[/red]")
-            else:
-                grid.add_row(column1, " [green]:heavy_check_mark:[/green]")
-        # French
-        test_path = Path(phrase_path, "fr")
-        column1 = "French path"
-        if not test_path.exists():
-            grid.add_row(column1, " [red]:x:[/red]")
-        else:
-            grid.add_row(column1, " [green]:heavy_check_mark:[/green]")
-            test_path = Path(test_path, "NL")
-            print("French NL path ... ", end="")
-            column1 = "French NL path"
-            if not test_path.exists():
-                grid.add_row(column1, " [red]:x:[/red]")
-            else:
-                grid.add_row(column1, " [green]:heavy_check_mark:[/green]")
-
-    if not test and not quiet:
-        print(grid)
-
-    grid2 = Table.grid(expand=False)
-    grid2.add_column(ratio=1, no_wrap=True)
-    grid2.add_column(ratio=1, no_wrap=True, justify="center")
-
-    errors = Table.grid(expand=False)
-    errors.add_column(ratio=1, no_wrap=True)
-    errors.add_column(ratio=1, no_wrap=True, justify="center")
-    error_column1 = "." * 5 + " "
-
-    final_grid = Table.grid(expand=False)
-    final_grid.add_column(ratio=1, no_wrap=True)
-    final_grid.add_column(ratio=1, no_wrap=True, justify="center")
+    phrase_path = Path(base_dir, constants.DEFAULT_TRAINING_PHRASES_DIR)
+    phrases_exist = phrase_path.exists()
+    result.directories.append(
+        Check(f"{constants.DEFAULT_TRAINING_PHRASES_DIR} path", phrases_exist)
+    )
+    if phrases_exist:
+        for code, name in constants.LANGUAGE_NAMES.items():
+            lang_path = Path(phrase_path, code)
+            lang_exists = lang_path.exists()
+            result.directories.append(Check(f"{name} path", lang_exists))
+            if lang_exists:
+                result.directories.append(
+                    Check(f"{name} NL path", Path(lang_path, "NL").exists())
+                )
 
     config_list: list = []
     if not config.is_file():
         # check both standard config files
-        if not test and not quiet:
-            print("Using [purple]STANDARD[/purple] config files")
+        result.used_standard_configs = True
         config_list.extend(
-            [Path(Path.cwd(), "intents.cfg"), Path(Path.cwd(), "intents_nl.cfg")]
+            [
+                Path(base_dir, constants.DEFAULT_DD_CONFIG),
+                Path(base_dir, constants.DEFAULT_NL_CONFIG),
+            ]
         )
     else:
         # check for this config file
@@ -215,8 +154,8 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
         (file_path, file, _) = utils.check_for_path(file)
 
         column1 = f"Checking for {file.name}"
-        if file_path.exists():
-            grid2.add_row(column1, " [green]:heavy_check_mark:[/green]")
+        if Path(file_path, file).is_file():
+            result.config_files.append(Check(column1, True))
 
             # read config files if they exist
             issues_found: bool = False
@@ -281,7 +220,7 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
                     if language != "dtmf" and action != "nomatch":
                         # check that action exists in language
                         phrase_file_path: Path = Path(
-                            Path.cwd(), constants.DEFAULT_TRAINING_PHRASES_DIR, language
+                            base_dir, constants.DEFAULT_TRAINING_PHRASES_DIR, language
                         )
                         test_path = utils.find_phrase_file(phrase_file_path, action)
                         if not test_path.exists():
@@ -312,28 +251,10 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
                         )
                         issues_found = True
                 column1 = f"Validating {file.name}"
-
-                if issues_found:
-                    final_grid.add_row(
-                        column1,
-                        " [red]:x:[/red]",
-                    )
-                    if not quiet:
-                        for error in error_list:
-                            final_grid.add_row(f"{error_column1}{error}", "")
-                    error_list = []
-                else:
-                    final_grid.add_row(
-                        column1,
-                        " [green]:heavy_check_mark:[/green]",
-                    )
+                result.configs.append(Check(column1, not issues_found, error_list))
+                error_list = []
 
         else:
-            grid2.add_row(column1, " [red]:x:[/red]")
+            result.config_files.append(Check(column1, False))
 
-    if test:
-        print("validation complete")
-    else:
-        print(grid2) if not quiet else None
-        print(errors) if not quiet else None
-        print(final_grid)
+    return result

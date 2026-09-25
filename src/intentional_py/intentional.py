@@ -10,21 +10,27 @@ Uses Typer with Rich formatting for a modern terminal experience.
 """
 
 import re
+import sys
 from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
 import typer.core
 from rich import print
-
 from rich.console import Console
 
 from intentional_py import __app_name__, __version__, constants, exceptions
 from intentional_py import build_intents as build
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
+from intentional_py.rich_reporter import RichReporter
 
 console = Console()
+
+
+def _base_dir(file: Path, test: bool) -> Path:
+    # tests keep their data beside the input file instead of the CWD
+    return file.parent if test else Path.cwd()
 
 
 class AliasGroup(typer.core.TyperGroup):
@@ -94,8 +100,11 @@ def main(
     # default to standard DD functionality
     if ctx.invoked_subcommand is None:
         quiet = False if test else quiet
+        reporter = RichReporter(quiet=quiet, test=test)
+        # the config's folder holds the training phrases and receives the intents
+        config = config.resolve()
         try:
-            build.intents("DD", config, quiet, test)
+            reporter.show_build(build.intents("DD", config, config.parent, reporter))
         except exceptions.IntentionalException as e:
             console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
             raise typer.Exit(code=1)
@@ -167,6 +176,10 @@ def natural_language(
     Use specific NL config and directories for training phrases.
     """
 
+    quiet = False if test else quiet
+    reporter = RichReporter(quiet=quiet, test=test)
+    # the config's folder holds the training phrases and receives the intents
+    config = config.resolve()
     try:
         # check if file exists, otherwise prompt for nl config file name
         file_not_exist: bool = not config.exists()
@@ -181,13 +194,9 @@ def natural_language(
                     "No vertical prefix abbreviation provided.\nEnter a vertical prefix abbreviation: "
                 )
                 vertical = use_vertical
-            build.nl_config(config, vertical, context, lowercase, quiet, test)
-        else:
-            # print("Reusing the previously created NL config file")
-            pass
+            build.nl_config(config, vertical, context, lowercase, reporter)
 
-        quiet = False if test else quiet
-        build.intents("NL", config, quiet, test)
+        reporter.show_build(build.intents("NL", config, config.parent, reporter))
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
         raise typer.Exit(code=1)
@@ -283,7 +292,16 @@ def extract(
                 f"{xl_file} does [red]NOT[/red] exist as a file.\n[bold][red]Abort processing...[/bold][/red]"
             )
         quiet = False if test else quiet
-        extracting.excel_data(xl_file, mode.upper(), language.lower(), quiet, test)
+        reporter = RichReporter(quiet=quiet, test=test)
+        reporter.show_extract(
+            extracting.excel_data(
+                xl_file,
+                mode.upper(),
+                language.lower(),
+                _base_dir(xl_file, test),
+                reporter,
+            )
+        )
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
         raise typer.Exit(code=1)
@@ -317,10 +335,51 @@ def validate(
     """
     try:
         quiet = False if test else quiet
-        validating.validate(config, quiet, test)
+        reporter = RichReporter(quiet=quiet, test=test)
+        # without a valid config file, the standard files in the CWD are validated
+        base_dir = config.resolve().parent if config.is_file() else Path.cwd()
+        reporter.show_validate(validating.validate(config, base_dir, reporter))
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
         raise typer.Exit(code=1)
+
+
+@app.command("gui")
+def gui(
+    project: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--project",
+            "-p",
+            help="Project folder to open in the GUI. [default: current directory]",
+        ),
+    ] = None,
+) -> None:
+    """
+    Open the graphical interface.
+    """
+    if project is not None and not project.is_dir():
+        console.print(
+            f"\n[bold][red]✗ Error:[/red][/bold] Project folder does not exist: {project}\n"
+        )
+        raise typer.Exit(code=1)
+    try:
+        # imported here so the CLI works without the optional GUI packages
+        from intentional_py.gui import app as gui_app
+    except ImportError as e:
+        if getattr(sys, "frozen", False):
+            # the packaged CLI leaves the GUI out; it ships as intentional.exe
+            hint = "Run [cyan]intentional.exe[/cyan] to open the GUI."
+        else:
+            hint = (
+                "Install it with [cyan]uv sync --extra gui[/cyan] or "
+                "[cyan]pip install intentional-py\\[gui][/cyan]."
+            )
+        console.print(
+            f"\n[bold][red]✗ Error:[/red][/bold] The GUI is not available ({e}).\n{hint}\n"
+        )
+        raise typer.Exit(code=1)
+    gui_app.main(project.resolve() if project else None)
 
 
 if __name__ == "__main__":

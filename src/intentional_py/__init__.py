@@ -7,5 +7,5 @@ Supports two modes:
 Also provides extraction from Excel files and validation utilities.
 """
 
-__app_name__ = "intentional"
+__app_name__ = "intentional-cli"
 __version__ = "1.0.5"

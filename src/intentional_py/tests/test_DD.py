@@ -28,7 +28,7 @@ def test_DD():
     # correct config
     result = runner.invoke(app, ["--config", f"{data_src}/intents.cfg", "--test"])
     assert result.exit_code == 0
-    assert f"Creating DD intents using {Path(data_src, 'intents.cfg')}\nbuild complete" in result.stdout
+    assert f"Creating DD intents using {Path(data_src, 'intents.cfg').resolve()}\nbuild complete" in result.stdout
 
     # clean up intents directory
     intent_path: Path = Path(data_src, "intents")
