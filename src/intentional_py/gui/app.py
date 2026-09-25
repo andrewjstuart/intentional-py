@@ -42,6 +42,7 @@ class App(ctk.CTk):
         self._build_tabs()
         self._build_status()
         self._build_log()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(POLL_MS, self._poll)
 
     # ----- layout -----
@@ -112,7 +113,7 @@ class App(ctk.CTk):
         )
         self.xl_language.grid(row=0, column=3, **PAD)
 
-        self._hint(tab, 2, "Phrases are saved under the project's Training Phrases folder; an existing language folder is zipped first.")
+        self._hint(tab, 2, "Phrases are saved under the project's Training Phrases folder; phrases being replaced are zipped first.")
         self._run_button(tab, 3, "Extract phrases", self._run_extract)
 
     def _build_validate_tab(self, tab: ctk.CTkFrame) -> None:
@@ -244,6 +245,16 @@ class App(ctk.CTk):
         self.running = running
         for button in self.run_buttons:
             button.configure(state="disabled" if running else "normal")
+
+    def _on_close(self) -> None:
+        # the worker thread is a daemon, so closing stops it mid-write
+        if self.running and not messagebox.askyesno(
+            "Intentional",
+            "A job is still running. Closing now may leave incomplete files.\n\nClose anyway?",
+            parent=self,
+        ):
+            return
+        self.destroy()
 
     # ----- events from the worker -----
 

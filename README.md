@@ -243,6 +243,11 @@ There are some special features of the NL intents.
 
 Use this setting as an alternative to exporting data from an excel file. These are mostly used to organize NL phrases, but could also be used to organize DD phrases. The expected format of the excel file is multiple tabs (intents) with phrases in the first column. Using the `extract` mode of this script will pull the phrases out and save them in the correct directory based on the language provided and the mode (DD or NL).
 
+The whole Excel file is read before anything is changed, so a file that cannot be read leaves the existing phrases untouched. The phrases being replaced are then saved to a timestamped zip file:
+
+- NL mode replaces the `Training Phrases/<language>/NL` folder and saves it as `Training Phrases/<language>/NL_<date>_<time>.zip`.
+- DD mode replaces only the `.txt` files directly in `Training Phrases/<language>` (the `NL` folder is kept) and saves them as `Training Phrases/<language>_<date>_<time>.zip`.
+
 ## Validation Mode
 
 This setting can be used to find possible issues BEFORE running the script. It highlights potential issues in missing directories, phrase files, and common typos in intent and context names. No files are created when using this setting, only information to the screen (or the GUI log).
@@ -262,7 +267,11 @@ The project uses [uv](https://docs.astral.sh/uv/) to manage Python and the depen
 | Run the tests | `uv run pytest` |
 | Lint | `uv run ruff check src` |
 | Update the lock file after editing `pyproject.toml` | `uv lock` |
-| Upgrade the dependencies | `uv lock --upgrade` (or `python update_dependencies.py`) |
+| Upgrade the dependencies | `uv run python update_dependencies.py` (add `--system-certs` if needed) |
+
+`update_dependencies.py` upgrades every dependency, including the `gui` and `dev` extras, to the newest release allowed by the ranges in `pyproject.toml`, syncs the environment, and then lists any dependency with a newer release outside its range (`latest: ...`). Raise that range in `pyproject.toml` by hand after checking the release notes, then run the script again.
+
+Text files (config and phrase files) must be saved as UTF-8. A file in another encoding, a file locked by another program (such as Excel), or an Excel file that cannot be read stops the run with a message naming the file.
 
 The GUI packages are optional (`gui` extra), so the CLI can be installed without them. If `intentional-cli gui` is run without them, it explains how to install them.
 
@@ -285,7 +294,7 @@ uv run pyinstaller --noconfirm intentional-gui.spec
 uv run pyinstaller --noconfirm intentional-cli.spec
 ```
 
-The executables are created in the `dist` folder. The version is shown in the GUI's title bar and next to the project folder, and by `intentional-cli.exe --version`. Both spec files only build on Windows; on Linux the CLI is run with `uv run intentional-cli`.
+The executables are created in the `dist` folder. The version is shown in the GUI's title bar and next to the project folder, by `intentional-cli.exe --version`, and in each executable's file properties (Explorer > Properties > Details). The file properties are generated from the version in `pyproject.toml` by `version_info.py`. Both spec files only build on Windows; on Linux the CLI is run with `uv run intentional-cli`.
 
 `intentional-cli.exe` is meant to be run from a terminal (for example `intentional-cli.exe nl -v FIN`). Double-clicking it runs the default Standard mode using `intents.cfg` in the executable's folder, then the console closes immediately. The GUI is not included in `intentional-cli.exe`, so `intentional-cli.exe gui` points to `intentional.exe` instead.
 

@@ -1,3 +1,4 @@
+import zipfile
 from pathlib import Path
 
 import openpyxl
@@ -123,3 +124,51 @@ def test_extract_reports_empty_sheets(tmp_path: Path) -> None:
     assert result.phrases == 1
     assert result.empty_sheets == ["EMPTY_ONE"]
     assert result.output_dir == tmp_path / "Training Phrases" / "en" / "NL"
+
+
+def make_workbook(path: Path, sheet: str, phrase: str) -> Path:
+    workbook = openpyxl.Workbook()
+    workbook.active.title = sheet
+    workbook.active["A1"] = phrase
+    workbook.save(path)
+    return path
+
+
+def test_dd_extract_keeps_nl_phrases(tmp_path: Path) -> None:
+    lang_dir = tmp_path / "Training Phrases" / "en"
+    (lang_dir / "NL").mkdir(parents=True)
+    (lang_dir / "NL" / "HELLO.txt").write_text("hello\n", encoding="utf-8")
+    (lang_dir / "old.txt").write_text("old phrase\n", encoding="utf-8")
+    xl_file = make_workbook(tmp_path / "dd.xlsx", "home", "at home")
+
+    result = extract.excel_data(xl_file, "DD", "en", tmp_path, FakeReporter())
+
+    assert (lang_dir / "NL" / "HELLO.txt").read_text(encoding="utf-8") == "hello\n"
+    assert (lang_dir / "home.txt").read_text(encoding="utf-8") == "at home\n"
+    assert not (lang_dir / "old.txt").exists()
+    assert result.backup is not None and result.backup.parent == tmp_path / "Training Phrases"
+    with zipfile.ZipFile(result.backup) as backup:
+        assert backup.namelist() == ["old.txt"]
+
+
+def test_corrupt_workbook_leaves_existing_phrases(tmp_path: Path) -> None:
+    nl_dir = tmp_path / "Training Phrases" / "en" / "NL"
+    nl_dir.mkdir(parents=True)
+    (nl_dir / "HELLO.txt").write_text("hello\n", encoding="utf-8")
+    xl_file = tmp_path / "broken.xlsx"
+    xl_file.write_bytes(b"not an excel file")
+
+    with pytest.raises(exceptions.ExtractionError, match="could not be read as an Excel file"):
+        extract.excel_data(xl_file, "NL", "en", tmp_path, FakeReporter())
+
+    assert (nl_dir / "HELLO.txt").exists()
+    assert not list(nl_dir.parent.glob("*.zip"))
+
+
+def test_non_utf8_phrase_file_names_the_file(tmp_path: Path) -> None:
+    config = make_nl_phrases(tmp_path)
+    bad_file = tmp_path / "Training Phrases" / "en" / "NL" / "SPANISH.txt"
+    bad_file.write_bytes("año\n".encode("cp1252"))
+
+    with pytest.raises(exceptions.FileSystemError, match="SPANISH.txt is not saved as UTF-8"):
+        build_intents.nl_config(config, "RTL", "GetIntent", False, FakeReporter())

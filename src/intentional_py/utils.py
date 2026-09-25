@@ -11,9 +11,31 @@ Provides helper functions for:
 
 import re
 import zipfile
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-from intentional_py import constants
+from intentional_py import constants, exceptions
+
+
+@contextmanager
+def file_errors(path: Path) -> Iterator[None]:
+    """Turn problems reading or writing a file into errors that name the file."""
+    try:
+        yield
+    except UnicodeDecodeError as error:
+        raise exceptions.FileSystemError(
+            f"{path} is not saved as UTF-8 text (invalid byte at position {error.start}). "
+            "Save it with UTF-8 encoding and try again."
+        ) from error
+    except PermissionError as error:
+        raise exceptions.FileSystemError(
+            f"Permission denied: {path}. Close it in any program using it (such as Excel) and try again."
+        ) from error
+    except OSError as error:
+        raise exceptions.FileSystemError(
+            f"Could not access {path}: {error.strerror or error}"
+        ) from error
 
 
 def check_for_duplicate_phrases(directory: Path) -> tuple[set, list]:
@@ -32,7 +54,7 @@ def check_for_duplicate_phrases(directory: Path) -> tuple[set, list]:
     for filename in filenames:
         if filename.endswith(".txt"):
             filepath: Path = Path(directory, filename)
-            with open(filepath, "r", encoding="utf-8") as file:
+            with file_errors(filepath), open(filepath, "r", encoding="utf-8") as file:
                 for line in file:
                     line = line.strip()
                     # check of line beginning with 'uh' or 'um'
@@ -224,17 +246,20 @@ def clean_phrase(string: str) -> str:
     return string
 
 
-def zip_directory(directory_path: Path, zip_path: Path) -> None:
+def zip_directory(
+    directory_path: Path, zip_path: Path, files: Iterable[Path] | None = None
+) -> None:
     """Zip a directory provided
 
     Args:
         directory_path (Path): directory to zip
         zip_path (Path): path to save the zip file
+        files (Iterable[Path] | None): only these files from the directory; everything when omitted
     """
     with zipfile.ZipFile(
         zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
     ) as zippy:
-        for file_path in directory_path.rglob("*"):
+        for file_path in directory_path.rglob("*") if files is None else files:
             zippy.write(file_path, arcname=file_path.relative_to(directory_path))
 
 

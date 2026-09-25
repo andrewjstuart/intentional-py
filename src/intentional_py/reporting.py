@@ -48,6 +48,7 @@ class ExtractResult:
     files: int = 0
     phrases: int = 0
     empty_sheets: list[str] = field(default_factory=list)
+    backup: Path | None = None
     elapsed: float = 0.0
 
 

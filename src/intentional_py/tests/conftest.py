@@ -1,7 +1,19 @@
 import os
+import shutil
+from pathlib import Path
+
+import pytest
 
 # Rich wraps at 80 columns when not attached to a terminal, which splits asserted messages.
 os.environ["COLUMNS"] = "200"
+
+
+@pytest.fixture(scope="session")
+def data_dir(tmp_path_factory) -> Path:
+    """A copy of tests/data, shared because the NL tests use the phrases extracted earlier."""
+    target = tmp_path_factory.mktemp("data")
+    shutil.copytree(Path(__file__).parent / "data", target, dirs_exist_ok=True)
+    return target
 
 
 def pytest_collection_modifyitems(session, config, items):

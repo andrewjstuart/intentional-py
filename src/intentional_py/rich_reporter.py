@@ -111,6 +111,10 @@ class RichReporter:
                 ["Time", "Files", "Phrases"],
                 [[f"{result.elapsed:.3f} s", str(result.files), str(result.phrases)]],
             )
+        if result.backup:
+            self.message(
+                "info", f"[green]Previous phrases saved to[/green] [blue]{result.backup}[/blue]"
+            )
         for sheet_name in result.empty_sheets:
             self.message(
                 "warning",

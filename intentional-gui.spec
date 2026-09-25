@@ -5,6 +5,9 @@ import sys
 if sys.platform != "win32":
     raise SystemExit("intentional-gui.spec builds the Windows executable (intentional.exe) only; run it on Windows.")
 
+sys.path.insert(0, SPECPATH)
+from version_info import version_resource  # noqa: E402
+
 
 a = Analysis(
     ['src/intentional_py/gui/__main__.py'],
@@ -40,4 +43,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    version=version_resource('intentional', 'Intentional - Dialogflow ES intent builder'),
 )

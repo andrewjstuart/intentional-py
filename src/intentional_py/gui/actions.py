@@ -152,6 +152,8 @@ def details(result: Result) -> list[tuple[Level, str]]:
             lines.extend(("info", f"    {name}") for name in result.ml_disabled)
     elif isinstance(result, ExtractResult):
         lines.append(("info", f"Phrases saved to {result.output_dir}"))
+        if result.backup:
+            lines.append(("info", f"Previous phrases saved to {result.backup}"))
         lines.extend(
             ("warning", f"Sheet {name} has no phrases; an empty text file was created.")
             for name in result.empty_sheets

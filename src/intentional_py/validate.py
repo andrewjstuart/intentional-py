@@ -24,7 +24,9 @@ def preflight_config(
     warnings: list[str] = []
     normalized_rows: list[list[str]] = []
 
-    with config.open(mode="r", encoding="utf-8", newline="") as config_file:
+    with utils.file_errors(config), config.open(
+        mode="r", encoding="utf-8", newline=""
+    ) as config_file:
         rows = [row for row in csv.reader(config_file) if any(cell.strip() for cell in row)]
 
     for row_number, row in enumerate(rows, start=1):
@@ -159,7 +161,10 @@ def validate(config: Path, base_dir: Path, reporter: Reporter) -> ValidateResult
 
             # read config files if they exist
             issues_found: bool = False
-            with Path(file_path, file).open(mode="r", encoding="utf-8") as config_file:
+            config_path = Path(file_path, file)
+            with utils.file_errors(config_path), config_path.open(
+                mode="r", encoding="utf-8"
+            ) as config_file:
                 reader = csv.reader(config_file)
                 rows = [row for row in reader if any(row)]  # Filter out empty rows
                 if len(rows) == 0:

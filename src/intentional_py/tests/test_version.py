@@ -12,3 +12,12 @@ def test_version():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
     assert f"intentional-cli version {__version__}" in result.stdout
+
+
+def test_version_matches_pyproject():
+    import tomllib
+    from pathlib import Path
+
+    pyproject = Path(__file__).parents[3] / "pyproject.toml"
+    with pyproject.open("rb") as file:
+        assert tomllib.load(file)["project"]["version"] == __version__

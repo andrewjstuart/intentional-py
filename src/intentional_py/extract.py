@@ -7,14 +7,39 @@ Includes backup functionality for existing phrase directories.
 
 import datetime
 import shutil
+import zipfile
 from pathlib import Path
 from time import perf_counter
 
 import openpyxl
 import pyxlsb
+from openpyxl.utils.exceptions import InvalidFileException
 
 from intentional_py import constants, exceptions, utils
 from intentional_py.reporting import ExtractResult, Reporter
+
+
+def _backup_existing(phrase_dir: Path, mode: str) -> Path | None:
+    """Zip and remove the phrases about to be replaced; returns the zip path if one was made."""
+    if not phrase_dir.exists():
+        return None
+    # DD phrases share the language folder with the NL subfolder, which must be kept
+    if mode == "DD":
+        old_files = sorted(phrase_dir.glob(f"*{constants.PHRASE_FILE_EXTENSION}"))
+    else:
+        old_files = sorted(phrase_dir.rglob("*"))
+    if not old_files:
+        return None
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    zip_path = Path(phrase_dir.parent, f"{phrase_dir.name}_{stamp}.zip")
+    with utils.file_errors(zip_path):
+        utils.zip_directory(phrase_dir, zip_path, old_files)
+        if mode == "DD":
+            for old_file in old_files:
+                old_file.unlink()
+        else:
+            shutil.rmtree(phrase_dir)
+    return zip_path
 
 
 def excel_data(
@@ -41,27 +66,42 @@ def excel_data(
         Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
     )
 
-    # zip existing file if it already exists, so nothing is overwritten
-    if phrase_file_path.exists():
-        zip_file_name: str = phrase_file_path.name
-        now = datetime.datetime.now()
-        formatted_datetime = now.strftime("%Y-%m-%d_%H%M%S")
-        zip_file_name = f"{zip_file_name}_{formatted_datetime}"
-        zip_save_location: Path = phrase_file_path.parent
-        zip_file_path: Path = Path(zip_save_location, f"{zip_file_name}.zip")
-        reporter.message("info", "[green]Zip existing directory[/green]")
-        utils.zip_directory(phrase_file_path, zip_file_path)
-        shutil.rmtree(str(phrase_file_path))
-    # create the directory, which may have just been removed, or doesn't exist
-    phrase_file_path.mkdir(parents=True, exist_ok=True)
-
     reporter.message("info", f"Exporting data to: [blue]{phrase_file_path}[/blue]")
 
-    # read XL file, check if xlsb or xlsm
+    # read the whole workbook before touching existing phrases, so a bad file changes nothing
     label = f"Processing [green]{xl_file}[/green]"
     phrase_dict: dict = {}
     phrase_file: Path
     xl = Path(xl_file_path, xl_file)
+    try:
+        with utils.file_errors(xl):
+            phrase_dict = _read_workbook(xl, file_extension, phrase_file_path, label, reporter)
+    except (zipfile.BadZipFile, InvalidFileException, KeyError, ValueError) as error:
+        raise exceptions.ExtractionError(
+            f"{xl} could not be read as an Excel file ({error})."
+        ) from error
+
+    result = ExtractResult(output_dir=phrase_file_path)
+    result.backup = _backup_existing(phrase_file_path, mode)
+    phrase_file_path.mkdir(parents=True, exist_ok=True)
+    for phrase_file, phrases in phrase_dict.items():
+        result.files += 1
+        if not phrases:
+            result.empty_sheets.append(phrase_file.stem)
+        with utils.file_errors(phrase_file), phrase_file.open(mode="w", encoding="utf-8") as f:
+            for line in phrases:
+                result.phrases += 1
+                f.write(f"{line}\n")
+
+    result.elapsed = perf_counter() - t1_start
+    return result
+
+
+def _read_workbook(
+    xl: Path, file_extension: str, phrase_file_path: Path, label: str, reporter: Reporter
+) -> dict:
+    """Return the sorted, de-duplicated phrases of each sheet, keyed by the phrase file to write."""
+    phrase_dict: dict = {}
     if file_extension == ".xlsb":
         # uses pyxlsb
         with pyxlsb.open_workbook(xl) as wb:
@@ -73,8 +113,7 @@ def excel_data(
                         if cell.v is not None and str(cell.v).strip():
                             phrases.add(str(cell.v))
 
-                phrase_file = Path(phrase_file_path, f"{sheet}.txt")
-                phrase_dict[phrase_file] = sorted(phrases)
+                phrase_dict[Path(phrase_file_path, f"{sheet}.txt")] = sorted(phrases)
     elif file_extension in [".xlsm", ".xlsx"]:
         # uses openpyxl
         wb = openpyxl.load_workbook(xl)
@@ -86,22 +125,7 @@ def excel_data(
                 # add the phrases to a set to remove duplicates
                 if phrase.strip():
                     phrases.add(phrase)
-            phrase_file = Path(phrase_file_path, f"{sheet_name}.txt")
-            phrase_dict[phrase_file] = sorted(phrases)
+            phrase_dict[Path(phrase_file_path, f"{sheet_name}.txt")] = sorted(phrases)
     else:
-        raise exceptions.ExtractionError(
-            f"[red]Unsupported file format[/red]: {xl_file}"
-        )
-
-    result = ExtractResult(output_dir=phrase_file_path)
-    for phrase_file, phrases in phrase_dict.items():
-        result.files += 1
-        if not phrases:
-            result.empty_sheets.append(phrase_file.stem)
-        with phrase_file.open(mode="w", encoding="utf-8") as f:
-            for line in phrases:
-                result.phrases += 1
-                f.write(f"{line}\n")
-
-    result.elapsed = perf_counter() - t1_start
-    return result
+        raise exceptions.ExtractionError(f"[red]Unsupported file format[/red]: {xl}")
+    return phrase_dict

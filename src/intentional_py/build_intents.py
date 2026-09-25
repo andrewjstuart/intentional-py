@@ -80,7 +80,7 @@ def intents(
             ml_disabled_set.add(temp_ml)
 
     for file, data in files_to_write.items():
-        with open(file, mode="w", encoding="utf-8") as output:
+        with utils.file_errors(file), open(file, mode="w", encoding="utf-8") as output:
             json.dump(data, output, indent=4)
 
     result.files = len(files_to_write)
@@ -396,7 +396,9 @@ def create_json(
         phrase_file_path = utils.find_phrase_file(phrase_file_path, action)
         # a missing phrase file is already reported by preflight_config
         if phrase_file_path.exists():
-            with open(phrase_file_path, mode="r", encoding="utf-8") as file:
+            with utils.file_errors(phrase_file_path), open(
+                phrase_file_path, mode="r", encoding="utf-8"
+            ) as file:
                 reader = csv.reader(file)
                 rows = [row for row in reader if any(row)]  # Filter out empty rows
                 for row in rows:
@@ -518,7 +520,9 @@ def nl_config(
                     languages_used.add(lang)
 
     # remove config file before creating a new one
-    config.unlink() if config.exists() else None
+    if config.exists():
+        with utils.file_errors(config):
+            config.unlink()
 
     # build the intent file
     for lang in sorted(languages_used):
@@ -534,7 +538,9 @@ def nl_config(
 
                 # read phrase files looking for entities
                 entity_set: set = set()
-                with open(filepath, mode="r", encoding="utf-8") as file:
+                with utils.file_errors(filepath), open(
+                    filepath, mode="r", encoding="utf-8"
+                ) as file:
                     reader = csv.reader(file)
                     rows = [row for row in reader if any(row)]  # Filter out empty rows
                     for row in rows:
@@ -547,7 +553,9 @@ def nl_config(
                             # add them to dictionary to pull out later by filename
                             entity_dict[Path(filename)] = entity_set
 
-        with open(config, mode="a", encoding="utf-8") as config_file:
+        with utils.file_errors(config), open(
+            config, mode="a", encoding="utf-8"
+        ) as config_file:
             for file in files_to_add:
                 action = file.with_suffix("")  # remove extension
                 action: str = str(action)
