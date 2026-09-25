@@ -102,15 +102,11 @@ def excel_data(
                     for row in wb.get_sheet(sheet).rows():
                         for cell in row:
                             # add the phrases to a set to remove duplicates
-                            phrases.add(cell.v)
+                            if cell.v is not None and str(cell.v).strip():
+                                phrases.add(str(cell.v))
 
-                        # convert to a list to sort them
-                        phrase_list: list = list(phrases)
-                        phrase_list = sorted(phrase_list)
-                        # print the list
-                        phrase_file = Path(phrase_file_path, f"{sheet}.txt")
-                        # add to dictionary
-                        phrase_dict[phrase_file] = phrase_list
+                    phrase_file = Path(phrase_file_path, f"{sheet}.txt")
+                    phrase_dict[phrase_file] = sorted(phrases)
         elif file_extension in [".xlsm", ".xlsx"]:
             # uses openpyxl
             wb = openpyxl.load_workbook(xl)
@@ -119,14 +115,12 @@ def excel_data(
                 phrases: set = set()
                 sheet = wb[sheet_name]
                 for row in sheet.iter_rows(values_only=True):
+                    phrase = "".join(str(cell) for cell in row if cell is not None)
                     # add the phrases to a set to remove duplicates
-                    phrases.add(row)
-                # convert to a list to sort them
-                phrase_list: list = list(phrases)
-                phrase_list = sorted(phrase_list)
-                # print the list
+                    if phrase.strip():
+                        phrases.add(phrase)
                 phrase_file = Path(phrase_file_path, f"{sheet_name}.txt")
-                phrase_dict[phrase_file] = phrase_list
+                phrase_dict[phrase_file] = sorted(phrases)
         else:
             raise exceptions.ExtractionError(
                 f"[red]Unsupported file format[/red]: {xl_file}"
@@ -135,13 +129,16 @@ def excel_data(
         # print the rows from the dictionary
         file_cnt: int = 0
         phrases_cnt: int = 0
+        empty_files: list = []
         for phrase_file, phrases in phrase_dict.items():
             file_cnt += 1
+            if not phrases:
+                empty_files.append(phrase_file.stem)
             # with open(phrase_file, mode="w", encoding="utf-8") as f:
             with phrase_file.open(mode="w", encoding="utf-8") as f:
                 for line in phrases:
                     phrases_cnt += 1
-                    f.write(f"{''.join(line)}\n")
+                    f.write(f"{line}\n")
 
     t1_stop = perf_counter()
     time = f"{t1_stop - t1_start:.3f} s"
@@ -162,3 +159,9 @@ def excel_data(
     else:
         console = Console()
         console.print(table) if not quiet else None
+
+    if not quiet:
+        for sheet_name in empty_files:
+            print(
+                f"[yellow]Warning:[/yellow] sheet [blue]{sheet_name}[/blue] has no phrases; an empty text file was created."
+            )

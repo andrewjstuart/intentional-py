@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['src\\intentional_py\\intentional.py'],
+    ['src/intentional_py/intentional.py'],
     pathex=[],
     binaries=[],
     datas=[],

@@ -94,9 +94,9 @@ def preflight_config(
 
         if action and language != "dtmf" and action != "nomatch":
             phrase_path = base_path / constants.DEFAULT_TRAINING_PHRASES_DIR / language
-            phrase_file = phrase_path / f"{action.removesuffix('^')}.txt"
             if mode == "NL":
-                phrase_file = phrase_path / "NL" / f"{action.removesuffix('^')}.txt"
+                phrase_path = phrase_path / "NL"
+            phrase_file = utils.find_phrase_file(phrase_path, action)
             if not phrase_file.exists():
                 warnings.append(
                     f"Row {row_number}: phrase file '{phrase_file}' was not found; "
@@ -280,16 +280,14 @@ def validate(config: Path, quiet: bool, test: bool) -> None:
 
                     if language != "dtmf" and action != "nomatch":
                         # check that action exists in language
-                        phrase_file: str = f"{action}.txt"
-                        # set phrase file path
                         phrase_file_path: Path = Path(
                             Path.cwd(), constants.DEFAULT_TRAINING_PHRASES_DIR, language
                         )
-                        test_path = Path(phrase_file_path, phrase_file)
+                        test_path = utils.find_phrase_file(phrase_file_path, action)
                         if not test_path.exists():
                             # check for it in NL path
                             phrase_file_path = Path(phrase_file_path, "NL")
-                            test_path = Path(phrase_file_path, phrase_file)
+                            test_path = utils.find_phrase_file(phrase_file_path, action)
                             if not test_path.exists():
                                 # still not found
                                 error_list.append(

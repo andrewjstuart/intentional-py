@@ -1,3 +1,9 @@
+import os
+
+# Rich wraps at 80 columns when not attached to a terminal, which splits asserted messages.
+os.environ["COLUMNS"] = "200"
+
+
 def pytest_collection_modifyitems(session, config, items):
     """Modifies test items in place to ensure test functions run in a given order"""
     function_order = [

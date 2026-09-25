@@ -11,12 +11,11 @@ Uses Typer with Rich formatting for a modern terminal experience.
 
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 import typer.core
 from rich import print
-from typing_extensions import Annotated
 
 from rich.console import Console
 
@@ -279,7 +278,7 @@ def extract(
             )
             xl_file = Path(new_xl_file)
 
-        if not xl_file.exists() and not xl_file.is_file():
+        if not xl_file.is_file():
             raise exceptions.FileSystemError(
                 f"{xl_file} does [red]NOT[/red] exist as a file.\n[bold][red]Abort processing...[/bold][/red]"
             )

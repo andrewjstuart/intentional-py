@@ -116,7 +116,8 @@ def intents(
             entities_cnt += temp_entities
             langs_set.add(temp_lang)
             nomatch_cnt += temp_nomatch
-            ml_disabled_set.add(temp_ml) if temp_ml else next
+            if temp_ml:
+                ml_disabled_set.add(temp_ml)
 
         if files_to_write:
             for file, data in files_to_write.items():
@@ -284,6 +285,10 @@ def create_json(
         machine_learning = "FALSE"
         clean_action = action.removesuffix("^")
 
+    # phrases are read from the '-NM' file, but the intent returns 'nomatch'
+    if clean_action.endswith("-NM"):
+        clean_action = "nomatch"
+
     # dtmf value is optional, unless language is dtmf
     if dtmf_only and not dtmf_value:
         print(f"[red]No DTMF value provided![/red]: {row}")
@@ -371,7 +376,7 @@ def create_json(
     # modify with correct values
     intent_data["id"] = str(uuid.uuid4())
     intent_data["name"] = df_intent
-    intent_data["auto"] = machine_learning
+    intent_data["auto"] = bool(utils.strtobool(machine_learning))
     intent_data["contexts"][0] = df_context
     intent_data["responses"][0]["action"] = clean_action
     intent_data["responses"][0]["messages"][0]["lang"] = language
@@ -467,8 +472,8 @@ def create_json(
 
     if not dtmf_only:
         # read the phrase file
-        phrase_file: Path = Path(f"{action}.txt")
-        phrase_file_path = Path(phrase_file_path, phrase_file)
+        phrase_file_path = utils.find_phrase_file(phrase_file_path, action)
+        phrase_file: Path = Path(phrase_file_path.name)
         if phrase_file_path.exists():
             with open(phrase_file_path, mode="r", encoding="utf-8") as file:
                 reader = csv.reader(file)
@@ -616,7 +621,6 @@ def nl_config(
         lang = Path(lang.stem)
         files_to_add: list = []
         entity_dict: dict = {}
-        entity_set: set = set()
         filenames: list = [item.name for item in lang_path.iterdir() if item.is_file()]
         for filename in filenames:
             filepath = Path(lang_path, filename)
@@ -624,6 +628,7 @@ def nl_config(
                 files_to_add.append(Path(filename))
 
                 # read phrase files looking for entities
+                entity_set: set = set()
                 with open(filepath, mode="r", encoding="utf-8") as file:
                     reader = csv.reader(file)
                     rows = [row for row in reader if any(row)]  # Filter out empty rows
@@ -656,16 +661,11 @@ def nl_config(
                 ml: bool = True  # default is set to ML on
                 if action.endswith("^"):
                     ml = False
-                    intent = intent.rstrip("^")
+                    intent = intent.removesuffix("^")
 
-                # if ACTION ends in "-NM", the action changes to 'nomatch', and the intent name is adjusted
-                # and because we're already returning as a lowercase 'nomatch', the lowercase option is redundant
+                # if ACTION ends in "-NM", the builder returns 'nomatch', which is already lowercase
                 if action.endswith("-NM"):
-                    intent = intent.rstrip("-Nm")
-                    config_file.write(
-                        f"{intent},{context},{lang},nomatch,{entity},{dtmf},{str(ml).upper()}\n"
-                    )
-
+                    intent = intent.removesuffix("-Nm")
                 elif lowercase:
                     # write it lowercase first, then with uppercase name
                     config_file.write(

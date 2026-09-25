@@ -37,7 +37,7 @@ def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
     for filename in filenames:
         if filename.endswith(".txt"):
             filepath: Path = Path(directory, filename)
-            with open(filepath, "r") as file:
+            with open(filepath, "r", encoding="utf-8") as file:
                 for line in file:
                     line = line.strip()
                     # check of line beginning with 'uh' or 'um'
@@ -253,6 +253,17 @@ def zip_directory(directory_path: Path, zip_path: Path) -> None:
     ) as zippy:
         for file_path in directory_path.rglob("*"):
             zippy.write(file_path, arcname=file_path.relative_to(directory_path))
+
+
+def find_phrase_file(phrase_dir: Path, action: str) -> Path:
+    """Return the phrase file for an action, falling back to the name without a trailing '^'."""
+    exact = Path(phrase_dir, f"{action}{constants.PHRASE_FILE_EXTENSION}")
+    if exact.exists() or not action.endswith("^"):
+        return exact
+    stripped = Path(
+        phrase_dir, f"{action.removesuffix('^')}{constants.PHRASE_FILE_EXTENSION}"
+    )
+    return stripped if stripped.exists() else exact
 
 
 def check_for_path(file_to_check: Path) -> tuple[Path, Path, str]:
