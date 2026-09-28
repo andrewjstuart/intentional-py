@@ -352,7 +352,20 @@ Both workflows install with `uv sync --locked`, so they fail if `uv.lock` does n
 1. Update the version in **both** `pyproject.toml` and `src/intentional_py/__init__.py` (a test fails if they differ), for example to `1.0.6`.
 2. Run `uv lock`, since `uv.lock` records the project's version, then `uv run pytest`.
 3. Commit the changes and merge them into `main`.
-4. Create and push a tag named `v` followed by the version, from the commit to release:
+4. Create a tag named `v` followed by the version, for example `v1.0.6`, in either of these ways:
+
+   **On GitHub (no command line needed)**
+
+   1. On the repository page, open **Releases** and select **Draft a new release**.
+   2. Under **Choose a tag**, type `v1.0.6` and select **Create new tag: v1.0.6 on publish**.
+   3. Set **Target** to `main`.
+   4. Enter a **Release title** (e.g. `v1.0.6`) and the release notes. **Generate release notes** fills in the changes since the previous release.
+   5. Optionally tick **Set as a pre-release**, so the release is not shown as the latest until its executables are attached.
+   6. Select **Publish release**. Do not use **Save draft**: a draft does not create the tag, so no build starts.
+
+   Publishing creates the tag and starts the build. The executables are added to this release when the build finishes. If it was marked as a pre-release, edit the release afterwards, untick **Set as a pre-release** and tick **Set as the latest release**.
+
+   **From the command line**
 
    ```bash
    git checkout main
@@ -361,9 +374,11 @@ Both workflows install with `uv sync --locked`, so they fail if `uv.lock` does n
    git push origin v1.0.6
    ```
 
-5. Open the **Actions** tab and follow the **Release** run. When it finishes, the release appears under **Releases** with `intentional.exe`, `intentional-cli.exe` and `SHA256SUMS.txt`, and release notes generated from the merged pull requests and commits since the previous release. Edit the release on GitHub to add or change the notes.
+   Pushing the tag starts the build, which creates the release with generated release notes.
 
-The release is built from exactly the tagged commit, and the build fails without publishing anything if the tag does not match the version in `pyproject.toml` or if any test fails. To retry after a fix, delete the tag (`git tag -d v1.0.6` and `git push origin :refs/tags/v1.0.6`) and, if a release was already published for it, delete that release on the **Releases** page; then tag the fixed commit again. A release can also be drafted on GitHub first: pushing its tag adds the executables to the existing release instead of creating a new one.
+5. Open the **Actions** tab and follow the **Release** run. When it finishes, the release under **Releases** has `intentional.exe`, `intentional-cli.exe` and `SHA256SUMS.txt` attached. Edit the release on GitHub at any time to change its notes.
+
+The release is built from exactly the tagged commit, and the build fails without adding any files if the tag does not match the version in `pyproject.toml` or if any test fails. To retry after a fix, delete the release and then its tag on the **Releases** page (or delete the tag with `git tag -d v1.0.6` and `git push origin :refs/tags/v1.0.6`), then create the tag again from the fixed commit.
 
 ### Test builds without a release
 
