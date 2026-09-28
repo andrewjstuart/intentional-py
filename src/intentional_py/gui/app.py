@@ -6,6 +6,7 @@ Widgets only collect values and display events; the work is done by
 
 import queue
 import sys
+import tkinter as tk
 import tkinter.font as tkfont
 from collections.abc import Callable
 from pathlib import Path
@@ -98,12 +99,23 @@ class App(ctk.CTk):
         ctk.CTkButton(
             frame, text="Browse…", width=90, command=self._browse_project
         ).grid(row=0, column=2, **PAD)
-        ctk.CTkButton(frame, text="Help", width=70, command=self._show_help).grid(
-            row=0, column=3, **PAD
-        )
         ctk.CTkLabel(frame, text=f"v{__version__}", text_color="gray").grid(
-            row=0, column=4, **PAD
+            row=0, column=3, padx=(10, 0), pady=6
         )
+        self.help_menu = tk.Menu(self, tearoff=0)
+        self.help_menu.add_command(label="Help", accelerator="F1", command=self._show_help)
+        self.help_menu.add_separator()
+        self.help_menu.add_command(label="About Intentional", command=self._show_about)
+        help_button = ctk.CTkButton(
+            frame,
+            text="?",
+            width=28,
+            fg_color="transparent",
+            border_width=1,
+            text_color=("gray10", "gray90"),
+            command=lambda: self._open_help_menu(help_button),
+        )
+        help_button.grid(row=0, column=4, **PAD)
 
     def _build_tabs(self) -> None:
         tabs = ctk.CTkTabview(self, height=210)
@@ -288,6 +300,24 @@ class App(ctk.CTk):
         table.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
         return container, table
+
+    def _open_help_menu(self, button: ctk.CTkButton) -> None:
+        # right-aligned under the button, as the button sits in the window's corner
+        x = button.winfo_rootx() + button.winfo_width() - self.help_menu.winfo_reqwidth()
+        y = button.winfo_rooty() + button.winfo_height()
+        try:
+            self.help_menu.tk_popup(x, y)
+        finally:
+            self.help_menu.grab_release()
+
+    def _show_about(self) -> None:
+        messagebox.showinfo(
+            "About Intentional",
+            f"Intentional {__version__}\n\n"
+            "Creates Dialogflow ES intents from config and training phrase files.\n\n"
+            "https://github.com/andrewjstuart/intentional-py",
+            parent=self,
+        )
 
     def _show_help(self) -> None:
         # the first time starts with the overview; after that, the section for the current tab

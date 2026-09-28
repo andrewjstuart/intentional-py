@@ -153,7 +153,7 @@ The window contains:
 - **Extract**: extracts phrases from an Excel file into the project's `Training Phrases` folder for the selected mode and language.
 - **Validate**: validates a config file, or the standard config files when left blank.
 
-The **Help** button (or F1) explains each mode, the project folder layout and the config format. It opens at the section for the current tab.
+The **?** button in the top-right corner opens **Help** (also **F1**), which explains each mode, the project folder layout and the config format, and **About Intentional**, which shows the version. Help opens at the section for the current tab.
 
 Below the tabs, the results of the last job are shown:
 
