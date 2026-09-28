@@ -30,7 +30,22 @@ def test_preflight_rejects_malformed_rows_before_build(tmp_path: Path) -> None:
 
     assert rows == []
     assert warnings == []
-    assert fatal_errors == ["Row 1: expected 7 values, found 3."]
+    assert fatal_errors == ["Row 1: expected 6 or 7 values, found 3."]
+
+
+def test_machine_learning_column_is_optional(tmp_path: Path) -> None:
+    config = tmp_path / "intents.cfg"
+    # no ML column, a blank one, and an explicit FALSE
+    config.write_text(
+        "A.One,Ctx,en,one,,1\nA.Two,Ctx,en,two,,2,\nA.Three,Ctx,en,three,,3,FALSE\n",
+        encoding="utf-8",
+    )
+
+    rows, fatal_errors, warnings = validate.preflight_config(config, tmp_path, "DD")
+
+    assert fatal_errors == []
+    assert [row[6] for row in rows] == ["TRUE", "TRUE", "false"]
+    assert not any("machine learning" in warning for warning in warnings)
 
 
 def test_preflight_requires_dtmf_value(tmp_path: Path) -> None:

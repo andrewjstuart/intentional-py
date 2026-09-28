@@ -30,13 +30,14 @@ def preflight_config(
         rows = [row for row in csv.reader(config_file) if any(cell.strip() for cell in row)]
 
     for row_number, row in enumerate(rows, start=1):
-        if len(row) != 7:
+        if len(row) not in (6, 7):
             fatal_errors.append(
-                f"Row {row_number}: expected 7 values, found {len(row)}."
+                f"Row {row_number}: expected 6 or 7 values, found {len(row)}."
             )
             continue
 
-        normalized_row = [cell.strip() for cell in row]
+        # the machine learning column is optional, for configs written before it existed
+        normalized_row = [cell.strip() for cell in row] + [""] * (7 - len(row))
         intent, context, language, action, _, dtmf_value, machine_learning = normalized_row
 
         if not intent:
@@ -79,10 +80,6 @@ def preflight_config(
 
         if not machine_learning:
             normalized_row[6] = constants.MACHINE_LEARNING_DEFAULT
-            warnings.append(
-                f"Row {row_number}: machine learning will default to "
-                f"'{constants.MACHINE_LEARNING_DEFAULT}'."
-            )
         elif machine_learning.lower() not in constants.VALID_ML_VALUES:
             normalized_row[6] = constants.MACHINE_LEARNING_DEFAULT
             warnings.append(

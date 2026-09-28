@@ -1,3 +1,4 @@
+import json
 import zipfile
 from pathlib import Path
 
@@ -86,6 +87,22 @@ def test_nl_cli_uses_config_directory(tmp_path: Path, monkeypatch) -> None:
     assert config.exists()
     assert (project / "intents" / "RTL.Billing.json").exists()
     assert not (elsewhere / "intents").exists()
+
+
+def test_dd_build_machine_learning_column(tmp_path: Path) -> None:
+    phrase_dir = tmp_path / "Training Phrases" / "en"
+    phrase_dir.mkdir(parents=True)
+    (phrase_dir / "on.txt").write_text("turn it on\n", encoding="utf-8")
+    (phrase_dir / "off.txt").write_text("turn it off\n", encoding="utf-8")
+    config = tmp_path / "intents.cfg"
+    config.write_text("A.On,Ctx,en,on,,\nA.Off,Ctx,en,off,,,FALSE\n", encoding="utf-8")
+
+    result = build_intents.intents("DD", config, tmp_path, FakeReporter())
+
+    intents_dir = tmp_path / "intents"
+    assert json.loads((intents_dir / "A.On.json").read_text(encoding="utf-8"))["auto"] is True
+    assert json.loads((intents_dir / "A.Off.json").read_text(encoding="utf-8"))["auto"] is False
+    assert result.ml_disabled == ["A.Off"]
 
 
 def test_dd_cli_uses_config_directory(tmp_path: Path, monkeypatch) -> None:

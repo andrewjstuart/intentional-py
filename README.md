@@ -133,7 +133,7 @@ The same commands work with the Windows executable by replacing `uv run intentio
 
 When `--config` is passed to the Standard or `nl` mode, the config file's folder is used for the `Training Phrases` input and the `intents` output. Without it, the default config file in the current directory is used. `validate --config` checks the folder of the config file passed in, or the standard config files in the current directory when no valid file is given.
 
-Configuration problems found before a build (missing intent, context or action, an intent name containing `-`, or a row without 7 values) stop the build before any file is written, so they can be fixed first.
+Configuration problems found before a build (missing intent, context or action, an intent name containing `-`, or a row without 6 or 7 values) stop the build before any file is written, so they can be fixed first.
 
 ## Graphical Interface (GUI)
 
@@ -193,13 +193,23 @@ The config file for either mode can be substituted for the file passed in using 
 
 ### Design Document
 
-|Intent| Context| Language| Action| Entities| DTMF| Disable ML|
+|Intent| Context| Language| Action| Entities| DTMF| Machine Learning (optional)|
 |-|-|-|-|-|-|-|
-|MYAC.NewServicehomeOrBus.Home| MYAC-NewServiceHomeOrBus-Home| en| home| | 1| TRUE|
+|MYAC.NewServicehomeOrBus.Home| MYAC-NewServiceHomeOrBus-Home| en| home| | 1| FALSE|
 
 ### intent.cfg
 
-`MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,TRUE`
+`MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE`
+
+The last column is optional and can be left blank or left off entirely, so these rows are the same and keep machine learning enabled:
+
+```unix
+MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,TRUE
+MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,
+MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1
+```
+
+The Entities and DTMF values can be empty, but their commas are still needed so the columns line up.
 
 ### Special Notes
 
@@ -250,7 +260,7 @@ The language codes tested include `en`, `es`, and `dtmf`. The `dtmf` option will
 
 The standards naming convention for intent names are to include periods (`.`) to separate module abbreviations, prompt names and prompt options. The standard naming convention for context names are to include dashes (`-`) for the same separations.
 
-Using Machine Learning (ML) is enabled by default. In order to disable ML the flag must be passed in as `TRUE`. This is not required to be used for backwards compatibility and only changes the intent when set to TRUE from the config file. Reasons this should be used include when using a regex entity and only a value which matches the entity should trigger the intent.
+Machine Learning (ML) is enabled by default. The Machine Learning column is optional, for backwards compatibility with configs written before it existed: when it is blank or left off, ML stays enabled (`TRUE`). Set it to `FALSE` to disable ML for that intent; ending the action with a caret (`^`) does the same. Reasons to disable ML include using a regex entity where only a value which matches the entity should trigger the intent. Any other value is treated as `TRUE` and shown as a warning.
 
 ~~When using slot filling [default is `FALSE`] training phrases are not needed. This will also set the correct events based on context name.~~ **THIS FEATURE IS NOT CURRENTLY USED**!
 

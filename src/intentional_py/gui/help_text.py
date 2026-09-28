@@ -27,13 +27,14 @@ Builds directed dialog intents from a config file.
 
 Config file: leave blank for intents.cfg in the project folder, or choose another file. Its folder is used for the Training Phrases input and the intents output.
 
-Each config row has 7 comma-separated values:
+Each config row has 7 comma-separated values; the last one is optional:
    Intent, Context, Language, Action, Entities, DTMF, Machine learning
-   e.g. MYAC.Billing.Pay,MYAC-Billing-Pay,en,pay,,1,TRUE
+   e.g. MYAC.Billing.Pay,MYAC-Billing-Pay,en,pay,,1,FALSE
 
 • The phrases are read from Training Phrases\\<language>\\<action>.txt.
 • Language can be en, es, fr, or dtmf (DTMF values only).
-• An action ending in ^ disables machine learning for that intent.
+• Machine learning stays on when the last value is TRUE, blank or left off; FALSE turns it off.
+• An action ending in ^ also disables machine learning for that intent.
 • A priority can follow the intent name in braces, e.g. MYAC.Billing.Pay{high}.
 • Entities are separated by | ; a trailing * marks a required entity and [name] sets its alias.
 
