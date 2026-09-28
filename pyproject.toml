@@ -1,6 +1,6 @@
 [project]
 name = "intentional-py"
-version = "1.0.5"
+version = "1.1.0"
 description = "This is a script to create Dialogflow ES Intents"
 readme = "README.md"
 authors = [
@@ -23,6 +23,10 @@ intentional-cli = "intentional_py.__main__:main"
 
 [project.gui-scripts]
 intentional = "intentional_py.gui.app:launch"
+
+[tool.ruff.lint.flake8-bugbear]
+# typer.Option()/typer.Argument() build immutable parameter specs; safe as defaults
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 [build-system]
 requires = ["hatchling"]

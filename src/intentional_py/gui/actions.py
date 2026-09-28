@@ -13,18 +13,20 @@ from pathlib import Path
 from rich.errors import MarkupError
 from rich.text import Text
 
-from intentional_py import build_intents, constants, exceptions
+from intentional_py import build_intents, constants, design_doc, exceptions
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
 from intentional_py.reporting import (
     BuildResult,
+    CompareResult,
+    DesignResult,
     ExtractResult,
     Level,
     Reporter,
     ValidateResult,
 )
 
-Result = BuildResult | ExtractResult | ValidateResult
+Result = BuildResult | ExtractResult | ValidateResult | CompareResult | DesignResult
 Issue = tuple[Level, str, str]  # level, config row (or ""), message
 Table = tuple[str, list[str], list[list[str]]]  # title, columns, rows
 
@@ -52,11 +54,13 @@ def resolve_config(project: Path, text: str, default: str) -> Path:
     return (path if path.is_absolute() else project / path).resolve()
 
 
-def build_dd(project_text: str, config_text: str, reporter: Reporter) -> BuildResult:
+def build_dd(
+    project_text: str, config_text: str, reporter: Reporter, clean: bool = False
+) -> BuildResult:
     config = resolve_config(
         project_dir(project_text), config_text, constants.DEFAULT_DD_CONFIG
     )
-    return build_intents.intents("DD", config, config.parent, reporter)
+    return build_intents.intents("DD", config, config.parent, reporter, clean)
 
 
 def build_nl(
@@ -67,6 +71,7 @@ def build_nl(
     lowercase: bool,
     reuse: bool,
     reporter: Reporter,
+    clean: bool = False,
 ) -> BuildResult:
     config = resolve_config(
         project_dir(project_text), config_text, constants.DEFAULT_NL_CONFIG
@@ -87,7 +92,35 @@ def build_nl(
             lowercase,
             reporter,
         )
-    return build_intents.intents("NL", config, config.parent, reporter)
+    return build_intents.intents("NL", config, config.parent, reporter, clean)
+
+
+def compare(
+    project_text: str, mode: str, config_text: str, export_text: str, reporter: Reporter
+) -> CompareResult:
+    project = project_dir(project_text)
+    mode = mode.upper()
+    default = constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
+    config = resolve_config(project, config_text, default)
+    if not export_text.strip():
+        raise exceptions.ConfigurationError("Choose an agent export (zip or folder) to compare with.")
+    export = Path(export_text.strip()).expanduser()
+    export = (export if export.is_absolute() else project / export).resolve()
+    return build_intents.compare_build(mode, config, config.parent, export, reporter)
+
+
+def design(
+    project_text: str, xl_text: str, sheet: str, config_text: str, reporter: Reporter
+) -> DesignResult:
+    project = project_dir(project_text)
+    if not xl_text.strip():
+        raise exceptions.ConfigurationError("Choose the Excel design document.")
+    xl_file = Path(xl_text.strip()).expanduser()
+    xl_file = (xl_file if xl_file.is_absolute() else project / xl_file).resolve()
+    if not xl_file.is_file():
+        raise exceptions.FileSystemError(f"Excel file does not exist: {xl_file}")
+    config = resolve_config(project, config_text, constants.DEFAULT_DD_CONFIG)
+    return design_doc.config_from_design(xl_file, config, reporter, sheet.strip())
 
 
 def extract(
@@ -150,6 +183,19 @@ def tiles(result: Result) -> list[tuple[str, str]]:
             ("Phrases", str(result.phrases)),
             ("Empty sheets", str(len(result.empty_sheets))),
         ]
+    if isinstance(result, CompareResult):
+        return [
+            ("Added", str(len(result.added))),
+            ("Changed", str(len(result.changed))),
+            ("Unchanged", str(result.unchanged)),
+            ("Only in export", str(len(result.removed))),
+        ]
+    if isinstance(result, DesignResult):
+        return [
+            ("Rows", str(result.rows)),
+            ("Errors", str(len(result.errors))),
+            ("Warnings", str(len(result.warnings))),
+        ]
     checks = _checks(result)
     failed = sum(not check.ok for check in checks)
     return [
@@ -165,6 +211,10 @@ def headline(title: str, result: Result, warnings: int) -> tuple[bool, str]:
         checks = _checks(result)
         passed = sum(check.ok for check in checks)
         return passed == len(checks), f"{title}: {passed} of {len(checks)} checks passed"
+    if isinstance(result, DesignResult):
+        if result.errors:
+            return False, f"{title}: {result.rows} rows written; fix the errors before building"
+        return True, f"{title}: {result.rows} rows written to {result.config.name}"
     text = f"{title} finished in {result.elapsed:.2f} s"
     if warnings:
         text += f" with {warnings} warning{'s' if warnings != 1 else ''}"
@@ -184,14 +234,59 @@ def result_issues(result: Result) -> list[Issue]:
             ("warning", "", f"Sheet {name} has no phrases; an empty text file was created.")
             for name in result.empty_sheets
         ]
+    if isinstance(result, DesignResult):
+        return [issue("error", e) for e in result.errors] + [issue("warning", w) for w in result.warnings]
+    if isinstance(result, BuildResult) and result.changes and result.changes.removed and not result.backup:
+        names = ", ".join(result.changes.removed)
+        return [
+            (
+                "warning",
+                "",
+                (
+                    f"No longer built, but still in the intents folder: {names}. "
+                    "Tick 'Clear the intents folder first' to remove them."
+                ),
+            )
+        ]
     return []
+
+
+def _change_rows(result: CompareResult) -> list[list[str]]:
+    rows = [["Added", name, ""] for name in result.added]
+    rows += [["Changed", change.name, "; ".join(change.details)] for change in result.changed]
+    return rows
 
 
 def detail_tables(result: Result) -> list[Table]:
     if isinstance(result, BuildResult):
-        if not result.ml_disabled:
-            return []
-        return [("Intents with ML disabled", ["Intent"], [[n] for n in result.ml_disabled])]
+        tables: list[Table] = []
+        if result.changes and (result.changes.added or result.changes.changed):
+            tables.append(
+                ("Changes since the previous build", ["Change", "Intent", "Details"], _change_rows(result.changes))
+            )
+        if result.backup:
+            tables.append(("Output", ["Item", "Location"], [["Previous intents saved to", str(result.backup)]]))
+        if result.machine_learning_off:
+            tables.append(
+                (
+                    "Intents with machine learning off",
+                    ["Intent"],
+                    [[name] for name in result.machine_learning_off],
+                )
+            )
+        return tables
+    if isinstance(result, CompareResult):
+        tables = []
+        if result.added or result.changed:
+            tables.append(("Differences from the export", ["Change", "Intent", "Details"], _change_rows(result)))
+        if result.removed:
+            tables.append(("Only in the export (not built by this config)", ["Intent"], [[n] for n in result.removed]))
+        return tables
+    if isinstance(result, DesignResult):
+        rows = [["Config written", str(result.config)], ["Sheet read", result.sheet]]
+        if result.backup:
+            rows.append(["Previous config saved to", str(result.backup)])
+        return [("Output", ["Item", "Location"], rows)]
     if isinstance(result, ExtractResult):
         locations = [["Phrases saved to", str(result.output_dir)]]
         if result.backup:
@@ -206,8 +301,10 @@ def detail_tables(result: Result) -> list[Table]:
 
 
 def output_folder(result: Result) -> Path | None:
-    if isinstance(result, ValidateResult):
+    if isinstance(result, ValidateResult | CompareResult):
         return None
+    if isinstance(result, DesignResult):
+        return result.config.parent
     return result.output_dir
 
 

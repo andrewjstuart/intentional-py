@@ -11,7 +11,8 @@ Intentional creates Dialogflow ES intent files from a config file and training p
    • Issues: every error and warning, with the config row it refers to. Errors stop a build; warnings do not.
    • Details: tables such as the validation checklist or where files were saved.
    • Log: every message from the job.
-   Open folder opens the folder that was written.
+    Save report… optionally saves the completed result as Markdown (for documentation or a user story) or CSV.
+    Open folder opens the folder that was written.
 
 A typical NL workflow: Extract the phrases from Excel, then Build NL. For directed dialog: Validate, then Build DD.
 
@@ -33,12 +34,19 @@ Each config row has 7 comma-separated values; the last one is optional:
 
 • The phrases are read from Training Phrases\\<language>\\<action>.txt.
 • Language can be en, es, fr, or dtmf (DTMF values only).
+• The English row supplies the shared intent definition. With no English row, one is generated in memory from the first row and uses the matching English phrase file.
 • Machine learning stays on when the last value is TRUE, blank or left off; FALSE turns it off.
-• An action ending in ^ also disables machine learning for that intent.
+• An action ending in ^ also turns machine learning off for that intent.
 • A priority can follow the intent name in braces, e.g. MYAC.Billing.Pay{high}.
 • Entities are separated by | ; a trailing * marks a required entity and [name] sets its alias.
 
 Errors (missing intent, context or action, or '-' in an intent name) stop the build before any file is written.
+
+Edit config… opens the config file as a table: add, edit, reorder or delete rows, check them with the same rules as a build, and save (the previous file is kept as .bak).
+
+Clear the intents folder first zips everything in the intents folder and removes it before building, so intents that are no longer in the config are not left behind to be imported. Without it, the results list any intents that are no longer built but are still in the folder.
+
+Each build lists what changed since the previous build in the intents folder.
 """,
     "Build NL": """\
 Builds natural language intents from the phrase files in Training Phrases\\<language>\\NL.
@@ -50,11 +58,11 @@ Builds natural language intents from the phrase files in Training Phrases\\<lang
 
 File names control the intents:
 • BILLING.txt becomes the intent RTL.Billing with the action BILLING.
-• A name ending in ^ (e.g. PAY_BILL^.txt) disables machine learning.
+• A name ending in ^ (e.g. PAY_BILL^.txt) turns machine learning off.
 • A name ending in -NM (e.g. OTHER-NM.txt) returns the action nomatch.
 • Phrases can mark entities as <entity|text>, e.g. pay <sys.unit-currency|$20>.
 
-If the same phrase appears in more than one file, the phrases are listed under Details and you are asked whether to continue.
+If the same phrase appears in more than one file, a scrollable dialog lists the duplicates so you can choose Continue or Stop.
 """,
     "Extract": """\
 Saves the phrases from an Excel workbook (.xlsb, .xlsm or .xlsx) as text files.
@@ -72,5 +80,36 @@ Checks a project before building, without creating any files.
 • Checks that the Training Phrases folders exist for each language.
 • Runs the same config checks as a build: errors would stop a build, warnings are listed but a build would continue.
 • Phrase files are looked for in both the language folder and its NL folder.
+
+The phrase files are checked too:
+• Entity tags must look like <entity|text>; a missing '<', '>' or '|' is reported with its line numbers.
+• An entity used in a phrase must be in the row's Entities column.
+• Empty phrase files are reported.
+• DD intents that share a phrase are reported only when they also share a language and a context, since the context decides which intent is active.
+""",
+    "Compare": """\
+Shows what a build would change in the Dialogflow agent, without writing any files.
+
+1. Export the agent from the Dialogflow ES console (Settings > Export and Import > Export as ZIP).
+2. Choose the export zip, an unzipped export folder, or an intents folder.
+3. Choose the mode and config file, then press Compare.
+
+The results list the intents a build would add, the intents that would change (contexts, action, priority, machine learning, entities, and phrases added or removed per language), and the intents only in the export.
+
+Intents only in the export are not built by this config. They may belong to other modules, or be intents that should now be deleted from the agent by hand.
+
+IDs and timestamps are ignored, since they change with every build and export.
+""",
+    "Design doc": """\
+Creates a config file from the Excel design document.
+
+The workbook needs one sheet with a header row and one intent per row below it. The header names are found automatically, anywhere in the first rows:
+   Intent, Context, Language, Action, Entities, DTMF, Machine Learning
+
+• Sheet: leave blank to use the first sheet with an Intent, Context, Language and Action header.
+• Machine Learning uses the same values as the config: TRUE or blank keeps it on; FALSE turns it off.
+• Blank rows are skipped.
+• An existing config file is copied to a timestamped backup before it is replaced.
+• The new rows are checked with the same rules as a build; press Edit config… to fix any problems.
 """,
 }

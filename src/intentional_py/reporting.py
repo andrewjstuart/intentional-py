@@ -23,20 +23,39 @@ class Reporter(Protocol):
 
     def track(self, items: Sequence[T], label: str) -> Iterator[T]: ...
 
-    def confirm(self, question: str) -> bool: ...
+    def confirm(self, question: str, details: Sequence[str] | None = None) -> bool: ...
+
+
+@dataclass
+class IntentChange:
+    name: str
+    details: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CompareResult:
+    source: str
+    added: list[str] = field(default_factory=list)
+    changed: list[IntentChange] = field(default_factory=list)
+    removed: list[str] = field(default_factory=list)  # only in the older intents
+    unchanged: int = 0
+    elapsed: float = 0.0
 
 
 @dataclass
 class BuildResult:
     intents: int = 0
+    intent_names: list[str] = field(default_factory=list)
     phrases: int = 0
     entities: int = 0
     languages: list[str] = field(default_factory=list)
     files: int = 0
     nomatch: int = 0
-    ml_disabled: list[str] = field(default_factory=list)
+    machine_learning_off: list[str] = field(default_factory=list)
     elapsed: float = 0.0
     output_dir: Path | None = None
+    changes: CompareResult | None = None  # against the previous build in the intents folder
+    backup: Path | None = None  # zip of the intents folder, when it was cleared first
 
 
 @dataclass
@@ -47,6 +66,16 @@ class ExtractResult:
     empty_sheets: list[str] = field(default_factory=list)
     backup: Path | None = None
     elapsed: float = 0.0
+
+
+@dataclass
+class DesignResult:
+    config: Path
+    sheet: str
+    rows: int = 0
+    backup: Path | None = None  # copy of the config file that was replaced
+    errors: list[str] = field(default_factory=list)  # from the same checks a build runs
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass

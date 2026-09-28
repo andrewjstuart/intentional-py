@@ -1,11 +1,11 @@
 # Builds intentional.exe (GUI) and intentional-cli.exe (CLI) on Windows.
 #
-# - Pushing a version tag such as v1.0.6 builds the executables and publishes them,
+# - Pushing a version tag such as v1.1.0 builds the executables and publishes them,
 #   with a SHA256SUMS.txt file, as a GitHub Release for that tag.
 # - "Run workflow" on the Actions tab builds from any branch without publishing; the
 #   executables can be downloaded from the run's "Artifacts" section.
 #
-# See "Releases and automated builds" in the README for the full steps.
+# See "Releases and automated builds" in docs/development.md for the full steps.
 name: Release
 
 on:

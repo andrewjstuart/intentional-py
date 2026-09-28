@@ -14,6 +14,7 @@ class FakeReporter:
         self.messages: list[tuple[str, str]] = []
         self.tables: list[list[str]] = []
         self.questions: list[str] = []
+        self.question_details: list[list[str]] = []
 
     def message(self, level, text):
         self.messages.append((level, text))
@@ -24,8 +25,9 @@ class FakeReporter:
     def track(self, items, label):
         yield from items
 
-    def confirm(self, question):
+    def confirm(self, question, details=None):
         self.questions.append(question)
+        self.question_details.append(list(details or []))
         return self.answer
 
 
@@ -45,6 +47,7 @@ def test_nl_config_aborts_when_duplicates_declined(tmp_path: Path) -> None:
         build_intents.nl_config(config, "RTL", "GetIntent", False, reporter)
 
     assert reporter.questions == ["Continue processing files"]
+    assert reporter.question_details == [["hello"]]
 
 
 def test_nl_build_returns_result(tmp_path: Path) -> None:
@@ -95,14 +98,18 @@ def test_dd_build_machine_learning_column(tmp_path: Path) -> None:
     (phrase_dir / "on.txt").write_text("turn it on\n", encoding="utf-8")
     (phrase_dir / "off.txt").write_text("turn it off\n", encoding="utf-8")
     config = tmp_path / "intents.cfg"
-    config.write_text("A.On,Ctx,en,on,,\nA.Off,Ctx,en,off,,,FALSE\n", encoding="utf-8")
+    config.write_text(
+        "A.Default,Ctx,en,on,,,\nA.On,Ctx,en,on,,,TRUE\nA.Off,Ctx,en,off,,,FALSE\n",
+        encoding="utf-8",
+    )
 
     result = build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     intents_dir = tmp_path / "intents"
+    assert json.loads((intents_dir / "A.Default.json").read_text(encoding="utf-8"))["auto"] is True
     assert json.loads((intents_dir / "A.On.json").read_text(encoding="utf-8"))["auto"] is True
     assert json.loads((intents_dir / "A.Off.json").read_text(encoding="utf-8"))["auto"] is False
-    assert result.ml_disabled == ["A.Off"]
+    assert result.machine_learning_off == ["A.Off"]
 
 
 def test_dd_cli_uses_config_directory(tmp_path: Path, monkeypatch) -> None:
