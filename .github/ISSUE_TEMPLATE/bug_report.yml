@@ -1,0 +1,91 @@
+name: Bug report
+description: Something isn't working the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please avoid including real customer data,
+        credentials, or other sensitive information in this report or any attached files.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown by `intentional-cli --version`, or next to the project folder in the GUI.
+      placeholder: e.g. 1.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: interface
+    attributes:
+      label: How are you running Intentional?
+      options:
+        - Windows executable (intentional.exe)
+        - Windows executable (intentional-cli.exe)
+        - GUI, from source (uv run intentional)
+        - CLI, from source (uv run intentional-cli)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: task
+    attributes:
+      label: Which task?
+      options:
+        - Build DD
+        - Build NL
+        - Extract
+        - Validate
+        - Compare
+        - Design doc
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, in order? Include the command or the options used in the GUI.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Include the exact error message if there was one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log or config
+      description: >
+        Paste the relevant part of the Log tab, terminal output, or config/phrase file rows.
+        Remove or replace any real customer data first.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and didn't find this one already reported.
+          required: true
+        - label: I'm using the latest release.
+          required: false
