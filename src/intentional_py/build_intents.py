@@ -6,14 +6,16 @@ entity handling, priority mapping, and progress tracking.
 """
 
 import csv
+import datetime
 import json
 import uuid
 from pathlib import Path
 from time import perf_counter
 
+from intentional_py import compare as comparing
 from intentional_py import constants, exceptions, utils
 from intentional_py import validate as validating
-from intentional_py.reporting import BuildResult, Reporter
+from intentional_py.reporting import BuildResult, CompareResult, Reporter
 
 
 def intents(
@@ -21,6 +23,7 @@ def intents(
     config: Path,
     base_dir: Path,
     reporter: Reporter,
+    clean: bool = False,
 ) -> BuildResult:
     """Build the intents described in the config file, after the preflight checks in validate.py.
 
@@ -29,10 +32,58 @@ def intents(
         config (Path): The name of the config file to use to build intents.
         base_dir (Path): Project directory containing the training phrases and receiving the intents.
         reporter (Reporter): Receives messages and progress.
+        clean (bool): Zip and remove everything in the intents folder before writing.
 
     Returns:
-        BuildResult: counts and output folder for the front end to display.
+        BuildResult: counts, changes since the previous build, and output folder.
     """
+    files_to_write, result, t1_start = _generate(mode, config, base_dir, reporter)
+    output_dir = Path(base_dir, constants.DEFAULT_INTENTS_DIR)
+
+    previous = [path for path in output_dir.glob("*") if path.is_file()] if output_dir.is_dir() else []
+    if any(path.suffix == ".json" for path in previous):
+        try:
+            result.changes = comparing.compare(
+                _summarize(files_to_write), comparing.load(output_dir), "the previous build"
+            )
+        except exceptions.IntentionalException as error:
+            reporter.message("warning", f"Could not compare with the previous build: {error}")
+    if clean and previous:
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        result.backup = Path(base_dir, f"{constants.DEFAULT_INTENTS_DIR}_{stamp}.zip")
+        with utils.file_errors(result.backup):
+            utils.zip_directory(output_dir, result.backup, previous)
+            for path in previous:
+                path.unlink()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for file, data in files_to_write.items():
+        with utils.file_errors(file), open(file, mode="w", encoding="utf-8") as output:
+            json.dump(data, output, indent=4)
+
+    result.output_dir = output_dir
+    result.elapsed = perf_counter() - t1_start
+    return result
+
+
+def compare_build(
+    mode: str, config: Path, base_dir: Path, source: Path, reporter: Reporter
+) -> CompareResult:
+    """Compare what the config would build with an agent export or intents folder; writes nothing."""
+    files_to_write, _result, t1_start = _generate(mode, config, base_dir, reporter)
+    result = comparing.compare(_summarize(files_to_write), comparing.load(source), str(source))
+    result.elapsed = perf_counter() - t1_start
+    return result
+
+
+def _summarize(files_to_write: dict) -> dict:
+    return comparing.summarize({Path(file).name: data for file, data in files_to_write.items()})
+
+
+def _generate(
+    mode: str, config: Path, base_dir: Path, reporter: Reporter
+) -> tuple[dict, BuildResult, float]:
+    """Check the config and create every intent's JSON in memory, keyed by output file."""
     # check if config file exists
     if not Path(config).exists():
         raise exceptions.FileSystemError(
@@ -42,7 +93,7 @@ def intents(
     files_to_write: dict = {}
     result = BuildResult()
     langs_set: set = set()
-    ml_disabled_set: set = set()
+    machine_learning_off: set = set()
 
     # Perform preflight validation on the config file to catch errors and warnings early
     rows, fatal_errors, warnings = validating.preflight_config(config, base_dir, mode)
@@ -60,8 +111,22 @@ def intents(
             f"[red]Config file does not contain data[/red]: [cyan]{config}[/cyan]"
         )
 
+    intents_with_english = {
+        row[0] for row in rows if row[2] == constants.DEFAULT_LANGUAGE
+    }
+    first_row_for_intent: dict[str, int] = {}
+    for row_number, row in enumerate(rows):
+        first_row_for_intent.setdefault(row[0], row_number)
+
     label = f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"
-    for row in reporter.track(rows, label):
+    for row_number, row in enumerate(reporter.track(rows, label)):
+        write_intent = (
+            row[2] == constants.DEFAULT_LANGUAGE
+            or (
+                row[0] not in intents_with_english
+                and first_row_for_intent[row[0]] == row_number
+            )
+        )
         (
             data,
             temp_intents,
@@ -70,9 +135,13 @@ def intents(
             temp_lang,
             temp_nomatch,
             temp_ml,
-        ) = create_json(row, mode, base_dir, reporter)
+        ) = create_json(row, mode, base_dir, reporter, write_intent)
 
-        files_to_write.update(data)
+        for file, content in data.items():
+            if "_usersays_" in file.stem and file in files_to_write:
+                files_to_write[file].extend(content)
+            else:
+                files_to_write[file] = content
         result.intents += temp_intents
         result.phrases += temp_phrases
         result.entities += temp_entities
@@ -80,18 +149,13 @@ def intents(
             langs_set.add(temp_lang)
         result.nomatch += temp_nomatch
         if temp_ml:
-            ml_disabled_set.add(temp_ml)
-
-    for file, data in files_to_write.items():
-        with utils.file_errors(file), open(file, mode="w", encoding="utf-8") as output:
-            json.dump(data, output, indent=4)
+            machine_learning_off.add(temp_ml)
 
     result.files = len(files_to_write)
+    result.intent_names = sorted({utils.check_priority(row[0])[0] for row in rows})
     result.languages = sorted(langs_set)
-    result.ml_disabled = sorted(ml_disabled_set)
-    result.output_dir = Path(base_dir, constants.DEFAULT_INTENTS_DIR)
-    result.elapsed = perf_counter() - t1_start
-    return result
+    result.machine_learning_off = sorted(machine_learning_off)
+    return files_to_write, result, t1_start
 
 
 def create_json(
@@ -99,6 +163,7 @@ def create_json(
     mode: str,
     default_path: Path,
     reporter: Reporter,
+    write_intent: bool = True,
 ) -> tuple[dict, int, int, int, str, int, str]:
     """Create the JSON for one config row, which must already have passed preflight_config.
 
@@ -107,6 +172,7 @@ def create_json(
         mode (str): Directed dialog (DD) or Natural Language (NL), which selects the phrase folder
         default_path (Path): project directory containing the training phrases and receiving the intents
         reporter (Reporter): Receives messages.
+        write_intent (bool): Whether this row owns the shared intent definition file.
 
     Returns:
         tuple[dict, int, int, int, str, int, str]
@@ -116,7 +182,7 @@ def create_json(
             int: number of entities used
             str: language code used
             int: number of nomatch intents
-            str: name of the intent if ML is disabled, otherwise empty
+            str: name of the intent if machine learning is off, otherwise empty
 
     """
     # annotations for variables
@@ -143,7 +209,7 @@ def create_json(
     phrases_cnt: int = 0
     entities_cnt: int = 0
     nomatch_cnt: int = 0
-    ml_disabled_str: str = ""
+    machine_learning_off: str = ""
 
     # rows come from preflight_config, which rejects missing values and normalizes language and ML
     # check for priority, appended to DF intent name with curly brackets {}
@@ -168,10 +234,8 @@ def create_json(
     dtmf_list: list = dtmf_value.split("|") if dtmf_value else []
     machine_learning = machine_learning.lower()
 
-    # set output file paths
+    # set output file paths; the folder is created when the files are written
     output_file_path: Path = Path(default_path, constants.DEFAULT_INTENTS_DIR)
-    # create new directory for the intents if it does not exist
-    Path(output_file_path).mkdir(parents=True, exist_ok=True)
 
     output_file: Path = Path(f"{df_intent}.json")
     output_file = Path(output_file_path, output_file)
@@ -227,7 +291,7 @@ def create_json(
 
     intents_cnt += 1  # store for return
     if not utils.strtobool(machine_learning):
-        ml_disabled_str = df_intent
+        machine_learning_off = df_intent
     if clean_action == "nomatch":
         nomatch_cnt += 1
 
@@ -266,9 +330,7 @@ def create_json(
         # add proper JSON to the output
         intent_data["responses"][0]["parameters"] = entity_list
 
-    # only the English row writes the intent file; other languages add their usersays file,
-    # so an intent without an 'en' row gets no intent file
-    if language == "en":
+    if write_intent:
         files_to_write[output_file] = intent_data
 
     # set phrase file path
@@ -381,7 +443,7 @@ def create_json(
         entities_cnt,
         langs_used,
         nomatch_cnt,
-        ml_disabled_str,
+        machine_learning_off,
     )
 
 
@@ -533,7 +595,7 @@ def nl_config(
                 [[dup] for dup in sorted(duplicates)],
                 level="error",
             )
-            if not reporter.confirm("Continue processing files"):
+            if not reporter.confirm("Continue processing files", sorted(duplicates)):
                 raise exceptions.IntentionalException(
                     "\n[bold][red]Abort processing...[/bold][/red]\n"
                     "User aborted due to duplicate phrases"

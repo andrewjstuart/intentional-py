@@ -36,7 +36,15 @@ def test_plain_text_strips_markup() -> None:
 def test_help_has_a_section_for_each_tab() -> None:
     from intentional_py.gui import help_text
 
-    assert list(help_text.SECTIONS) == ["Getting started", "Build DD", "Build NL", "Extract", "Validate"]
+    assert list(help_text.SECTIONS) == [
+        "Getting started",
+        "Build DD",
+        "Build NL",
+        "Extract",
+        "Validate",
+        "Compare",
+        "Design doc",
+    ]
 
 
 def test_issue_splits_level_prefix_and_row() -> None:
@@ -157,11 +165,13 @@ def test_confirm_waits_for_ui_answer() -> None:
     events: queue.Queue = queue.Queue()
     reporter = GuiReporter(events)
     answers = []
-    worker = threading.Thread(target=lambda: answers.append(reporter.confirm("Continue")))
+    worker = threading.Thread(
+        target=lambda: answers.append(reporter.confirm("Continue", ["hello", "pay my bill"]))
+    )
     worker.start()
 
-    kind, question, answer, answered = events.get(timeout=5)
-    assert (kind, question) == ("confirm", "Continue")
+    kind, question, details, answer, answered = events.get(timeout=5)
+    assert (kind, question, details) == ("confirm", "Continue", ["hello", "pay my bill"])
     assert worker.is_alive()
     answer["value"] = False
     answered.set()

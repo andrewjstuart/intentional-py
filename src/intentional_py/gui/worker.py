@@ -5,7 +5,7 @@ Events are tuples whose first item names the event:
     ("table", columns, rows, level)
     ("progress_start", label, total)
     ("progress", done, total)
-    ("confirm", question, answer_dict, threading.Event)
+    ("confirm", question, details, answer_dict, threading.Event)
     ("done", result)
     ("failed", text)
 """
@@ -51,10 +51,10 @@ class GuiReporter:
             yield item
             self.events.put(("progress", done, total))
 
-    def confirm(self, question: str) -> bool:
+    def confirm(self, question: str, details: Sequence[str] | None = None) -> bool:
         answer: dict = {}
         answered = threading.Event()
-        self.events.put(("confirm", question, answer, answered))
+        self.events.put(("confirm", question, list(details or []), answer, answered))
         answered.wait()
         return bool(answer.get("value"))
 

@@ -9,4 +9,4 @@ Also provides extraction from Excel files, validation, and a GUI
 """
 
 __app_name__ = "intentional-cli"
-__version__ = "1.0.5"
+__version__ = "1.1.0"

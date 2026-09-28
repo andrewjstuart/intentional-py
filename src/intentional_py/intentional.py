@@ -5,6 +5,8 @@ Provides the intentional-cli command:
 - Natural Language (nl): Create intents from training phrases with auto-config
 - Extract (x): Extract phrases from Excel files
 - Validate: Validate project structure before processing
+- Compare: Compare what a build would produce with an agent export
+- Design: Create the config file from the Excel design document
 - GUI (gui): Open the graphical interface
 
 Uses Typer with Rich formatting for a modern terminal experience.
@@ -20,9 +22,10 @@ import typer.core
 from rich import print
 from rich.console import Console
 
-from intentional_py import __app_name__, __version__, constants, exceptions
+from intentional_py import __app_name__, __version__, constants, design_doc, exceptions
 from intentional_py import build_intents as build
 from intentional_py import extract as extracting
+from intentional_py import report as report_writer
 from intentional_py import validate as validating
 from intentional_py.rich_reporter import RichReporter
 
@@ -58,6 +61,25 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
+def _report_callback(path: Path | None) -> Path | None:
+    if path and path.suffix.casefold() not in {".md", ".markdown", ".csv"}:
+        raise typer.BadParameter("Use a Markdown (.md) or CSV (.csv) extension.")
+    if path and not path.parent.exists():
+        raise typer.BadParameter(f"Folder does not exist: {path.parent}")
+    return path
+
+
+def _save_report(
+    path: Path | None,
+    title: str,
+    result: report_writer.Result,
+    reporter: RichReporter,
+) -> None:
+    if path:
+        saved = report_writer.write(path, title, result, reporter.issues)
+        reporter.message("info", f"[green]Report saved to[/green] [blue]{saved}[/blue]")
+
+
 @app.callback(invoke_without_command=True)
 def main(
     version: Annotated[
@@ -82,6 +104,21 @@ def main(
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
     ] = False,
+    clean: Annotated[
+        bool,
+        typer.Option(
+            "--clean",
+            help="Zip and remove everything in the intents folder before building, so no old intents are left.",
+        ),
+    ] = False,
+    report: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
     test: Annotated[
         bool,
         typer.Option(
@@ -100,7 +137,9 @@ def main(
         # the config's folder holds the training phrases and receives the intents
         config = config.resolve()
         try:
-            reporter.show_build(build.intents("DD", config, config.parent, reporter))
+            result = build.intents("DD", config, config.parent, reporter, clean)
+            reporter.show_build(result)
+            _save_report(report, "Build DD intents", result, reporter)
         except exceptions.IntentionalException as e:
             console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
             raise typer.Exit(code=1)
@@ -158,6 +197,21 @@ def natural_language(
             rich_help_panel="Natural Language Options",
         ),
     ] = False,
+    clean: Annotated[
+        bool,
+        typer.Option(
+            "--clean",
+            help="Zip and remove everything in the intents folder before building, so no old intents are left.",
+        ),
+    ] = False,
+    report: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
     test: Annotated[
         bool,
         typer.Option(
@@ -191,7 +245,9 @@ def natural_language(
                 vertical = use_vertical
             build.nl_config(config, vertical, context, lowercase, reporter)
 
-        reporter.show_build(build.intents("NL", config, config.parent, reporter))
+        result = build.intents("NL", config, config.parent, reporter, clean)
+        reporter.show_build(result)
+        _save_report(report, "Build NL intents", result, reporter)
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
         raise typer.Exit(code=1)
@@ -235,6 +291,14 @@ def extract(
             help="Use this flag to suppress most output.",
         ),
     ] = False,
+    report: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
     test: Annotated[
         bool,
         typer.Option(
@@ -290,11 +354,11 @@ def extract(
         reporter = RichReporter(quiet=quiet, test=test)
         # phrases go to the CWD; tests keep them beside the Excel file instead
         base_dir = xl_file.parent if test else Path.cwd()
-        reporter.show_extract(
-            extracting.excel_data(
-                xl_file, mode.upper(), language.lower(), base_dir, reporter
-            )
+        result = extracting.excel_data(
+            xl_file, mode.upper(), language.lower(), base_dir, reporter
         )
+        reporter.show_extract(result)
+        _save_report(report, "Extract phrases", result, reporter)
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
         raise typer.Exit(code=1)
@@ -313,6 +377,14 @@ def validate(
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
     ] = False,
+    report: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
     test: Annotated[
         bool,
         typer.Option(
@@ -331,7 +403,9 @@ def validate(
         reporter = RichReporter(quiet=quiet, test=test)
         # without a valid config file, the standard files in the CWD are validated
         base_dir = config.resolve().parent if config.is_file() else Path.cwd()
-        reporter.show_validate(validating.validate(config, base_dir, reporter))
+        result = validating.validate(config, base_dir, reporter)
+        reporter.show_validate(result)
+        _save_report(report, "Validate", result, reporter)
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
         raise typer.Exit(code=1)
@@ -373,3 +447,101 @@ def gui(
         )
         raise typer.Exit(code=1)
     gui_app.main(project.resolve() if project else None)
+
+
+@app.command("compare")
+def compare(
+    export: Annotated[
+        Path,
+        typer.Option(
+            "--export",
+            "-e",
+            help="Agent export (zip or unzipped folder), or an intents folder, to compare with.",
+        ),
+    ],
+    mode: Annotated[
+        str,
+        typer.Option("--mode", "-m", help="Mode of the config: [yellow]'DD'[/yellow] or [yellow]'NL'[/yellow]"),
+    ] = "DD",
+    config: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--config",
+            help="Config file to build from. [default: intents.cfg, or intents_nl.cfg for NL]",
+        ),
+    ] = None,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
+    ] = False,
+    report: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
+) -> None:
+    """
+    Compare what the config would build with an agent export, without writing any files
+    """
+    reporter = RichReporter(quiet=quiet)
+    try:
+        mode = mode.upper()
+        if mode not in constants.VALID_MODES:
+            raise exceptions.ConfigurationError(f"Invalid mode: {mode}. Valid modes: DD, NL")
+        default = constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
+        config = (config or Path(default)).resolve()
+        result = build.compare_build(
+            mode, config, config.parent, export.resolve(), reporter
+        )
+        reporter.show_compare(result)
+        _save_report(report, "Compare intents", result, reporter)
+    except exceptions.IntentionalException as e:
+        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
+        raise typer.Exit(code=1)
+
+
+@app.command("design")
+def design(
+    xl_file: Annotated[
+        Path,
+        typer.Option("--file", "-f", help="Excel design document with the intent rows"),
+    ],
+    sheet: Annotated[
+        str,
+        typer.Option("--sheet", "-s", help="Sheet to read. [default: the first sheet with an intent header row]"),
+    ] = "",
+    config: Annotated[
+        Path,
+        typer.Option("--config", help="Config file to write; an existing one is backed up first."),
+    ] = Path(constants.DEFAULT_DD_CONFIG),
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
+    ] = False,
+    report: Annotated[
+        Optional[Path],
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
+) -> None:
+    """
+    Create the config file from the Excel design document
+    """
+    reporter = RichReporter(quiet=quiet)
+    try:
+        if not xl_file.is_file():
+            raise exceptions.FileSystemError(f"{xl_file} does [red]NOT[/red] exist as a file.")
+        result = design_doc.config_from_design(
+            xl_file.resolve(), config.resolve(), reporter, sheet
+        )
+        reporter.show_design(result)
+        _save_report(report, "Create config from design document", result, reporter)
+    except exceptions.IntentionalException as e:
+        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
+        raise typer.Exit(code=1)

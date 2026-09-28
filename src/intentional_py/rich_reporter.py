@@ -1,5 +1,6 @@
 """Rich terminal implementation of the Reporter used by the CLI."""
 
+import re
 from collections.abc import Iterator, Sequence
 from typing import TypeVar
 
@@ -13,11 +14,14 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from rich.table import Table
+from rich.text import Text
 
 from intentional_py import utils
 from intentional_py.reporting import (
     BuildResult,
     Check,
+    CompareResult,
+    DesignResult,
     ExtractResult,
     Level,
     ValidateResult,
@@ -34,17 +38,31 @@ class RichReporter:
         self.quiet = quiet
         self.test = test
         self.console = Console()
+        self.issues: list[tuple[Level, str, str]] = []
 
     def _hidden(self, level: Level) -> bool:
         return self.quiet and level != "error"
 
     def message(self, level: Level, text: str) -> None:
+        if level in {"warning", "error"}:
+            plain = Text.from_markup(text).plain.strip()
+            plain = re.sub(r"^(Warning|Error):\s*", "", plain)
+            match = re.match(r"Row (\d+):\s*(.*)", plain, re.DOTALL)
+            self.issues.append(
+                (level, match[1], match[2]) if match else (level, "", plain)
+            )
         if not self._hidden(level):
             self.console.print(text)
 
     def table(
         self, columns: list[str], rows: list[list[str]], level: Level = "info"
     ) -> None:
+        if level in {"warning", "error"}:
+            title = " | ".join(Text.from_markup(column).plain for column in columns)
+            self.issues.extend(
+                (level, "", f"{title}: " + " | ".join(Text.from_markup(cell).plain for cell in row))
+                for row in rows
+            )
         if self._hidden(level):
             return
         table = Table(*columns, box=box.ROUNDED)
@@ -69,7 +87,7 @@ class RichReporter:
         with progress:
             yield from progress.track(items)
 
-    def confirm(self, question: str) -> bool:
+    def confirm(self, question: str, details: Sequence[str] | None = None) -> bool:
         while True:
             answer = input(f"\n{question} Y/N? ")
             try:
@@ -94,10 +112,69 @@ class RichReporter:
             columns.append("NoMatch")
             row.append(str(result.nomatch))
         self.table(columns, [row])
-        if result.ml_disabled:
+        if result.machine_learning_off:
             self.table(
-                ["Intents with ML Disabled"], [[name] for name in result.ml_disabled]
+                ["Intents with Machine Learning Off"],
+                [[name] for name in result.machine_learning_off],
             )
+        if result.backup:
+            self.message(
+                "info", f"[green]Previous intents saved to[/green] [blue]{result.backup}[/blue]"
+            )
+        changes = result.changes
+        if changes:
+            summary = (
+                f"Compared with the previous build: {len(changes.added)} added, "
+                f"{len(changes.changed)} changed, {changes.unchanged} unchanged."
+            )
+            self.message("info", summary)
+            if changes.removed and not result.backup:
+                if not self._hidden("warning"):
+                    self.console.print(
+                        f"[yellow]Warning:[/yellow] {len(changes.removed)} intent(s) are no longer built but "
+                        "their files are still in the intents folder: "
+                        f"{', '.join(changes.removed)}. Use --clean to remove them."
+                    )
+
+    def show_compare(self, result: CompareResult) -> None:
+        self.table(
+            ["Time", "Added", "Changed", "Unchanged", "Only in export"],
+            [
+                [
+                    f"{result.elapsed:.3f} s",
+                    str(len(result.added)),
+                    str(len(result.changed)),
+                    str(result.unchanged),
+                    str(len(result.removed)),
+                ]
+            ],
+        )
+        if result.added:
+            self.table(["New intents"], [[name] for name in result.added])
+        if result.changed:
+            self.table(
+                ["Changed intent", "Changes"],
+                [[change.name, "\n".join(change.details)] for change in result.changed],
+            )
+        if result.removed:
+            self.table(
+                [f"Only in {result.source} (not built by this config)"],
+                [[name] for name in result.removed],
+            )
+
+    def show_design(self, result: DesignResult) -> None:
+        self.table(
+            ["Sheet", "Rows", "Config"], [[result.sheet, str(result.rows), str(result.config)]]
+        )
+        if result.backup:
+            self.message("info", f"[green]Previous config saved to[/green] [blue]{result.backup}[/blue]")
+        for error in result.errors:
+            self.console.print(f"    Error: {error}", style="red", markup=False)
+        if not self.quiet:
+            for warning in result.warnings:
+                self.console.print(f"    Warning: {warning}", style="yellow", markup=False)
+        if result.errors:
+            self.message("error", "[red]Fix the errors in the design document before building.[/red]")
 
     def show_extract(self, result: ExtractResult) -> None:
         if self.test:
@@ -112,10 +189,11 @@ class RichReporter:
                 "info", f"[green]Previous phrases saved to[/green] [blue]{result.backup}[/blue]"
             )
         for sheet_name in result.empty_sheets:
-            self.message(
-                "warning",
-                f"[yellow]Warning:[/yellow] sheet [blue]{sheet_name}[/blue] has no phrases; an empty text file was created.",
-            )
+            if not self._hidden("warning"):
+                self.console.print(
+                    f"[yellow]Warning:[/yellow] sheet [blue]{sheet_name}[/blue] has no phrases; "
+                    "an empty text file was created."
+                )
 
     def show_validate(self, result: ValidateResult) -> None:
         if self.test:
