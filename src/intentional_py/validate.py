@@ -8,7 +8,7 @@ import csv
 import re
 from pathlib import Path
 
-from intentional_py import constants, utils
+from intentional_py import constants, models, utils
 from intentional_py.reporting import Check, Reporter, ValidateResult
 
 MAX_LINES_LISTED = 5
@@ -56,59 +56,19 @@ def check_rows(
 
         # the machine learning column is optional, for configs written before it existed
         normalized_row = [cell.strip() for cell in row] + [""] * (7 - len(row))
-        intent, context, language, action, entities, dtmf_value, machine_learning = normalized_row
+        intent, context, language, action, entities, _dtmf_value, _machine_learning = normalized_row
 
-        if not intent:
-            fatal_errors.append(f"Row {row_number}: intent name is required.")
-        elif "-" in intent:
-            fatal_errors.append(
-                f"Row {row_number}: intent name '{intent}' cannot contain '-'."
-            )
-
-        if not context:
-            fatal_errors.append(f"Row {row_number}: context is required.")
-        elif "." in context:
-            warnings.append(
-                f"Row {row_number}: context '{context}' contains '.'."
-            )
-
-        if not action:
-            fatal_errors.append(f"Row {row_number}: action is required.")
-
-        language = language.lower()
-        if language not in constants.VALID_LANGUAGES | {"dtmf"}:
-            warnings.append(
-                f"Row {row_number}: language '{language or '<blank>'}' "
-                f"will default to '{constants.DEFAULT_LANGUAGE}'."
-            )
-            language = constants.DEFAULT_LANGUAGE
-            normalized_row[2] = constants.DEFAULT_LANGUAGE
+        # ConfigRow runs the per-row rules (required fields, language, DTMF, machine learning);
+        # cross-row and filesystem checks below stay here, since they involve more than one row
+        parsed = models.ConfigRow.from_csv_row(row, row_number)
+        fatal_errors.extend(parsed.errors)
+        warnings.extend(parsed.warnings)
+        language = parsed.language
+        normalized_row[2] = parsed.language
+        normalized_row[6] = parsed.machine_learning_text
 
         if intent:
             intent_languages.setdefault(intent, []).append((row_number, language))
-
-        if language == "dtmf" and not dtmf_value:
-            fatal_errors.append(f"Row {row_number}: DTMF rows require a DTMF value.")
-
-        if dtmf_value:
-            dtmf_values = dtmf_value.split("|")
-            invalid_dtmf = set(dtmf_values) - constants.VALID_DTMF_VALUES
-            if invalid_dtmf:
-                warnings.append(
-                    f"Row {row_number}: invalid DTMF values {sorted(invalid_dtmf)} "
-                    "will be retained for compatibility."
-                )
-
-        if not machine_learning:
-            normalized_row[6] = constants.MACHINE_LEARNING_DEFAULT
-        elif machine_learning.lower() not in constants.VALID_ML_VALUES:
-            normalized_row[6] = constants.MACHINE_LEARNING_DEFAULT
-            warnings.append(
-                f"Row {row_number}: machine learning value '{machine_learning}' "
-                f"will default to '{constants.MACHINE_LEARNING_DEFAULT}'."
-            )
-        else:
-            normalized_row[6] = machine_learning.lower()
 
         if action and language != "dtmf" and action != "nomatch":
             phrase_path = base_path / constants.DEFAULT_TRAINING_PHRASES_DIR / language

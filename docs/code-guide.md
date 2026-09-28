@@ -33,7 +33,7 @@ flowchart TD
         CMP["compare.py"]
         DES["design_doc.py"]
     end
-    CORE --> SHARED["reporting.py · report.py · constants.py · exceptions.py · utils.py"]
+    CORE --> SHARED["reporting.py · report.py · models.py · constants.py · exceptions.py · utils.py"]
 ```
 
 Because the core doesn't print, the same code runs behind both front ends. It talks back through a **reporter** object that each front end supplies (see [Design ideas worth knowing](#design-ideas-worth-knowing)).
@@ -59,7 +59,8 @@ All the source is in `src/intentional_py`.
 | File | What it does |
 |-|-|
 | [build_intents.py](../src/intentional_py/build_intents.py) | **Builds the intents.** `intents()` checks the config, uses its English row or synthesizes one from the first available row, creates the JSON in memory, compares it with the previous build, optionally clears the old files, then writes the `intents` folder. `create_json()` turns one config row into intent and training-phrase JSON. `nl_config()` creates `intents_nl.cfg` from the NL phrase files. `compare_build()` does a build without writing, for Compare. |
-| [validate.py](../src/intentional_py/validate.py) | **Checks configs and phrases.** `check_rows()` holds the rules every row must pass, and sorts problems into errors (stop the build) and warnings. The builds, the Validate task, the design document and the config editor all use it, so they always agree. `validate()` also checks that the folders and files exist. |
+| [validate.py](../src/intentional_py/validate.py) | **Checks configs and phrases.** `check_rows()` calls `models.ConfigRow.from_csv_row()` for the per-row rules (required fields, language, DTMF, machine learning), then handles the checks that need more than one row or the filesystem: duplicate phrases, duplicate intent+language rows, the synthesized English row, and phrase files. The builds, the Validate task, the design document and the config editor all use it, so they always agree. `validate()` also checks that the folders and files exist. |
+| [models.py](../src/intentional_py/models.py) | **A typed model of one config row.** `ConfigRow` is a Pydantic model with the same fatal-error/warning split as `check_rows()`; it never raises for a domain rule, only for a row that cannot be read at all (wrong column count). `check_rows()` uses it for every per-row check. |
 | [extract.py](../src/intentional_py/extract.py) | **Excel to phrase files.** `excel_data()` reads every sheet of a workbook, backs up the phrases it will replace to a zip, then writes one `.txt` file per sheet. |
 | [compare.py](../src/intentional_py/compare.py) | **Finds the differences between two sets of intents.** `load()` reads an agent export (zip or folder) or an `intents` folder; `summarize()` reduces each intent to the fields this tool writes; `compare()` lists what was added, changed and removed. |
 | [design_doc.py](../src/intentional_py/design_doc.py) | **Design document to config.** `config_from_design()` finds the header row in the Excel design document, copies each row to config format, backs up the old config and writes the new one. The Machine Learning value keeps the same meaning in both files. |
@@ -109,6 +110,7 @@ The tests are in `src/intentional_py/tests` and run with `uv run pytest`. Each `
 | [test_version.py](../src/intentional_py/tests/test_version.py) | `--version`, and that the version in `__init__.py` matches `pyproject.toml`. |
 | [test_validate.py](../src/intentional_py/tests/test_validate.py), [test_extract.py](../src/intentional_py/tests/test_extract.py), [test_dd.py](../src/intentional_py/tests/test_dd.py), [test_nl.py](../src/intentional_py/tests/test_nl.py) | The CLI commands end to end, using the sample project in `tests/data`. |
 | [test_preflight.py](../src/intentional_py/tests/test_preflight.py) | The config rules in `validate.py`: defaults, malformed rows, the optional ML column. |
+| [test_models.py](../src/intentional_py/tests/test_models.py) | `ConfigRow`'s per-row rules directly: required fields, language, DTMF, machine learning, and the fatal-error/warning split. |
 | [test_core_api.py](../src/intentional_py/tests/test_core_api.py) | The core functions called directly, with a fake reporter: NL config, extraction backups, file errors. |
 | [test_features.py](../src/intentional_py/tests/test_features.py) | The 1.1 features: phrase checks, clean, compare, the design document, synthesized English rows, settings and updates. |
 | [test_report.py](../src/intentional_py/tests/test_report.py) | Markdown and CSV formatting, invalid extensions, and a complete CLI build report. |
@@ -179,7 +181,8 @@ In the GUI, the same `intents()` function runs. The only differences are who cal
 
 | To… | Change |
 |-|-|
-| Add a config check | `check_rows()` in [validate.py](../src/intentional_py/validate.py), and a test in `test_preflight.py` or `test_features.py` |
+| Add a per-row config check (required field, language, DTMF, machine learning) | `ConfigRow.from_csv_row()` in [models.py](../src/intentional_py/models.py), and a test in `test_models.py` |
+| Add a config check that needs more than one row or the filesystem (duplicates, phrase files) | `check_rows()` in [validate.py](../src/intentional_py/validate.py), and a test in `test_preflight.py` or `test_features.py` |
 | Change the JSON written for an intent | `create_json()` in [build_intents.py](../src/intentional_py/build_intents.py) |
 | Add a language | `VALID_LANGUAGES` and `LANGUAGE_NAMES` in [constants.py](../src/intentional_py/constants.py) |
 | Add a CLI option or command | [intentional.py](../src/intentional_py/intentional.py) |

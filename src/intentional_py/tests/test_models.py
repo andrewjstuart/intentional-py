@@ -1,0 +1,114 @@
+import pytest
+
+from intentional_py import models
+
+
+def test_valid_row_parses_context_entities_and_priority() -> None:
+    row = models.ConfigRow.from_csv_row(
+        ["MYAC.NewServiceHomeOrBus.Home{high}", "Ctx-A|Ctx-B", "en", "home", "digits4[last_4]|sys.date*", "1", "FALSE"],
+        row_number=1,
+    )
+
+    assert row.intent == "MYAC.NewServiceHomeOrBus.Home"
+    assert row.priority == 750000
+    assert row.contexts == ["Ctx-A", "Ctx-B"]
+    assert row.dtmf == ["1"]
+    assert row.machine_learning is False
+    assert row.machine_learning_text == "false"
+    assert row.entities == [
+        models.Entity(type="@digits4", name="last_4", value="$last_4", required=False),
+        models.Entity(type="@sys.date", name="date", value="$date", required=True),
+    ]
+    assert row.ok
+    assert row.errors == []
+    assert row.warnings == []
+
+
+def test_blank_machine_learning_defaults_to_true_without_a_warning() -> None:
+    row = models.ConfigRow.from_csv_row(["A.Pay", "Ctx", "en", "pay", "", ""], row_number=1)
+
+    assert row.machine_learning is True
+    assert row.machine_learning_text == "TRUE"
+    assert row.warnings == []
+
+
+def test_missing_intent_is_a_row_prefixed_error_but_still_parses() -> None:
+    # like check_rows(), a fatal problem on one field doesn't stop the rest of the row
+    # from being read; the whole build aborts separately once any row has an error
+    row = models.ConfigRow.from_csv_row(["", "Ctx", "en", "pay", "", "", ""], row_number=3)
+
+    assert not row.ok
+    assert row.errors == ["Row 3: intent name is required."]
+    assert row.action == "pay"
+
+
+def test_intent_with_dash_is_an_error() -> None:
+    row = models.ConfigRow.from_csv_row(["A-Pay", "Ctx", "en", "pay", "", "", ""], row_number=1)
+
+    assert row.errors == ["Row 1: intent name 'A-Pay' cannot contain '-'."]
+
+
+def test_context_with_a_dot_is_a_warning_not_an_error() -> None:
+    row = models.ConfigRow.from_csv_row(["A.Pay", "Get.Intent", "en", "pay", "", "", ""], row_number=1)
+
+    assert row.ok
+    assert row.warnings == ["Row 1: context 'Get.Intent' contains '.'."]
+
+
+def test_dtmf_row_without_a_value_is_an_error() -> None:
+    row = models.ConfigRow.from_csv_row(["A.Menu", "Ctx", "dtmf", "menu", "", "", ""], row_number=1)
+
+    assert row.errors == ["Row 1: DTMF rows require a DTMF value."]
+
+
+def test_invalid_dtmf_characters_are_a_warning_not_an_error() -> None:
+    row = models.ConfigRow.from_csv_row(["A.Menu", "Ctx", "en", "menu", "", "1|x", ""], row_number=4)
+
+    assert row.ok
+    assert row.dtmf == ["1", "x"]
+    assert row.warnings == ["Row 4: invalid DTMF values ['x'] will be retained for compatibility."]
+
+
+def test_invalid_language_is_a_warning_not_an_error() -> None:
+    row = models.ConfigRow.from_csv_row(["A.Pay", "Ctx", "xx", "pay", "", "", ""], row_number=2)
+
+    assert row.ok
+    assert row.language == "en"
+    assert row.warnings == ["Row 2: language 'xx' will default to 'en'."]
+
+
+def test_invalid_machine_learning_value_is_a_warning_not_an_error() -> None:
+    row = models.ConfigRow.from_csv_row(["A.Pay", "Ctx", "en", "pay", "", "", "maybe"], row_number=5)
+
+    assert row.ok
+    assert row.machine_learning is True
+    assert row.machine_learning_text == "TRUE"
+    assert row.warnings == ["Row 5: machine learning value 'maybe' will default to 'TRUE'."]
+
+
+def test_wrong_column_count_raises_since_the_row_cannot_be_read_at_all() -> None:
+    with pytest.raises(ValueError, match=r"^Row 1: expected 6 or 7 values, found 3\.$"):
+        models.ConfigRow.from_csv_row(["A.Pay", "Ctx", "en"], row_number=1)
+
+
+def test_parse_rows_mirrors_check_rows_return_shape() -> None:
+    rows, errors, warnings = models.parse_rows(
+        [
+            ["A.Pay", "Ctx", "en", "pay", "", "", ""],
+            ["", "Ctx", "en", "pay", "", "", ""],
+            ["A.Menu", "Ctx", "zz", "menu", "", "", ""],
+        ]
+    )
+
+    # check_rows() keeps every row it can read, even ones with their own errors
+    assert [row.intent for row in rows] == ["A.Pay", "", "A.Menu"]
+    assert errors == ["Row 2: intent name is required."]
+    assert warnings == ["Row 3: language 'zz' will default to 'en'."]
+
+
+def test_parse_rows_reports_wrong_column_count_and_skips_the_row() -> None:
+    rows, errors, warnings = models.parse_rows([["A.Pay", "Ctx", "en", "pay", "", "", ""], ["A.Bad", "Ctx"]])
+
+    assert [row.intent for row in rows] == ["A.Pay"]
+    assert errors == ["Row 2: expected 6 or 7 values, found 2."]
+    assert warnings == []
