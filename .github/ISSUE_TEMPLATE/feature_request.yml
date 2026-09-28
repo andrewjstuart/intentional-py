@@ -1,0 +1,54 @@
+name: Feature idea
+description: Suggest an improvement or a new feature.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Related ideas may already be tracked in
+        [docs/future-features.md](https://github.com/andrewjstuart/intentional-py/blob/main/docs/future-features.md) —
+        take a look before filing, and feel free to add to the discussion there instead if it's a close match.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What are you trying to do, and what makes it difficult today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like it to work? A rough sketch is fine.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does this apply?
+      options:
+        - CLI
+        - GUI
+        - Both
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds you've tried
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and future-features.md for this idea already being tracked.
+          required: true

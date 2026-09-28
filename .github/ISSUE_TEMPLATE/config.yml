@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: User guide
+    url: https://github.com/andrewjstuart/intentional-py/blob/main/docs/user-guide.md
+    about: How to use Intentional, before reporting an issue.
