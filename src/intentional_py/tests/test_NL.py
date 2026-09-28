@@ -1,4 +1,3 @@
-import shutil
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -8,63 +7,26 @@ from intentional_py import intentional
 runner = CliRunner()
 
 app = intentional.app
-data_src: str = "./src/intentional_py/tests/data"
+
+
+def build_nl(config: Path, *options: str):
+    return runner.invoke(app, ["natural-language", "--config", str(config), *options, "--test"])
 
 
 # tests the NL functionality of intentional
-def test_NL_exceptions():
-    result = runner.invoke(
-        app,
-        [
-            "natural-language",
-            "--config",
-            f"{data_src}/empty_intents_nl.cfg",
-            "-v",
-            "RTL",
-            "-c",
-            "GetIntent",
-            "--test",
-        ],
-    )
+def test_NL_exceptions(data_dir: Path):
+    result = build_nl(Path(data_dir, "empty_intents_nl.cfg"), "-v", "RTL", "-c", "GetIntent")
     assert result.exit_code == 0
 
 
-def test_NL():
-    result = runner.invoke(
-        app,
-        [
-            "natural-language",
-            "--config",
-            f"{data_src}/intents_nl.cfg",
-            "-v",
-            "RTL",
-            "-c",
-            "GetIntent",
-            "--test",
-        ],
-    )
+def test_NL(data_dir: Path):
+    config = Path(data_dir, "intents_nl.cfg")
+    result = build_nl(config, "-v", "RTL", "-c", "GetIntent")
     assert result.exit_code == 0
+    assert "RTL.Nomatch,GetIntent,en,NOMATCH-NM" in config.read_text(encoding="utf-8")
 
 
-def test_NL_reuse():
-    result = runner.invoke(
-        app,
-        [
-            "natural-language",
-            "--config",
-            f"{data_src}/intents_nl.cfg",
-            "--reuse",
-            "--test",
-        ],
-    )
+def test_NL_reuse(data_dir: Path):
+    result = build_nl(Path(data_dir, "intents_nl.cfg"), "--reuse")
     assert result.exit_code == 0
-
-    # clean up Training Phrase directory
-    training_phrase_path: Path = Path(data_src, "Training Phrases")
-    if training_phrase_path.exists():
-        shutil.rmtree(training_phrase_path)
-
-    # clean up intents directory
-    intent_path: Path = Path(data_src, "intents")
-    if intent_path.exists():
-        shutil.rmtree(intent_path)
+    assert Path(data_dir, "intents", "RTL.Nomatch.json").exists()

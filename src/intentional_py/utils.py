@@ -1,21 +1,51 @@
+"""Utility functions for intentional-py.
+
+Provides helper functions for:
+- Priority parsing from intent names
+- Entity alias checking and handling
+- Phrase entity extraction and processing
+- File path utilities and readable file errors
+- Directory zipping for backups
+- Duplicate phrase detection
+"""
+
 import re
 import zipfile
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-from rich import box, print
-from rich.console import Console
-from rich.table import Table
+from intentional_py import constants, exceptions
 
 
-def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
+@contextmanager
+def file_errors(path: Path) -> Iterator[None]:
+    """Turn problems reading or writing a file into errors that name the file."""
+    try:
+        yield
+    except UnicodeDecodeError as error:
+        raise exceptions.FileSystemError(
+            f"{path} is not saved as UTF-8 text (invalid byte at position {error.start}). "
+            "Save it with UTF-8 encoding and try again."
+        ) from error
+    except PermissionError as error:
+        raise exceptions.FileSystemError(
+            f"Permission denied: {path}. Close it in any program using it (such as Excel) and try again."
+        ) from error
+    except OSError as error:
+        raise exceptions.FileSystemError(
+            f"Could not access {path}: {error.strerror or error}"
+        ) from error
+
+
+def check_for_duplicate_phrases(directory: Path) -> tuple[set, list]:
     """Checks text files in the directory for duplicate phrases across all files
 
     Args:
         directory (Path): directory to search
-        lang (str): the language being searched
 
     Returns:
-        set: a set containing all duplicated phrases
+        tuple[set, list]: duplicated phrases, and phrases starting with 'uh' or 'um' to review
     """
     all_lines: set = set()
     duplicates: set = set()
@@ -24,7 +54,7 @@ def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
     for filename in filenames:
         if filename.endswith(".txt"):
             filepath: Path = Path(directory, filename)
-            with open(filepath, "r") as file:
+            with file_errors(filepath), open(filepath, "r", encoding="utf-8") as file:
                 for line in file:
                     line = line.strip()
                     # check of line beginning with 'uh' or 'um'
@@ -36,19 +66,7 @@ def check_for_duplicate_phrases(directory: Path, lang: str, quiet: bool) -> set:
                     else:
                         all_lines.add(line)
 
-    if phrases_to_review:
-        uhum_table = Table(
-            f"[red][bright_black]'uh'[/bright_black] and [bright_black]'um'[/bright_black] phrases found in [yellow]{lang}[/yellow][/red]",
-            box=box.ROUNDED,
-            header_style="",
-        )
-        for phrase in phrases_to_review:
-            uhum_table.add_row(phrase)
-        console = Console()
-        if not quiet:
-            console.print(uhum_table)
-            print("")  # empty line
-    return duplicates
+    return duplicates, phrases_to_review
 
 
 def check_priority(df_intent: str) -> tuple[str, str]:
@@ -65,22 +83,10 @@ def check_priority(df_intent: str) -> tuple[str, str]:
     Returns:
         tuple[str, str]: The final intent name and the priority value
     """
-    priority: str = "500000"  # default to "normal" priority
+    priority: int = constants.DEFAULT_PRIORITY
     matches: list = re.findall(r"\{(.*?)\}", df_intent)  # search for {}
     if matches:
-        priority_dict: dict = {
-            "1": 1000000,
-            "2": 750000,
-            "3": 500000,
-            "4": 250000,
-            "5": -1,
-            "highest": 1000000,
-            "high": 750000,
-            "normal": 500000,
-            "low": 250000,
-            "ignore": -1,
-        }
-        priority = priority_dict[matches[0]]
+        priority = constants.PRIORITY_MAP.get(matches[0], constants.DEFAULT_PRIORITY)
     intent_split: list = df_intent.split("{", 1)
     intent: str = intent_split[0]
 
@@ -240,38 +246,41 @@ def clean_phrase(string: str) -> str:
     return string
 
 
-def zip_directory(directory_path: Path, zip_path: Path) -> None:
+def zip_directory(
+    directory_path: Path, zip_path: Path, files: Iterable[Path] | None = None
+) -> None:
     """Zip a directory provided
 
     Args:
         directory_path (Path): directory to zip
         zip_path (Path): path to save the zip file
+        files (Iterable[Path] | None): only these files from the directory; everything when omitted
     """
-    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as zippy:
-        for file_path in directory_path.rglob("*"):
+    with zipfile.ZipFile(
+        zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+    ) as zippy:
+        for file_path in directory_path.rglob("*") if files is None else files:
             zippy.write(file_path, arcname=file_path.relative_to(directory_path))
 
 
+def find_phrase_file(phrase_dir: Path, action: str) -> Path:
+    """Return the phrase file for an action, falling back to the name without a trailing '^'."""
+    exact = Path(phrase_dir, f"{action}{constants.PHRASE_FILE_EXTENSION}")
+    if exact.exists() or not action.endswith("^"):
+        return exact
+    stripped = Path(
+        phrase_dir, f"{action.removesuffix('^')}{constants.PHRASE_FILE_EXTENSION}"
+    )
+    return stripped if stripped.exists() else exact
+
+
 def check_for_path(file_to_check: Path) -> tuple[Path, Path, str]:
-    """check the file to determine if there is a path value prefixed
+    """Split a file path into its folder, file name and extension.
 
     Args:
-        file_to_check (Path): file to check if it contains a path or uses implied CWD
+        file_to_check (Path): file, with or without a folder; a bare name gives Path(".")
 
     Returns:
         tuple[Path, Path, str]: returns the path, the file name with the extension, and the file extension
     """
-    if file_to_check.parent:
-        file_to_check_path = file_to_check.parent  # pull filepath from file
-        # file_with_extension: str = file_to_check.name  # pull filename from filepath
-        file: str = file_to_check.stem
-        file_extension: str = file_to_check.suffix  # store extension
-        file_to_check = Path(f"{file}{file_extension}")
-
-    else:
-        file: str = file_to_check.stem
-        file_extension: str = file_to_check.suffix  # store extension
-        file_to_check_path = Path.cwd()  # assume CWD for path
-        file_to_check = Path(f"{file}{file_extension}")
-
-    return (file_to_check_path, file_to_check, file_extension)
+    return (file_to_check.parent, Path(file_to_check.name), file_to_check.suffix)

@@ -1,0 +1,81 @@
+# Builds intentional.exe (GUI) and intentional-cli.exe (CLI) on Windows.
+#
+# - Pushing a version tag such as v1.0.6 builds the executables and publishes them,
+#   with a SHA256SUMS.txt file, as a GitHub Release for that tag.
+# - "Run workflow" on the Actions tab builds from any branch without publishing; the
+#   executables can be downloaded from the run's "Artifacts" section.
+#
+# See "Releases and automated builds" in the README for the full steps.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows executables
+    runs-on: windows-latest
+    permissions:
+      contents: write # needed to create the release; the other steps only read
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.2.0
+
+      # installs the Python version in .python-version; --locked fails if uv.lock is out of date
+      - name: Install Python and dependencies
+        run: uv sync --locked --extra dev --extra gui
+
+      - name: Check the tag matches the version in pyproject.toml
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $version = uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
+          if ("v$version" -ne $env:TAG) {
+            throw "Tag $env:TAG does not match version $version in pyproject.toml. Update the version or the tag."
+          }
+
+      - name: Run tests
+        run: uv run pytest -q
+
+      - name: Build executables
+        run: |
+          uv run pyinstaller --noconfirm intentional-gui.spec
+          uv run pyinstaller --noconfirm intentional-cli.spec
+
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          Get-FileHash dist\*.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content dist\SHA256SUMS.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: intentional-windows
+          path: |
+            dist/intentional.exe
+            dist/intentional-cli.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+      # uses the GitHub CLI that is installed on GitHub's runners; adds the files to an
+      # existing release for the tag (e.g. one drafted on GitHub) or creates a new one
+      - name: Publish the GitHub release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = "dist/intentional.exe", "dist/intentional-cli.exe", "dist/SHA256SUMS.txt"
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG @files --clobber
+          } else {
+            gh release create $env:TAG @files --title $env:TAG --generate-notes --verify-tag
+          }
