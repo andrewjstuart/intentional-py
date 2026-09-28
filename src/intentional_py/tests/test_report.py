@@ -43,7 +43,21 @@ def test_markdown_report_contains_summary_issues_and_changes(tmp_path: Path) -> 
     assert "| Warning | 4 | Phrase file is empty |" in text
     assert "A.New" in text
     assert "A.Changed" in text
-    assert "A.Old" in text
+    # kept in its own section, separate from Added/Changed, since it needs a different action
+    assert "## No longer built, but still in the intents folder" in text
+    assert "| A.Old |" in text
+
+
+def test_compare_report_names_the_removed_section_after_its_source(tmp_path: Path) -> None:
+    output = tmp_path / "compare-report.md"
+    result = CompareResult(source="agent.zip", added=["A.New"], removed=["A.Old"])
+
+    report.write(output, "Compare intents", result)
+
+    text = output.read_text(encoding="utf-8")
+    # matches the wording used by the CLI and GUI for the same information
+    assert "## Only in agent.zip (not built by this config)" in text
+    assert "| A.Old |" in text
 
 
 def test_csv_report_contains_named_sections(tmp_path: Path) -> None:
@@ -58,6 +72,26 @@ def test_csv_report_contains_named_sections(tmp_path: Path) -> None:
     assert ["Summary"] in rows
     assert ["Intents", "2"] in rows
     assert ["Changes since the previous build"] in rows
+    assert ["No longer built, but still in the intents folder"] in rows
+    assert ["A.Old"] in rows
+
+
+
+def test_csv_report_neutralizes_formula_triggering_cells(tmp_path: Path) -> None:
+    output = tmp_path / "build-report.csv"
+
+    report.write(
+        output,
+        "Build DD intents",
+        sample_result(tmp_path),
+        [("warning", "4", "=cmd|'/c calc'!A1")],
+    )
+
+    with output.open(encoding="utf-8", newline="") as file:
+        rows = list(csv.reader(file))
+    row = next(row for row in rows if len(row) == 3 and "cmd" in row[2])
+    # a leading quote keeps Excel from treating the message as a formula
+    assert row[2].startswith("'=")
 
 
 def test_report_rejects_unknown_extension(tmp_path: Path) -> None:

@@ -56,12 +56,17 @@ def _summary(result: Result) -> list[tuple[str, str]]:
 
 
 def _changes(result: CompareResult, title: str) -> Table | None:
+    """Added and changed intents, matching the table shown by both front ends."""
     rows = [["Added", name, ""] for name in result.added]
     rows.extend(
         ["Changed", change.name, "; ".join(change.details)] for change in result.changed
     )
-    rows.extend(["Only in previous", name, ""] for name in result.removed)
     return (title, ["Change", "Intent", "Details"], rows) if rows else None
+
+
+def _removed_table(names: list[str], title: str) -> Table | None:
+    """Intents no longer produced, kept separate since they need a different action (delete by hand)."""
+    return (title, ["Intent"], [[name] for name in names]) if names else None
 
 
 def _tables(result: Result) -> list[Table]:
@@ -75,6 +80,11 @@ def _tables(result: Result) -> list[Table]:
             changes = _changes(result.changes, "Changes since the previous build")
             if changes:
                 tables.append(changes)
+            removed = _removed_table(
+                result.changes.removed, "No longer built, but still in the intents folder"
+            )
+            if removed:
+                tables.append(removed)
         if result.machine_learning_off:
             tables.append(
                 (
@@ -92,8 +102,14 @@ def _tables(result: Result) -> list[Table]:
             tables.append(("Output", ["Item", "Location"], output))
         return tables
     if isinstance(result, CompareResult):
+        tables = []
         changes = _changes(result, f"Differences from {result.source}")
-        return [changes] if changes else []
+        if changes:
+            tables.append(changes)
+        removed = _removed_table(result.removed, f"Only in {result.source} (not built by this config)")
+        if removed:
+            tables.append(removed)
+        return tables
     if isinstance(result, ValidateResult):
         checks = result.directories + result.config_files + result.configs
         return [("Checks", ["Result", "Check"], [["Pass" if check.ok else "Fail", check.label] for check in checks])]
@@ -145,6 +161,20 @@ def _result_issues(result: Result) -> list[Issue]:
 
 def _escape(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\r", "").replace("\n", "<br>")
+
+
+# leading characters Excel/Sheets can interpret as the start of a formula
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_cell(value: object) -> str:
+    """A cell safe from CSV/formula injection when the report is opened in a spreadsheet."""
+    text = str(value)
+    return f"'{text}" if text.startswith(_FORMULA_TRIGGERS) else text
+
+
+def _csv_row(row: list) -> list[str]:
+    return [_csv_cell(cell) for cell in row]
 
 
 def _markdown(
@@ -201,20 +231,20 @@ def _write_csv(
     with utils.file_errors(path), path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(["Intentional Report"])
-        writer.writerow(["Job", title])
+        writer.writerow(_csv_row(["Job", title]))
         writer.writerow(["Generated", generated])
         writer.writerow([])
         writer.writerow(["Summary"])
-        writer.writerows(summary)
+        writer.writerows(_csv_row(row) for row in summary)
         writer.writerow([])
         writer.writerow(["Issues"])
         writer.writerow(["Level", "Row", "Message"])
-        writer.writerows(issues)
+        writer.writerows(_csv_row(row) for row in issues)
         for table_title, columns, rows in tables:
             writer.writerow([])
-            writer.writerow([table_title])
-            writer.writerow(columns)
-            writer.writerows(rows)
+            writer.writerow(_csv_row([table_title]))
+            writer.writerow(_csv_row(columns))
+            writer.writerows(_csv_row(row) for row in rows)
 
 
 def write(

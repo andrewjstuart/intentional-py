@@ -143,6 +143,17 @@ def check_rows(
             first_intent_rows.setdefault(intent, (row_number, normalized_row))
 
     for intent, language_rows in intent_languages.items():
+        rows_by_language: dict[str, list[int]] = {}
+        for row_number, language in language_rows:
+            rows_by_language.setdefault(language, []).append(row_number)
+        for language, row_numbers in rows_by_language.items():
+            if len(row_numbers) > 1:
+                winner = row_numbers[-1]
+                others = ", ".join(str(number) for number in row_numbers[:-1])
+                warnings.append(
+                    f"Row {winner}: intent '{intent}' also has language '{language}' "
+                    f"in row(s) {others}; this row will be used instead."
+                )
         if not any(language == constants.DEFAULT_LANGUAGE for _, language in language_rows):
             row_number, source_row = first_intent_rows[intent]
             language = source_row[2]
@@ -150,8 +161,8 @@ def check_rows(
             english_row[2] = constants.DEFAULT_LANGUAGE
             normalized_rows.append(english_row)
             warnings.append(
-                f"Intent '{intent}' has no English ('en') row; "
-                f"an English row will be synthesized from row {row_number} ('{language}')."
+                f"Row {row_number}: intent '{intent}' has no English ('en') row; "
+                f"an English row will be synthesized from this row ('{language}')."
             )
             action = english_row[3]
             if action and action != "nomatch":
@@ -169,14 +180,14 @@ def check_rows(
                 found = [path for path in phrase_files if path.exists()]
                 if not found:
                     warnings.append(
-                        f"Synthesized English row for '{intent}': phrase file "
+                        f"Row {row_number}: synthesized English row for '{intent}': phrase file "
                         f"'{phrase_files[0]}' was not found; the English intent "
                         "will be generated without those phrases."
                     )
                 else:
                     phrases = _read_phrases(found[0])
                     warnings.extend(
-                        f"Synthesized English row for '{intent}': {problem}"
+                        f"Row {row_number}: synthesized English row for '{intent}': {problem}"
                         for problem in _phrase_problems(
                             found[0], phrases, english_row[4]
                         )

@@ -80,8 +80,10 @@ def test_duplicate_phrases_only_matter_within_a_context(tmp_path: Path) -> None:
         {"yes": "Yes\nyeah\n", "sure": "yes\nsure\n"},
     )
     assert warnings_for(config) == [
-        "Row 2: 'A.Sure' shares a phrase (e.g. 'yes') with 'A.Yes' (row 1), "
-        "which has the same context 'Menu' and language 'en'."
+        (
+            "Row 2: 'A.Sure' shares a phrase (e.g. 'yes') with 'A.Yes' (row 1), "
+            "which has the same context 'Menu' and language 'en'."
+        )
     ]
 
 
@@ -99,7 +101,7 @@ def test_intent_without_english_row_is_complete(tmp_path: Path) -> None:
     assert errors == []
     assert len(rows) == 2
     assert warnings == [
-        "Intent 'A.Pay' has no English ('en') row; an English row will be synthesized from row 1 ('es')."
+        "Row 1: intent 'A.Pay' has no English ('en') row; an English row will be synthesized from this row ('es')."
     ]
     assert result.files == 3
     assert (tmp_path / "intents" / "A.Pay.json").exists()
@@ -120,10 +122,12 @@ def test_synthesized_english_row_warns_when_phrases_are_missing(tmp_path: Path) 
     warnings = warnings_for(config)
 
     assert warnings == [
-        "Intent 'A.Pay' has no English ('en') row; an English row will be synthesized from row 1 ('es').",
-        "Synthesized English row for 'A.Pay': phrase file "
-        f"'{tmp_path / 'Training Phrases' / 'en' / 'pagar.txt'}' was not found; "
-        "the English intent will be generated without those phrases.",
+        "Row 1: intent 'A.Pay' has no English ('en') row; an English row will be synthesized from this row ('es').",
+        (
+            "Row 1: synthesized English row for 'A.Pay': phrase file "
+            f"'{tmp_path / 'Training Phrases' / 'en' / 'pagar.txt'}' was not found; "
+            "the English intent will be generated without those phrases."
+        ),
     ]
 
 
@@ -143,6 +147,26 @@ def test_english_row_owns_multilingual_intent_definition(tmp_path: Path) -> None
     assert intent["contexts"] == ["Context-en"]
     assert intent["responses"][0]["action"] == "pay"
     assert (tmp_path / "intents" / "A.Pay_usersays_es.json").exists()
+
+
+def test_duplicate_row_for_same_intent_and_language_does_not_duplicate_phrases(tmp_path: Path) -> None:
+    config = dd_project(
+        tmp_path,
+        # an accidental copy-paste: the same intent, context, language and action twice
+        ["A.Pay,Ctx,en,pay,,,", "A.Pay,Ctx,en,pay,,,"],
+        {"pay": "pay my bill\nmake a payment\n"},
+    )
+
+    warnings = warnings_for(config)
+
+    assert warnings == [
+        "Row 2: intent 'A.Pay' also has language 'en' in row(s) 1; this row will be used instead."
+    ]
+
+    build_intents.intents("DD", config, tmp_path, QuietReporter())
+    usersays = json.loads((tmp_path / "intents" / "A.Pay_usersays_en.json").read_text(encoding="utf-8"))
+    texts = sorted(entry["data"][0]["text"] for entry in usersays)
+    assert texts == ["make a payment", "pay my bill"]
 
 
 # ----- clean and previous-build comparison -----

@@ -128,13 +128,12 @@ class RichReporter:
                 f"{len(changes.changed)} changed, {changes.unchanged} unchanged."
             )
             self.message("info", summary)
-            if changes.removed and not result.backup:
-                if not self._hidden("warning"):
-                    self.console.print(
-                        f"[yellow]Warning:[/yellow] {len(changes.removed)} intent(s) are no longer built but "
-                        "their files are still in the intents folder: "
-                        f"{', '.join(changes.removed)}. Use --clean to remove them."
-                    )
+            if changes.removed and not result.backup and not self._hidden("warning"):
+                self.console.print(
+                    f"[yellow]Warning:[/yellow] {len(changes.removed)} intent(s) are no longer built but "
+                    "their files are still in the intents folder: "
+                    f"{', '.join(changes.removed)}. Use --clean to remove them."
+                )
 
     def show_compare(self, result: CompareResult) -> None:
         self.table(

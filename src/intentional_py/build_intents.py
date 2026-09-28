@@ -49,7 +49,7 @@ def intents(
         except exceptions.IntentionalException as error:
             reporter.message("warning", f"Could not compare with the previous build: {error}")
     if clean and previous:
-        stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        stamp = datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
         result.backup = Path(base_dir, f"{constants.DEFAULT_INTENTS_DIR}_{stamp}.zip")
         with utils.file_errors(result.backup):
             utils.zip_directory(output_dir, result.backup, previous)
@@ -137,11 +137,9 @@ def _generate(
             temp_ml,
         ) = create_json(row, mode, base_dir, reporter, write_intent)
 
-        for file, content in data.items():
-            if "_usersays_" in file.stem and file in files_to_write:
-                files_to_write[file].extend(content)
-            else:
-                files_to_write[file] = content
+        # a duplicate (intent, language) row overwrites rather than merges, so its
+        # phrases are not doubled; preflight warns when this happens (see validate.py)
+        files_to_write.update(data)
         result.intents += temp_intents
         result.phrases += temp_phrases
         result.entities += temp_entities
@@ -381,9 +379,9 @@ def create_json(
                 phrase_file_path, mode="r", encoding="utf-8"
             ) as file:
                 reader = csv.reader(file)
-                rows = [row for row in reader if any(row)]  # Filter out empty rows
-                for row in rows:
-                    row_str: str = "".join(row)  # convert to string
+                phrase_rows = [phrase_row for phrase_row in reader if any(phrase_row)]  # Filter out empty rows
+                for phrase_row in phrase_rows:
+                    row_str: str = "".join(phrase_row)  # convert to string
                     phrase_data: dict = json.loads(phrase_json)
                     phrase_data["id"] = str(uuid.uuid4())
                     (_, temp_phrase_list) = utils.check_phrase_for_entity(

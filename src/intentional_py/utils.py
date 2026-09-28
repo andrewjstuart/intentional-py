@@ -105,7 +105,7 @@ def strtobool(val):
     elif val in ("n", "no", "f", "false", "off", "0"):
         return 0
     else:
-        raise ValueError("invalid truth value %r" % (val,))
+        raise ValueError(f"invalid truth value {val!r}")
 
 
 def check_alias(entity_to_check: str) -> tuple[str, str, str, bool]:

@@ -71,8 +71,7 @@ class JobRunner:
                 self.events.put(("done", job(reporter)))
             except exceptions.IntentionalException as error:
                 self.events.put(("failed", plain_text(str(error)).strip()))
-            except Exception:
-                # surface unexpected errors in the window instead of losing them on this thread
+            except Exception:  # noqa: BLE001 - surface unexpected errors instead of losing them on this thread
                 self.events.put(("failed", traceback.format_exc()))
 
         threading.Thread(target=run, daemon=True).start()

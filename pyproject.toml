@@ -24,6 +24,10 @@ intentional-cli = "intentional_py.__main__:main"
 [project.gui-scripts]
 intentional = "intentional_py.gui.app:launch"
 
+[tool.ruff.lint.flake8-bugbear]
+# typer.Option()/typer.Argument() build immutable parameter specs; safe as defaults
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

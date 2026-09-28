@@ -60,6 +60,18 @@ def test_issue_splits_level_prefix_and_row() -> None:
     )
 
 
+def test_synthesized_english_and_duplicate_row_warnings_link_to_a_row() -> None:
+    # config editor and results panels colour/highlight a row by parsing 'Row N: ...' from the warning
+    assert actions.issue(
+        "warning",
+        "Row 1: intent 'A.Pay' has no English ('en') row; an English row will be synthesized from this row ('es').",
+    )[1] == "1"
+    assert actions.issue(
+        "warning",
+        "Row 2: intent 'A.Pay' also has language 'en' in row(s) 1; this row will be used instead.",
+    )[1] == "2"
+
+
 def test_build_display(tmp_path: Path) -> None:
     result = BuildResult(intents=2, phrases=5, files=4, languages=["en"], elapsed=0.5, output_dir=tmp_path)
     assert actions.tiles(result)[:2] == [("Intents", "2"), ("Phrases", "5")]

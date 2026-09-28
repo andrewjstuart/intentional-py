@@ -242,8 +242,10 @@ def result_issues(result: Result) -> list[Issue]:
             (
                 "warning",
                 "",
-                f"No longer built, but still in the intents folder: {names}. "
-                "Tick 'Clear the intents folder first' to remove them.",
+                (
+                    f"No longer built, but still in the intents folder: {names}. "
+                    "Tick 'Clear the intents folder first' to remove them."
+                ),
             )
         ]
     return []

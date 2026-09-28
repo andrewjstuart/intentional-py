@@ -107,7 +107,7 @@ The tests are in `src/intentional_py/tests` and run with `uv run pytest`. Each `
 |-|-|
 | [conftest.py](../src/intentional_py/tests/conftest.py) | Not tests: shared setup. `data_dir` copies `tests/data` to a temporary folder, and the older tests are run in a fixed order because the NL tests use the phrases extracted earlier. |
 | [test_version.py](../src/intentional_py/tests/test_version.py) | `--version`, and that the version in `__init__.py` matches `pyproject.toml`. |
-| [test_validate.py](../src/intentional_py/tests/test_validate.py), [test_extract.py](../src/intentional_py/tests/test_extract.py), [test_DD.py](../src/intentional_py/tests/test_DD.py), [test_NL.py](../src/intentional_py/tests/test_NL.py) | The CLI commands end to end, using the sample project in `tests/data`. |
+| [test_validate.py](../src/intentional_py/tests/test_validate.py), [test_extract.py](../src/intentional_py/tests/test_extract.py), [test_dd.py](../src/intentional_py/tests/test_dd.py), [test_nl.py](../src/intentional_py/tests/test_nl.py) | The CLI commands end to end, using the sample project in `tests/data`. |
 | [test_preflight.py](../src/intentional_py/tests/test_preflight.py) | The config rules in `validate.py`: defaults, malformed rows, the optional ML column. |
 | [test_core_api.py](../src/intentional_py/tests/test_core_api.py) | The core functions called directly, with a fake reporter: NL config, extraction backups, file errors. |
 | [test_features.py](../src/intentional_py/tests/test_features.py) | The 1.1 features: phrase checks, clean, compare, the design document, synthesized English rows, settings and updates. |

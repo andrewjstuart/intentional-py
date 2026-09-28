@@ -15,7 +15,7 @@ Uses Typer with Rich formatting for a modern terminal experience.
 import re
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 import typer.core
@@ -112,7 +112,7 @@ def main(
         ),
     ] = False,
     report: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--report",
             help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
@@ -141,7 +141,7 @@ def main(
             reporter.show_build(result)
             _save_report(report, "Build DD intents", result, reporter)
         except exceptions.IntentionalException as e:
-            console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
+            console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e!s}\n")
             raise typer.Exit(code=1)
     else:
         # Using another mode i.e. NL, Validate, Extract, GUI
@@ -205,7 +205,7 @@ def natural_language(
         ),
     ] = False,
     report: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--report",
             help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
@@ -249,14 +249,14 @@ def natural_language(
         reporter.show_build(result)
         _save_report(report, "Build NL intents", result, reporter)
     except exceptions.IntentionalException as e:
-        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
+        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e!s}\n")
         raise typer.Exit(code=1)
 
 
 @app.command("x | extract")
 def extract(
     xl_file: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--file",
             "-f",
@@ -292,7 +292,7 @@ def extract(
         ),
     ] = False,
     report: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--report",
             help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
@@ -360,7 +360,7 @@ def extract(
         reporter.show_extract(result)
         _save_report(report, "Extract phrases", result, reporter)
     except exceptions.IntentionalException as e:
-        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
+        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e!s}\n")
         raise typer.Exit(code=1)
 
 
@@ -378,7 +378,7 @@ def validate(
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
     ] = False,
     report: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--report",
             help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
@@ -414,7 +414,7 @@ def validate(
 @app.command("gui")
 def gui(
     project: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--project",
             "-p",
@@ -464,7 +464,7 @@ def compare(
         typer.Option("--mode", "-m", help="Mode of the config: [yellow]'DD'[/yellow] or [yellow]'NL'[/yellow]"),
     ] = "DD",
     config: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--config",
             help="Config file to build from. [default: intents.cfg, or intents_nl.cfg for NL]",
@@ -475,7 +475,7 @@ def compare(
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
     ] = False,
     report: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--report",
             help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
@@ -522,7 +522,7 @@ def design(
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
     ] = False,
     report: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             "--report",
             help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",

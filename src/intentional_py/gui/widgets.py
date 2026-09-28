@@ -22,7 +22,10 @@ def style_tables(root: ctk.CTk) -> None:
     """Match ttk tables, which CustomTkinter does not theme, to the current appearance."""
     dark = ctk.get_appearance_mode() == "Dark"
     theme = ctk.ThemeManager.theme
-    pick = lambda colors: colors[1] if dark else colors[0]  # noqa: E731
+
+    def pick(colors):
+        return colors[1] if dark else colors[0]
+
     background = pick(theme["CTkTextbox"]["fg_color"])
     foreground = pick(theme["CTkLabel"]["text_color"])
     row_height = tkfont.nametofont("TkDefaultFont").metrics("linespace") + 8

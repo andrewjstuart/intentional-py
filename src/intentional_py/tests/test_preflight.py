@@ -78,9 +78,11 @@ def test_validate_matches_build_rules(tmp_path: Path) -> None:
     assert check.details == [
         "Error: Row 2: intent name 'RTL.Bad-Name' cannot contain '-'.",
         "Warning: Row 2: context 'Get.Intent' contains '.'.",
-        "Warning: Row 2: phrase file "
-        f"'{tmp_path / 'Training Phrases' / 'en' / 'missing.txt'}' was not found; "
-        "the intent will be generated without those phrases.",
+        (
+            "Warning: Row 2: phrase file "
+            f"'{tmp_path / 'Training Phrases' / 'en' / 'missing.txt'}' was not found; "
+            "the intent will be generated without those phrases."
+        ),
     ]
 
 
