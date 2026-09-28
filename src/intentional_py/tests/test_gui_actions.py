@@ -7,7 +7,7 @@ import pytest
 from intentional_py import exceptions
 from intentional_py.gui import actions
 from intentional_py.gui.worker import GuiReporter, JobRunner
-from intentional_py.reporting import BuildResult
+from intentional_py.reporting import BuildResult, Check, ExtractResult, ValidateResult
 
 
 def drain(events: queue.Queue, timeout: float = 30) -> list[tuple]:
@@ -31,6 +31,70 @@ def make_nl_project(base: Path) -> Path:
 def test_plain_text_strips_markup() -> None:
     assert actions.plain_text("[red]Bad[/red] [blue]x[/blue]") == "Bad x"
     assert actions.plain_text("row ['a', 'b']") == "row ['a', 'b']"
+
+
+def test_help_has_a_section_for_each_tab() -> None:
+    from intentional_py.gui import help_text
+
+    assert list(help_text.SECTIONS) == ["Getting started", "Build DD", "Build NL", "Extract", "Validate"]
+
+
+def test_issue_splits_level_prefix_and_row() -> None:
+    assert actions.issue("warning", "[yellow]Warning:[/yellow] Row 3: context 'a.b' contains '.'.") == (
+        "warning",
+        "3",
+        "context 'a.b' contains '.'.",
+    )
+    assert actions.issue("error", "Error: The config file does not contain data.") == (
+        "error",
+        "",
+        "The config file does not contain data.",
+    )
+
+
+def test_build_display(tmp_path: Path) -> None:
+    result = BuildResult(intents=2, phrases=5, files=4, languages=["en"], elapsed=0.5, output_dir=tmp_path)
+    assert actions.tiles(result)[:2] == [("Intents", "2"), ("Phrases", "5")]
+    assert actions.headline("Build DD intents", result, 1) == (
+        True,
+        "Build DD intents finished in 0.50 s with 1 warning",
+    )
+    assert actions.detail_tables(result) == []
+    assert actions.output_folder(result) == tmp_path
+
+
+def test_extract_display(tmp_path: Path) -> None:
+    backup = tmp_path / "NL_2026.zip"
+    result = ExtractResult(output_dir=tmp_path, files=2, phrases=1, empty_sheets=["EMPTY"], backup=backup)
+    assert actions.result_issues(result) == [
+        ("warning", "", "Sheet EMPTY has no phrases; an empty text file was created.")
+    ]
+    (_, _, locations), (_, _, sheets) = actions.detail_tables(result)
+    assert locations[1] == ["Previous phrases saved to", str(backup)]
+    assert sheets == [["EMPTY"]]
+
+
+def test_validate_display() -> None:
+    result = ValidateResult(
+        directories=[Check("Training Phrases path", True)],
+        configs=[
+            Check(
+                "Validating intents.cfg",
+                False,
+                ["Error: Row 2: intent name 'A-B' cannot contain '-'.", "Warning: Row 4: context 'a.b' contains '.'."],
+            )
+        ],
+    )
+    assert actions.headline("Validate", result, 1) == (False, "Validate: 1 of 2 checks passed")
+    assert actions.result_issues(result) == [
+        ("error", "2", "intent name 'A-B' cannot contain '-'."),
+        ("warning", "4", "context 'a.b' contains '.'."),
+    ]
+    assert actions.detail_tables(result)[0][2] == [
+        ["✔", "Training Phrases path"],
+        ["✖", "Validating intents.cfg"],
+    ]
+    assert actions.output_folder(result) is None
 
 
 def test_project_dir_is_required(tmp_path: Path) -> None:

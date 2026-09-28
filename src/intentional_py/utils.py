@@ -4,7 +4,7 @@ Provides helper functions for:
 - Priority parsing from intent names
 - Entity alias checking and handling
 - Phrase entity extraction and processing
-- File path utilities
+- File path utilities and readable file errors
 - Directory zipping for backups
 - Duplicate phrase detection
 """

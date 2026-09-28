@@ -6,42 +6,82 @@ Widgets only collect values and display events; the work is done by
 
 import queue
 import sys
+import tkinter.font as tkfont
 from collections.abc import Callable
 from pathlib import Path
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
 from intentional_py import __version__, constants
-from intentional_py.gui import actions
+from intentional_py.gui import actions, help_text
 from intentional_py.gui.worker import GuiReporter, JobRunner
 from intentional_py.reporting import Level
 
 POLL_MS = 100
 PAD = {"padx": 10, "pady": 6}
 LEVEL_COLORS = {"warning": "#d18b00", "error": "#d64545"}
+LEVEL_NAMES = {"warning": "⚠ Warning", "error": "✖ Error"}
 EXCEL_TYPES = [("Excel files", "*.xlsb *.xlsm *.xlsx"), ("All files", "*.*")]
 CONFIG_TYPES = [("Config files", "*.cfg"), ("All files", "*.*")]
+TABLE_STYLE = "Results.Treeview"
+
+
+def select_tab(tabs: ctk.CTkTabview, name: str) -> None:
+    # CTkTabview.set() hides the other tabs 100 ms later, which can hide a tab selected
+    # (or renamed) in the meantime; selecting again once that has passed keeps it shown
+    tabs.set(name)
+    tabs.after(150, lambda: tabs.get() == name and tabs.set(name))
+
+
+class HelpWindow(ctk.CTkToplevel):
+    """Explains the modes; hidden rather than destroyed when closed, and reused."""
+
+    def __init__(self, master: ctk.CTk) -> None:
+        super().__init__(master)
+        self.title("Intentional help")
+        self.geometry("760x600")
+        self.protocol("WM_DELETE_WINDOW", self.withdraw)
+        self.sections = ctk.CTkTabview(self)
+        self.sections.pack(fill="both", expand=True, padx=10, pady=10)
+        for name, text in help_text.SECTIONS.items():
+            box = ctk.CTkTextbox(self.sections.add(name), wrap="word", font=ctk.CTkFont(size=13))
+            box.pack(fill="both", expand=True)
+            box.insert("1.0", text)
+            box.configure(state="disabled")
+
+    def show(self, section: str) -> None:
+        self.deiconify()
+        select_tab(self.sections, section)
+        # on Windows a new CTkToplevel can open behind its parent
+        self.after(200, self.lift)
+        self.focus()
 
 
 class App(ctk.CTk):
     def __init__(self, project: Path | None = None) -> None:
         super().__init__()
         self.title(f"Intentional {__version__}")
-        self.geometry("920x740")
-        self.minsize(740, 580)
+        self.geometry("960x820")
+        self.minsize(760, 660)
 
         self.runner = JobRunner()
         self.running = False
         self.run_buttons: list[ctk.CTkButton] = []
-        self.progress_text = ""
+        self.job_title = ""
+        self.job_issues: list[actions.Issue] = []
+        self.job_tables: list[actions.Table] = []
+        self.output_dir: Path | None = None
+        self.issues_tab = "Issues"
+        self.help_window: HelpWindow | None = None
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(2, weight=1)
+        self._style_tables()
         self._build_project_row(project or Path.cwd())
         self._build_tabs()
-        self._build_status()
-        self._build_log()
+        self._build_results()
+        self.bind("<F1>", lambda _event: self._show_help())
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self.after(POLL_MS, self._poll)
 
@@ -58,13 +98,17 @@ class App(ctk.CTk):
         ctk.CTkButton(
             frame, text="Browse…", width=90, command=self._browse_project
         ).grid(row=0, column=2, **PAD)
-        ctk.CTkLabel(frame, text=f"v{__version__}", text_color="gray").grid(
+        ctk.CTkButton(frame, text="Help", width=70, command=self._show_help).grid(
             row=0, column=3, **PAD
+        )
+        ctk.CTkLabel(frame, text=f"v{__version__}", text_color="gray").grid(
+            row=0, column=4, **PAD
         )
 
     def _build_tabs(self) -> None:
-        tabs = ctk.CTkTabview(self, height=250)
+        tabs = ctk.CTkTabview(self, height=210)
         tabs.grid(row=1, column=0, sticky="ew", padx=10, pady=(6, 0))
+        self.mode_tabs = tabs
         self._build_dd_tab(self._tab(tabs, "Build DD"))
         self._build_nl_tab(self._tab(tabs, "Build NL"))
         self._build_extract_tab(self._tab(tabs, "Extract"))
@@ -122,32 +166,156 @@ class App(ctk.CTk):
         )
         self._run_button(tab, 1, "Validate", self._run_validate)
 
-    def _build_status(self) -> None:
+    def _build_results(self) -> None:
         frame = ctk.CTkFrame(self)
-        frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(6, 0))
+        frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
         frame.grid_columnconfigure(0, weight=1)
-        self.summary_label = ctk.CTkLabel(frame, text="Ready", anchor="w")
-        self.summary_label.grid(row=0, column=0, sticky="ew", **PAD)
-        self.progress = ctk.CTkProgressBar(frame)
-        self.progress.set(0)
-        self.progress.grid(row=1, column=0, sticky="ew", padx=10)
-        self.progress_label = ctk.CTkLabel(frame, text="", anchor="w")
-        self.progress_label.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 6))
+        frame.grid_rowconfigure(3, weight=1)
 
-    def _build_log(self) -> None:
-        frame = ctk.CTkFrame(self)
-        frame.grid(row=3, column=0, sticky="nsew", padx=10, pady=10)
-        frame.grid_columnconfigure(0, weight=1)
-        frame.grid_rowconfigure(1, weight=1)
-        ctk.CTkLabel(frame, text="Log").grid(row=0, column=0, sticky="w", **PAD)
-        ctk.CTkButton(frame, text="Clear", width=70, command=self._clear_log).grid(
-            row=0, column=1, **PAD
+        head = ctk.CTkFrame(frame, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=10, pady=(8, 0))
+        head.grid_columnconfigure(0, weight=1)
+        self.headline = ctk.CTkLabel(
+            head, text="Ready", anchor="w", font=ctk.CTkFont(size=15, weight="bold")
         )
-        self.log = ctk.CTkTextbox(frame, wrap="word", font=ctk.CTkFont(family="Consolas", size=12))
-        self.log.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=10, pady=(0, 10))
+        self.headline.grid(row=0, column=0, sticky="ew")
+        self.open_button = ctk.CTkButton(
+            head, text="Open folder", width=110, command=self._open_output
+        )
+        self.open_button.grid(row=0, column=1)
+        self.open_button.grid_remove()
+
+        progress = ctk.CTkFrame(frame, fg_color="transparent")
+        progress.grid(row=1, column=0, sticky="ew", padx=10, pady=(6, 0))
+        progress.grid_columnconfigure(0, weight=1)
+        self.progress = ctk.CTkProgressBar(progress)
+        self.progress.set(0)
+        self.progress.grid(row=0, column=0, sticky="ew")
+        self.progress_label = ctk.CTkLabel(progress, text="", text_color="gray", width=200, anchor="e")
+        self.progress_label.grid(row=0, column=1, padx=(10, 0))
+
+        self.tiles_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        self.tiles_frame.grid(row=2, column=0, sticky="ew", padx=10)
+        # created once and reused: recreating CTk widgets per job slowed later jobs dramatically
+        self.tiles: list[tuple[ctk.CTkFrame, ctk.CTkLabel, ctk.CTkLabel]] = []
+        for column in range(6):
+            tile = ctk.CTkFrame(self.tiles_frame, corner_radius=8)
+            value = ctk.CTkLabel(tile, text="", font=ctk.CTkFont(size=22, weight="bold"))
+            value.pack(padx=18, pady=(8, 0))
+            caption = ctk.CTkLabel(tile, text="", text_color="gray")
+            caption.pack(padx=18, pady=(0, 8))
+            tile.grid(row=0, column=column, padx=(0, 8), pady=8)
+            tile.grid_remove()
+            self.tiles.append((tile, value, caption))
+
+        self.result_tabs = ctk.CTkTabview(frame)
+        self.result_tabs.grid(row=3, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        issues_tab = self.result_tabs.add(self.issues_tab)
+        details_tab = self.result_tabs.add("Details")
+        log_tab = self.result_tabs.add("Log")
+
+        issues, self.issues_table = self._table(issues_tab, ["Level", "Row", "Message"])
+        issues.pack(fill="both", expand=True)
+
+        self.details_frame = ctk.CTkScrollableFrame(details_tab, fg_color="transparent")
+        self.details_frame.pack(fill="both", expand=True)
+        self.details_frame.grid_columnconfigure(0, weight=1)
+        self.details_empty = ctk.CTkLabel(self.details_frame, text="Nothing to show yet.", text_color="gray")
+        self.details_tables: list[tuple[ctk.CTkLabel, ctk.CTkFrame, ttk.Treeview]] = []
+
+        log_tab.grid_columnconfigure(0, weight=1)
+        log_tab.grid_rowconfigure(0, weight=1)
+        self.log = ctk.CTkTextbox(log_tab, wrap="word", font=ctk.CTkFont(family="Consolas", size=12))
+        self.log.grid(row=0, column=0, sticky="nsew")
         for level, color in LEVEL_COLORS.items():
             self.log.tag_config(level, foreground=color)
         self.log.configure(state="disabled")
+        ctk.CTkButton(log_tab, text="Clear", width=70, command=self._clear_log).grid(
+            row=1, column=0, sticky="e", pady=(6, 0)
+        )
+
+    def _style_tables(self) -> None:
+        """Match ttk tables, which CustomTkinter does not theme, to the current appearance."""
+        dark = ctk.get_appearance_mode() == "Dark"
+        theme = ctk.ThemeManager.theme
+        pick = lambda colors: colors[1] if dark else colors[0]  # noqa: E731
+        background = pick(theme["CTkTextbox"]["fg_color"])
+        foreground = pick(theme["CTkLabel"]["text_color"])
+        row_height = tkfont.nametofont("TkDefaultFont").metrics("linespace") + 8
+        style = ttk.Style(self)
+        style.theme_use("clam")
+        style.configure(
+            TABLE_STYLE,
+            background=background,
+            fieldbackground=background,
+            foreground=foreground,
+            rowheight=row_height,
+            borderwidth=0,
+            bordercolor=background,
+            lightcolor=background,
+            darkcolor=background,
+        )
+        style.configure(
+            f"{TABLE_STYLE}.Heading",
+            background=pick(theme["CTkFrame"]["top_fg_color"]),
+            foreground=foreground,
+            relief="flat",
+        )
+        style.map(
+            TABLE_STYLE,
+            background=[("selected", pick(theme["CTkButton"]["fg_color"]))],
+            foreground=[("selected", "white")],
+        )
+
+    def _table(
+        self, parent, columns: list[str], height: int = 8
+    ) -> tuple[ctk.CTkFrame, ttk.Treeview]:
+        container = ctk.CTkFrame(parent, fg_color="transparent")
+        container.grid_columnconfigure(0, weight=1)
+        container.grid_rowconfigure(0, weight=1)
+        table = ttk.Treeview(
+            container, columns=columns, show="headings", height=height, style=TABLE_STYLE
+        )
+        for column in columns:
+            table.heading(column, text=column, anchor="w")
+            table.column(column, anchor="w", width=160)
+        for level, color in LEVEL_COLORS.items():
+            table.tag_configure(level, foreground=color)
+        table.bind("<Configure>", lambda _event: self._fit_columns(table))
+        # a small height lets short tables shrink; the grid stretches it to the table
+        scrollbar = ctk.CTkScrollbar(container, command=table.yview, height=16)
+        table.configure(yscrollcommand=scrollbar.set)
+        table.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        return container, table
+
+    def _show_help(self) -> None:
+        # the first time starts with the overview; after that, the section for the current tab
+        if self.help_window is None:
+            self.help_window = HelpWindow(self)
+            section = next(iter(help_text.SECTIONS))
+        else:
+            section = self.mode_tabs.get()
+        self.help_window.show(section if section in help_text.SECTIONS else next(iter(help_text.SECTIONS)))
+
+    @staticmethod
+    def _fit_columns(table: ttk.Treeview) -> None:
+        """Size columns to their contents; the last column takes the remaining width."""
+        columns = list(table["columns"])
+        if not columns:
+            return
+        font = tkfont.nametofont("TkDefaultFont")
+        rows = [table.item(item, "values") for item in table.get_children()]
+        used = 0
+        for index, column in enumerate(columns[:-1]):
+            texts = [column] + [str(row[index]) for row in rows if index < len(row)]
+            width = min(max(font.measure(text) for text in texts) + 24, 320)
+            table.column(column, width=width, stretch=False)
+            used += width
+        table.column(columns[-1], width=max(table.winfo_width() - used - 4, 200), stretch=True)
+
+    def _select_result_tab(self, name: str) -> None:
+        select_tab(self.result_tabs, name)
 
     # ----- widget helpers -----
 
@@ -235,8 +403,17 @@ class App(ctk.CTk):
         if self.running:
             return
         self._set_running(True)
+        self.job_title = title
+        self.job_issues = []
+        self.job_tables = []
+        self.output_dir = None
+        self.open_button.grid_remove()
+        self._show_tiles([])
+        self._show_issues([])
+        self._show_details([])
+        self._select_result_tab("Log")
         self._log("info", f"── {title} ──")
-        self.summary_label.configure(text=f"{title}…", text_color=("gray10", "gray90"))
+        self.headline.configure(text=f"{title}…", text_color=("gray10", "gray90"))
         self.progress.set(0)
         self.progress_label.configure(text="")
         self.runner.start(job)
@@ -272,38 +449,132 @@ class App(ctk.CTk):
         if kind == "message":
             level, text = data
             self._log(level, text)
+            if level in LEVEL_COLORS:
+                self.job_issues.append(actions.issue(level, text))
         elif kind == "table":
             columns, rows, level = data
             self._log(level, " | ".join(columns))
             for row in rows:
                 self._log(level, "    " + " | ".join(row))
+            # single-column tables are titled lists (duplicates, 'uh'/'um' phrases)
+            title, columns = (columns[0], ["Phrase"]) if len(columns) == 1 else ("NL config", columns)
+            self.job_tables.append((title, columns, rows))
+            if level in LEVEL_COLORS:
+                self.job_issues.append(("warning", "", f"{title} ({len(rows)}), listed under Details"))
         elif kind == "progress_start":
-            self.progress_text, total = data
+            _, total = data
             self.progress.set(0)
-            self.progress_label.configure(text=f"{self.progress_text}  0/{total}")
+            self.progress_label.configure(text=f"0/{total}")
         elif kind == "progress":
             done, total = data
             self.progress.set(done / total if total else 1)
-            self.progress_label.configure(text=f"{self.progress_text}  {done}/{total}")
+            self.progress_label.configure(text=f"{done}/{total}")
         elif kind == "confirm":
             question, answer, answered = data
+            self._show_details(self.job_tables)
+            self._select_result_tab("Details")
+            self.update_idletasks()
             answer["value"] = messagebox.askyesno(
-                "Intentional", f"{question}?\n\nDetails are shown in the log.", parent=self
+                "Intentional", f"{question}?\n\nThe phrases are listed under Details.", parent=self
             )
             answered.set()
         elif kind == "done":
             self._finish(data[0])
         elif kind == "failed":
-            self._log("error", data[0])
-            self.summary_label.configure(text="✖ Failed — see the log for details", text_color=LEVEL_COLORS["error"])
-            self._set_running(False)
+            self._fail(data[0])
 
     def _finish(self, result: actions.Result) -> None:
-        for level, text in actions.details(result):
-            self._log(level, text)
-        figures = "    ".join(f"{name}: {value}" for name, value in actions.summary(result))
-        self.summary_label.configure(text=f"✔ Done    {figures}", text_color=("gray10", "gray90"))
+        issues = self.job_issues + actions.result_issues(result)
+        warnings = sum(level == "warning" for level, _, _ in issues)
+        ok, text = actions.headline(self.job_title, result, warnings)
+        self.headline.configure(
+            text=f"{'✔' if ok else '⚠'} {text}",
+            text_color=("gray10", "gray90") if ok else LEVEL_COLORS["warning"],
+        )
+        self._log("info", text)
+        self._show_tiles(actions.tiles(result))
+        self._show_issues(issues)
+        self._show_details(actions.detail_tables(result) + self.job_tables)
+        folder = actions.output_folder(result)
+        if folder is not None and folder.is_dir():
+            self.output_dir = folder
+            self.open_button.grid()
+        self._select_result_tab(self.issues_tab if issues else "Details")
         self._set_running(False)
+
+    def _fail(self, text: str) -> None:
+        self._log("error", text)
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if text.startswith("Traceback"):
+            failures = [f"Unexpected error: {lines[-1]}. The full details are in the Log."]
+        else:
+            # 'Configuration validation failed:' is followed by one '- Row N: ...' line per problem
+            failures = [line[2:] for line in lines if line.startswith("- ")] or [" ".join(lines)]
+        self.job_issues.extend(actions.issue("error", failure) for failure in failures)
+        self.headline.configure(text=f"✖ {self.job_title} failed", text_color=LEVEL_COLORS["error"])
+        self._show_issues(self.job_issues)
+        self._show_details(self.job_tables)
+        self._select_result_tab(self.issues_tab)
+        self._set_running(False)
+
+    def _show_tiles(self, figures: list[tuple[str, str]]) -> None:
+        for index, (tile, value, caption) in enumerate(self.tiles):
+            if index < len(figures):
+                caption.configure(text=figures[index][0])
+                value.configure(text=figures[index][1])
+                tile.grid()
+            else:
+                tile.grid_remove()
+
+    def _show_issues(self, issues: list[actions.Issue]) -> None:
+        self.issues_table.delete(*self.issues_table.get_children())
+        for level, row, message in issues:
+            self.issues_table.insert("", "end", values=(LEVEL_NAMES[level], row, message), tags=(level,))
+        self._fit_columns(self.issues_table)
+        errors = sum(level == "error" for level, _, _ in issues)
+        warnings = len(issues) - errors
+        counts = [f"{errors} error{'s' * (errors != 1)}"] * bool(errors)
+        counts += [f"{warnings} warning{'s' * (warnings != 1)}"] * bool(warnings)
+        name = f"Issues ({', '.join(counts)})" if counts else "Issues"
+        if name != self.issues_tab:
+            self.result_tabs.rename(self.issues_tab, name)
+            self.issues_tab = name
+
+    def _show_details(self, tables: list[actions.Table]) -> None:
+        # widgets are reused between jobs for the same reason as the tiles
+        while len(self.details_tables) < len(tables):
+            title = ctk.CTkLabel(self.details_frame, anchor="w", font=ctk.CTkFont(weight="bold"))
+            container, table = self._table(self.details_frame, [""])
+            self.details_tables.append((title, container, table))
+        if tables:
+            self.details_empty.grid_remove()
+        else:
+            self.details_empty.grid(row=0, column=0, sticky="w", **PAD)
+        for index, (title, container, table) in enumerate(self.details_tables):
+            if index >= len(tables):
+                title.grid_remove()
+                container.grid_remove()
+                continue
+            name, columns, rows = tables[index]
+            title.configure(text=name)
+            table.delete(*table.get_children())
+            table.configure(columns=columns, height=max(1, min(len(rows), 8)))
+            for column in columns:
+                table.heading(column, text=column, anchor="w")
+                table.column(column, anchor="w", width=160)
+            for row in rows:
+                table.insert("", "end", values=row)
+            self._fit_columns(table)
+            title.grid(row=index * 2, column=0, sticky="ew", padx=4, pady=(10, 2))
+            container.grid(row=index * 2 + 1, column=0, sticky="ew", padx=4)
+
+    def _open_output(self) -> None:
+        if self.output_dir is None:
+            return
+        try:
+            actions.open_folder(self.output_dir)
+        except OSError as error:
+            messagebox.showerror("Intentional", f"Could not open {self.output_dir}:\n{error}", parent=self)
 
     def _log(self, level: Level, text: str) -> None:
         self.log.configure(state="normal")

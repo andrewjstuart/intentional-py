@@ -1,10 +1,11 @@
 """CLI interface for intentional-py using Typer.
 
-Provides command-line interface with three main modes:
+Provides the intentional-cli command:
 - Standard DD mode (default): Create intents from intents.cfg
 - Natural Language (nl): Create intents from training phrases with auto-config
 - Extract (x): Extract phrases from Excel files
 - Validate: Validate project structure before processing
+- GUI (gui): Open the graphical interface
 
 Uses Typer with Rich formatting for a modern terminal experience.
 """
@@ -104,7 +105,7 @@ def main(
             console.print(f"\n[bold][red]✗ Error:[/red][/bold] {str(e)}\n")
             raise typer.Exit(code=1)
     else:
-        # Using another mode i.e. NL, Validate, Extract
+        # Using another mode i.e. NL, Validate, Extract, GUI
         pass
 
 
@@ -176,14 +177,13 @@ def natural_language(
     # the config's folder holds the training phrases and receives the intents
     config = config.resolve()
     try:
-        # check if file exists, otherwise prompt for nl config file name
+        # rebuild the NL config unless --reuse is given and it exists; ask for a vertical if missing
         file_not_exist: bool = not config.exists()
         if not reuse or file_not_exist:
             if file_not_exist:
                 print(
                     f"Existing config [red]{config}[/red] not found, creating [yellow]new config[/yellow]"
                 )
-                # uses default name and intent
             if not vertical:
                 use_vertical: str = typer.prompt(
                     "No vertical prefix abbreviation provided.\nEnter a vertical prefix abbreviation: "

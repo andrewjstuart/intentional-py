@@ -36,6 +36,7 @@ class BuildResult:
     nomatch: int = 0
     ml_disabled: list[str] = field(default_factory=list)
     elapsed: float = 0.0
+    output_dir: Path | None = None
 
 
 @dataclass

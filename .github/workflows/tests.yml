@@ -1,0 +1,32 @@
+# Runs the test suite on Windows and Linux for every push to main and every pull request.
+# It can also be started by hand from the Actions tab ("Run workflow").
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.2.0
+
+      # installs the Python version in .python-version; --locked fails if uv.lock is out of date
+      - name: Install Python and dependencies
+        run: uv sync --locked --extra dev --extra gui
+
+      - name: Run tests
+        run: uv run pytest -q

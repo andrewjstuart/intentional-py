@@ -1,9 +1,13 @@
 """GUI actions that do not depend on the widget toolkit.
 
 Each action checks the form values, calls the core module, and returns its
-result. The helpers at the bottom turn results into display rows and log lines.
+result. The helpers at the bottom turn results into tiles, issues and tables.
 """
 
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 from rich.errors import MarkupError
@@ -21,6 +25,8 @@ from intentional_py.reporting import (
 )
 
 Result = BuildResult | ExtractResult | ValidateResult
+Issue = tuple[Level, str, str]  # level, config row (or ""), message
+Table = tuple[str, list[str], list[list[str]]]  # title, columns, rows
 
 
 def plain_text(text: str) -> str:
@@ -114,27 +120,37 @@ def validate(project_text: str, config_text: str, reporter: Reporter) -> Validat
     return validating.validate(config, config.parent, reporter)
 
 
-def summary(result: Result) -> list[tuple[str, str]]:
-    """Headline figures shown above the log."""
+def issue(level: Level, text: str) -> Issue:
+    """Split a message such as 'Warning: Row 3: ...' into its level, row and text."""
+    text = re.sub(r"^(Error|Warning):\s*", "", plain_text(text).strip())
+    match = re.match(r"Row (\d+):\s*(.*)", text, re.DOTALL)
+    return (level, match[1], match[2]) if match else (level, "", text)
+
+
+def _checks(result: ValidateResult) -> list:
+    return result.directories + result.config_files + result.configs
+
+
+def tiles(result: Result) -> list[tuple[str, str]]:
+    """Headline figures as (label, value)."""
     if isinstance(result, BuildResult):
-        rows = [
-            ("Time", f"{result.elapsed:.3f} s"),
+        figures = [
             ("Intents", str(result.intents)),
             ("Phrases", str(result.phrases)),
             ("Entities", str(result.entities)),
-            ("Languages", ", ".join(result.languages) or "-"),
             ("Files", str(result.files)),
+            ("Languages", ", ".join(result.languages) or "-"),
         ]
         if result.nomatch:
-            rows.append(("NoMatch", str(result.nomatch)))
-        return rows
+            figures.append(("NoMatch", str(result.nomatch)))
+        return figures
     if isinstance(result, ExtractResult):
         return [
-            ("Time", f"{result.elapsed:.3f} s"),
             ("Files", str(result.files)),
             ("Phrases", str(result.phrases)),
+            ("Empty sheets", str(len(result.empty_sheets))),
         ]
-    checks = result.directories + result.config_files + result.configs
+    checks = _checks(result)
     failed = sum(not check.ok for check in checks)
     return [
         ("Checks", str(len(checks))),
@@ -143,28 +159,60 @@ def summary(result: Result) -> list[tuple[str, str]]:
     ]
 
 
-def details(result: Result) -> list[tuple[Level, str]]:
-    """Log lines describing a finished job."""
-    lines: list[tuple[Level, str]] = []
-    if isinstance(result, BuildResult):
-        if result.ml_disabled:
-            lines.append(("info", "Intents with ML disabled:"))
-            lines.extend(("info", f"    {name}") for name in result.ml_disabled)
-    elif isinstance(result, ExtractResult):
-        lines.append(("info", f"Phrases saved to {result.output_dir}"))
-        if result.backup:
-            lines.append(("info", f"Previous phrases saved to {result.backup}"))
-        lines.extend(
-            ("warning", f"Sheet {name} has no phrases; an empty text file was created.")
+def headline(title: str, result: Result, warnings: int) -> tuple[bool, str]:
+    """Whether the job fully succeeded, and a one-line description of it."""
+    if isinstance(result, ValidateResult):
+        checks = _checks(result)
+        passed = sum(check.ok for check in checks)
+        return passed == len(checks), f"{title}: {passed} of {len(checks)} checks passed"
+    text = f"{title} finished in {result.elapsed:.2f} s"
+    if warnings:
+        text += f" with {warnings} warning{'s' if warnings != 1 else ''}"
+    return True, text
+
+
+def result_issues(result: Result) -> list[Issue]:
+    """Issues carried by the result itself (build issues arrive as messages instead)."""
+    if isinstance(result, ValidateResult):
+        return [
+            issue("error" if detail.startswith("Error") else "warning", detail)
+            for check in result.configs
+            for detail in check.details
+        ]
+    if isinstance(result, ExtractResult):
+        return [
+            ("warning", "", f"Sheet {name} has no phrases; an empty text file was created.")
             for name in result.empty_sheets
-        )
+        ]
+    return []
+
+
+def detail_tables(result: Result) -> list[Table]:
+    if isinstance(result, BuildResult):
+        if not result.ml_disabled:
+            return []
+        return [("Intents with ML disabled", ["Intent"], [[n] for n in result.ml_disabled])]
+    if isinstance(result, ExtractResult):
+        locations = [["Phrases saved to", str(result.output_dir)]]
+        if result.backup:
+            locations.append(["Previous phrases saved to", str(result.backup)])
+        tables = [("Output", ["Item", "Location"], locations)]
+        if result.empty_sheets:
+            tables.append(("Empty sheets", ["Sheet"], [[n] for n in result.empty_sheets]))
+        return tables
+    rows = [["✔" if check.ok else "✖", check.label] for check in _checks(result)]
+    title = "Checks (standard config files)" if result.used_standard_configs else "Checks"
+    return [(title, ["Result", "Check"], rows)]
+
+
+def output_folder(result: Result) -> Path | None:
+    if isinstance(result, ValidateResult):
+        return None
+    return result.output_dir
+
+
+def open_folder(path: Path) -> None:
+    if sys.platform == "win32":
+        os.startfile(path)
     else:
-        if result.used_standard_configs:
-            lines.append(("info", "Using standard config files"))
-        for check in result.directories + result.config_files + result.configs:
-            lines.append(
-                ("info" if check.ok else "error", f"{'✔' if check.ok else '✖'} {check.label}")
-            )
-            level = "error" if not check.ok else "warning"
-            lines.extend((level, f"    {plain_text(d)}") for d in check.details)
-    return lines
+        subprocess.Popen(["xdg-open", str(path)])

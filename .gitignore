@@ -58,3 +58,6 @@ override.tf.json
 # Terraform variable files may contain secrets
 *.tfvars
 *.tfvars.json
+
+#specific scripts
+update_dependencies.py

@@ -22,13 +22,16 @@ def intents(
     base_dir: Path,
     reporter: Reporter,
 ) -> BuildResult:
-    """Build the intents described in the config file. Perform simple sanity checking on input to enforce standards.
+    """Build the intents described in the config file, after the preflight checks in validate.py.
 
     Args:
-        mode (str): Determine if it's directed dialog (DD) or Natural Language (NL) which selects the appropriate phrase directories and config files.
+        mode (str): Directed dialog (DD) or Natural Language (NL), which selects the phrase folder.
         config (Path): The name of the config file to use to build intents.
         base_dir (Path): Project directory containing the training phrases and receiving the intents.
         reporter (Reporter): Receives messages and progress.
+
+    Returns:
+        BuildResult: counts and output folder for the front end to display.
     """
     # check if config file exists
     if not Path(config).exists():
@@ -86,6 +89,7 @@ def intents(
     result.files = len(files_to_write)
     result.languages = sorted(langs_set)
     result.ml_disabled = sorted(ml_disabled_set)
+    result.output_dir = Path(base_dir, constants.DEFAULT_INTENTS_DIR)
     result.elapsed = perf_counter() - t1_start
     return result
 
@@ -96,22 +100,23 @@ def create_json(
     default_path: Path,
     reporter: Reporter,
 ) -> tuple[dict, int, int, int, str, int, str]:
-    """Create JSON files described by config rows
+    """Create the JSON for one config row, which must already have passed preflight_config.
 
     Args:
         row (list): line from config file
-        mode (str): Determine if it's directed dialog (DD) or Natural Language (NL) which selects the appropriate phrase directories
+        mode (str): Directed dialog (DD) or Natural Language (NL), which selects the phrase folder
+        default_path (Path): project directory containing the training phrases and receiving the intents
         reporter (Reporter): Receives messages.
 
     Returns:
-        tuple[dict,int,int,int,int,int,str]
+        tuple[dict, int, int, int, str, int, str]
             dict: A dictionary where the keys are file names and the values are the JSON data to be written to those files.
             int: number of intents created
             int: number of phrases read
             int: number of entities used
-            str: number of languages used
+            str: language code used
             int: number of nomatch intents
-            str: name of intents if ML disabled
+            str: name of the intent if ML is disabled, otherwise empty
 
     """
     # annotations for variables
@@ -261,13 +266,9 @@ def create_json(
         # add proper JSON to the output
         intent_data["responses"][0]["parameters"] = entity_list
 
-    # We want the default language to be 'en' on the intent name,
-    # check to see if the file already exists before continuing
-    # don't recreate the intent, but the phrase files can still be updated
-
-    # print JSON file for intent
-    # save info to print later
-    if language == "en":  # TODO: figure out a better way to make this work
+    # only the English row writes the intent file; other languages add their usersays file,
+    # so an intent without an 'en' row gets no intent file
+    if language == "en":
         files_to_write[output_file] = intent_data
 
     # set phrase file path
@@ -370,9 +371,7 @@ def create_json(
                     phrase_list.append(phrase_data)
                     phrases_cnt += 1  # store for return
 
-    # print JSON file for phrase
-    # with open(output_phrase_file, mode="w", encoding="utf-8") as phrase_output:
-    # json.dump(phrase_list, phrase_output, indent=4)
+    # written by intents() once every row has been processed
     files_to_write[output_phrase_file] = phrase_list
 
     return (
@@ -400,7 +399,7 @@ def nl_config(
         lowercase (bool): flag to adjust the action to be lowercase and is only used by specific clients
         reporter (Reporter): Receives messages and answers the duplicate phrase prompt.
     """
-    # check if config file contains a path, the training phrases will match the config location
+    # the training phrases are read from the config file's folder
     (config_file_path, config_file_name, _temp_file_extension) = utils.check_for_path(
         config
     )

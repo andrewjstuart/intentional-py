@@ -1,8 +1,7 @@
 """Validate project structure and configuration files.
 
-This module provides validation for the directory structure, phrase files,
-and configuration files before processing. Checks for required language directories
-and reports on missing components with visual feedback.
+preflight_config holds the config checks shared by the builds and the validate
+command; validate also checks the Training Phrases folders and config files exist.
 """
 
 import csv

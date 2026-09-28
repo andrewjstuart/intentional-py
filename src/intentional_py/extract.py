@@ -45,6 +45,7 @@ def _backup_existing(phrase_dir: Path, mode: str) -> Path | None:
 def excel_data(
     xl_file: Path, mode: str, language: str, base_dir: Path, reporter: Reporter
 ) -> ExtractResult:
+    """Save each sheet's phrases as a text file under base_dir's Training Phrases folder."""
     t1_start = perf_counter()
 
     xl_file_path: Path

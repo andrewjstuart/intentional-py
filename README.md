@@ -1,6 +1,9 @@
 # Intentional (Python)
 
+[![Tests](https://github.com/andrewjstuart/intentional-py/actions/workflows/tests.yml/badge.svg)](https://github.com/andrewjstuart/intentional-py/actions/workflows/tests.yml)
+
 - [Intentional (Python)](#intentional-python)
+  - [Download](#download)
   - [Usage](#usage)
     - [Examples](#examples)
   - [Graphical Interface (GUI)](#graphical-interface-gui)
@@ -16,11 +19,25 @@
   - [Validation Mode](#validation-mode)
   - [Installation/Running the script](#installationrunning-the-script)
   - [Packaging the Windows executables](#packaging-the-windows-executables)
+  - [Releases and automated builds](#releases-and-automated-builds)
   - [Testing](#testing)
   
 Originally written in Perl, this script has been converted to Python for easier use and maintenance. This script is used to create Dialogflow ES Intents. It can be used in two modes: Standard and Natural Language (NL). The Standard mode is used to create intents based on the `intent.cfg` file. The NL mode is used to create intents based on the training phrases in the NL directory and uses `intents_nl.cfg` file. Standard mode is the default mode when not setting the NL flag.
 
 Everything is available from the command line (CLI) on Windows or Linux, and from a [graphical interface (GUI)](#graphical-interface-gui). Both can be run from source with uv, or as standalone Windows executables that do not need Python installed: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI).
+
+## Download
+
+The Windows executables are attached to each [release](https://github.com/andrewjstuart/intentional-py/releases). Under **Assets** of the latest release, download:
+
+- `intentional.exe` for the GUI (double-click to start), and/or
+- `intentional-cli.exe` for the CLI (run it from a terminal, e.g. `intentional-cli.exe nl -v FIN`).
+
+No installation or Python is needed. `SHA256SUMS.txt` lists each file's checksum; `Get-FileHash .\intentional.exe` in PowerShell shows the checksum of a downloaded file for comparison.
+
+The executables are not code-signed, so the first time one is started Windows SmartScreen may show "Windows protected your PC". Select **More info**, then **Run anyway**.
+
+Each release also includes the matching source code (`Source code (zip)`), which can be run or built with the steps in [Installation/Running the script](#installationrunning-the-script).
 
 ## Usage
 
@@ -136,7 +153,17 @@ The window contains:
 - **Extract**: extracts phrases from an Excel file into the project's `Training Phrases` folder for the selected mode and language.
 - **Validate**: validates a config file, or the standard config files when left blank.
 
-Progress, a summary of the results, and a log with warnings and errors are shown below the tabs. If duplicate phrases are found while building the NL config, a dialog asks whether to continue.
+The **Help** button (or F1) explains each mode, the project folder layout and the config format. It opens at the section for the current tab.
+
+Below the tabs, the results of the last job are shown:
+
+- **Headline**: whether the job succeeded, how long it took and how many warnings it had, with an **Open folder** button for the intents or phrase folder that was written.
+- **Figures**: the main counts, such as intents, phrases and files, or passed and failed checks for Validate.
+- **Issues**: every error and warning in a table, with the config row it refers to. The tab title shows the counts, and it opens automatically when there is anything to fix.
+- **Details**: tables for the job, such as the validation checklist, intents with machine learning disabled, the NL config summary, duplicate phrases, and where extracted phrases and their backup were saved.
+- **Log**: every message from the job as plain text.
+
+If duplicate phrases are found while building the NL config, they are listed under Details and a dialog asks whether to continue.
 
 ## Directory Structure
 
@@ -267,9 +294,10 @@ The project uses [uv](https://docs.astral.sh/uv/) to manage Python and the depen
 | Run the tests | `uv run pytest` |
 | Lint | `uv run ruff check src` |
 | Update the lock file after editing `pyproject.toml` | `uv lock` |
-| Upgrade the dependencies | `uv run python update_dependencies.py` (add `--system-certs` if needed) |
+| Upgrade the dependencies | `uv lock --upgrade`, then `uv sync --extra dev --extra gui` |
+| List dependencies with newer releases than `pyproject.toml` allows | `uv tree --outdated --depth 1` |
 
-`update_dependencies.py` upgrades every dependency, including the `gui` and `dev` extras, to the newest release allowed by the ranges in `pyproject.toml`, syncs the environment, and then lists any dependency with a newer release outside its range (`latest: ...`). Raise that range in `pyproject.toml` by hand after checking the release notes, then run the script again.
+`uv lock --upgrade` moves every dependency, including the `gui` and `dev` extras, to the newest release allowed by the ranges in `pyproject.toml`. To go past a range (for example a new major version), raise it in `pyproject.toml` after checking the release notes, then run `uv lock`.
 
 Text files (config and phrase files) must be saved as UTF-8. A file in another encoding, a file locked by another program (such as Excel), or an Excel file that cannot be read stops the run with a message naming the file.
 
@@ -279,7 +307,7 @@ If uv reports `invalid peer certificate: UnknownIssuer` (common behind a corpora
 
 ## Packaging the Windows executables
 
-The GUI and the CLI can each be built as a standalone Windows executable that does not require Python to be installed:
+The GUI and the CLI can each be built as a standalone Windows executable that does not require Python to be installed. Releases are normally built automatically by GitHub Actions (see [Releases and automated builds](#releases-and-automated-builds)); these steps build them by hand:
 
 | Executable | Spec file | Use |
 |-|-|-|
@@ -298,12 +326,45 @@ The executables are created in the `dist` folder. The version is shown in the GU
 
 `intentional-cli.exe` is meant to be run from a terminal (for example `intentional-cli.exe nl -v FIN`). Double-clicking it runs the default Standard mode using `intents.cfg` in the executable's folder, then the console closes immediately. The GUI is not included in `intentional-cli.exe`, so `intentional-cli.exe gui` points to `intentional.exe` instead.
 
+## Releases and automated builds
+
+[GitHub Actions](https://docs.github.com/actions) runs two workflows from the `.github/workflows` folder on GitHub's own machines, so no local Windows machine is needed to build a release. Their runs, logs and results are listed on the repository's **Actions** tab.
+
+| Workflow | File | Runs when | What it does |
+|-|-|-|-|
+| Tests | `tests.yml` | A push to `main`, any pull request, or **Run workflow** | Runs the tests on Windows and Linux. A failure is shown on the pull request and on the badge at the top of this README. |
+| Release | `release.yml` | A tag starting with `v` is pushed, or **Run workflow** | On Windows: runs the tests, builds both executables and `SHA256SUMS.txt`, and for a tag publishes them as a GitHub Release. |
+
+Both workflows install with `uv sync --locked`, so they fail if `uv.lock` does not match `pyproject.toml`. Run `uv lock` and commit `uv.lock` to fix that.
+
+### Publishing a release
+
+1. Update the version in **both** `pyproject.toml` and `src/intentional_py/__init__.py` (a test fails if they differ), for example to `1.0.6`.
+2. Run `uv lock`, since `uv.lock` records the project's version, then `uv run pytest`.
+3. Commit the changes and merge them into `main`.
+4. Create and push a tag named `v` followed by the version, from the commit to release:
+
+   ```bash
+   git checkout main
+   git pull
+   git tag v1.0.6
+   git push origin v1.0.6
+   ```
+
+5. Open the **Actions** tab and follow the **Release** run. When it finishes, the release appears under **Releases** with `intentional.exe`, `intentional-cli.exe` and `SHA256SUMS.txt`, and release notes generated from the merged pull requests and commits since the previous release. Edit the release on GitHub to add or change the notes.
+
+The release is built from exactly the tagged commit, and the build fails without publishing anything if the tag does not match the version in `pyproject.toml` or if any test fails. To retry after a fix, delete the tag (`git tag -d v1.0.6` and `git push origin :refs/tags/v1.0.6`) and, if a release was already published for it, delete that release on the **Releases** page; then tag the fixed commit again. A release can also be drafted on GitHub first: pushing its tag adds the executables to the existing release instead of creating a new one.
+
+### Test builds without a release
+
+On the **Actions** tab, select **Release**, then **Run workflow**, choose a branch and select **Run workflow** again. When the run finishes, download the executables from the **Artifacts** section at the bottom of the run's page (`intentional-windows`, a zip file). Nothing is published, and GitHub deletes artifacts after 90 days by default.
+
 ## Testing
 
-Test files are included within this repository in the `src/intentional_py/tests` directory. They cover the CLI commands, the preflight config checks, the core functions used by both front ends, and the GUI actions (no display is needed for these). Install the dev tools with `uv sync --extra dev --extra gui`, then run the tests using `uv run pytest`. The GUI command test is skipped if the `gui` extra is not installed.
+Test files are included within this repository in the `src/intentional_py/tests` directory. They cover the CLI commands, the preflight config checks, the core functions used by both front ends, and the GUI actions (no display is needed for these). Install the dev tools with `uv sync --extra dev --extra gui`, then run the tests using `uv run pytest`. The GUI command test is skipped if the `gui` extra is not installed. The same tests run on GitHub for every push to `main` and every pull request (see [Releases and automated builds](#releases-and-automated-builds)).
 
 ```bash
 [~intentional-py]> uv run pytest -q
-...............................                                          [100%]
-31 passed in 78.28s (0:01:18)
+.........................................                                [100%]
+41 passed in 10.72s
 ```
