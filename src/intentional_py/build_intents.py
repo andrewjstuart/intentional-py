@@ -40,16 +40,26 @@ def intents(
     files_to_write, result, t1_start = _generate(mode, config, base_dir, reporter)
     output_dir = Path(base_dir, constants.DEFAULT_INTENTS_DIR)
 
-    previous = [path for path in output_dir.glob("*") if path.is_file()] if output_dir.is_dir() else []
+    previous = (
+        [path for path in output_dir.glob("*") if path.is_file()]
+        if output_dir.is_dir()
+        else []
+    )
     if any(path.suffix == ".json" for path in previous):
         try:
             result.changes = comparing.compare(
-                _summarize(files_to_write), comparing.load(output_dir), "the previous build"
+                _summarize(files_to_write),
+                comparing.load(output_dir),
+                "the previous build",
             )
         except exceptions.IntentionalException as error:
-            reporter.message("warning", f"Could not compare with the previous build: {error}")
+            reporter.message(
+                "warning", f"Could not compare with the previous build: {error}"
+            )
     if clean and previous:
-        stamp = datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
+        stamp = (
+            datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
+        )
         result.backup = Path(base_dir, f"{constants.DEFAULT_INTENTS_DIR}_{stamp}.zip")
         with utils.file_errors(result.backup):
             utils.zip_directory(output_dir, result.backup, previous)
@@ -71,13 +81,17 @@ def compare_build(
 ) -> CompareResult:
     """Compare what the config would build with an agent export or intents folder; writes nothing."""
     files_to_write, _result, t1_start = _generate(mode, config, base_dir, reporter)
-    result = comparing.compare(_summarize(files_to_write), comparing.load(source), str(source))
+    result = comparing.compare(
+        _summarize(files_to_write), comparing.load(source), str(source)
+    )
     result.elapsed = perf_counter() - t1_start
     return result
 
 
 def _summarize(files_to_write: dict) -> dict:
-    return comparing.summarize({Path(file).name: data for file, data in files_to_write.items()})
+    return comparing.summarize(
+        {Path(file).name: data for file, data in files_to_write.items()}
+    )
 
 
 def _generate(
@@ -142,7 +156,13 @@ def _generate(
             temp_lang,
             temp_nomatch,
             temp_ml,
-        ) = create_json(models.ConfigRow.from_csv_row(row, row_number + 1), mode, base_dir, reporter, write_intent)
+        ) = create_json(
+            models.ConfigRow.from_csv_row(row, row_number + 1),
+            mode,
+            base_dir,
+            reporter,
+            write_intent,
+        )
 
         # a duplicate (intent, language) row's phrases replace the earlier row's phrases
         # rather than merging with them, so they are not doubled; the intent itself still
@@ -363,11 +383,14 @@ def create_json(
         phrase_file_path = utils.find_phrase_file(phrase_file_path, action)
         # a missing phrase file is already reported by preflight_config
         if phrase_file_path.exists():
-            with utils.file_errors(phrase_file_path), open(
-                phrase_file_path, mode="r", encoding="utf-8"
-            ) as file:
+            with (
+                utils.file_errors(phrase_file_path),
+                open(phrase_file_path, mode="r", encoding="utf-8") as file,
+            ):
                 reader = csv.reader(file)
-                phrase_rows = [phrase_row for phrase_row in reader if any(phrase_row)]  # Filter out empty rows
+                phrase_rows = [
+                    phrase_row for phrase_row in reader if any(phrase_row)
+                ]  # Filter out empty rows
                 for phrase_row in phrase_rows:
                     row_str: str = "".join(phrase_row)  # convert to string
                     phrase_data: dict = json.loads(phrase_json)
@@ -505,9 +528,10 @@ def nl_config(
 
                 # read phrase files looking for entities
                 entity_set: set = set()
-                with utils.file_errors(filepath), open(
-                    filepath, mode="r", encoding="utf-8"
-                ) as file:
+                with (
+                    utils.file_errors(filepath),
+                    open(filepath, mode="r", encoding="utf-8") as file,
+                ):
                     reader = csv.reader(file)
                     rows = [row for row in reader if any(row)]  # Filter out empty rows
                     for row in rows:
@@ -520,9 +544,10 @@ def nl_config(
                             # add them to dictionary to pull out later by filename
                             entity_dict[Path(filename)] = entity_set
 
-        with utils.file_errors(config), open(
-            config, mode="a", encoding="utf-8"
-        ) as config_file:
+        with (
+            utils.file_errors(config),
+            open(config, mode="a", encoding="utf-8") as config_file,
+        ):
             for file in files_to_add:
                 action = file.with_suffix("")  # remove extension
                 action: str = str(action)

@@ -100,10 +100,14 @@ def compare(
 ) -> CompareResult:
     project = project_dir(project_text)
     mode = mode.upper()
-    default = constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
+    default = (
+        constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
+    )
     config = resolve_config(project, config_text, default)
     if not export_text.strip():
-        raise exceptions.ConfigurationError("Choose an agent export (zip or folder) to compare with.")
+        raise exceptions.ConfigurationError(
+            "Choose an agent export (zip or folder) to compare with."
+        )
     export = Path(export_text.strip()).expanduser()
     export = (export if export.is_absolute() else project / export).resolve()
     return build_intents.compare_build(mode, config, config.parent, export, reporter)
@@ -210,10 +214,15 @@ def headline(title: str, result: Result, warnings: int) -> tuple[bool, str]:
     if isinstance(result, ValidateResult):
         checks = _checks(result)
         passed = sum(check.ok for check in checks)
-        return passed == len(checks), f"{title}: {passed} of {len(checks)} checks passed"
+        return passed == len(
+            checks
+        ), f"{title}: {passed} of {len(checks)} checks passed"
     if isinstance(result, DesignResult):
         if result.errors:
-            return False, f"{title}: {result.rows} rows written; fix the errors before building"
+            return (
+                False,
+                f"{title}: {result.rows} rows written; fix the errors before building",
+            )
         return True, f"{title}: {result.rows} rows written to {result.config.name}"
     text = f"{title} finished in {result.elapsed:.2f} s"
     if warnings:
@@ -231,12 +240,23 @@ def result_issues(result: Result) -> list[Issue]:
         ]
     if isinstance(result, ExtractResult):
         return [
-            ("warning", "", f"Sheet {name} has no phrases; an empty text file was created.")
+            (
+                "warning",
+                "",
+                f"Sheet {name} has no phrases; an empty text file was created.",
+            )
             for name in result.empty_sheets
         ]
     if isinstance(result, DesignResult):
-        return [issue("error", e) for e in result.errors] + [issue("warning", w) for w in result.warnings]
-    if isinstance(result, BuildResult) and result.changes and result.changes.removed and not result.backup:
+        return [issue("error", e) for e in result.errors] + [
+            issue("warning", w) for w in result.warnings
+        ]
+    if (
+        isinstance(result, BuildResult)
+        and result.changes
+        and result.changes.removed
+        and not result.backup
+    ):
         names = ", ".join(result.changes.removed)
         return [
             (
@@ -253,7 +273,9 @@ def result_issues(result: Result) -> list[Issue]:
 
 def _change_rows(result: CompareResult) -> list[list[str]]:
     rows = [["Added", name, ""] for name in result.added]
-    rows += [["Changed", change.name, "; ".join(change.details)] for change in result.changed]
+    rows += [
+        ["Changed", change.name, "; ".join(change.details)] for change in result.changed
+    ]
     return rows
 
 
@@ -262,10 +284,20 @@ def detail_tables(result: Result) -> list[Table]:
         tables: list[Table] = []
         if result.changes and (result.changes.added or result.changes.changed):
             tables.append(
-                ("Changes since the previous build", ["Change", "Intent", "Details"], _change_rows(result.changes))
+                (
+                    "Changes since the previous build",
+                    ["Change", "Intent", "Details"],
+                    _change_rows(result.changes),
+                )
             )
         if result.backup:
-            tables.append(("Output", ["Item", "Location"], [["Previous intents saved to", str(result.backup)]]))
+            tables.append(
+                (
+                    "Output",
+                    ["Item", "Location"],
+                    [["Previous intents saved to", str(result.backup)]],
+                )
+            )
         if result.machine_learning_off:
             tables.append(
                 (
@@ -278,9 +310,21 @@ def detail_tables(result: Result) -> list[Table]:
     if isinstance(result, CompareResult):
         tables = []
         if result.added or result.changed:
-            tables.append(("Differences from the export", ["Change", "Intent", "Details"], _change_rows(result)))
+            tables.append(
+                (
+                    "Differences from the export",
+                    ["Change", "Intent", "Details"],
+                    _change_rows(result),
+                )
+            )
         if result.removed:
-            tables.append(("Only in the export (not built by this config)", ["Intent"], [[n] for n in result.removed]))
+            tables.append(
+                (
+                    "Only in the export (not built by this config)",
+                    ["Intent"],
+                    [[n] for n in result.removed],
+                )
+            )
         return tables
     if isinstance(result, DesignResult):
         rows = [["Config written", str(result.config)], ["Sheet read", result.sheet]]
@@ -293,10 +337,14 @@ def detail_tables(result: Result) -> list[Table]:
             locations.append(["Previous phrases saved to", str(result.backup)])
         tables = [("Output", ["Item", "Location"], locations)]
         if result.empty_sheets:
-            tables.append(("Empty sheets", ["Sheet"], [[n] for n in result.empty_sheets]))
+            tables.append(
+                ("Empty sheets", ["Sheet"], [[n] for n in result.empty_sheets])
+            )
         return tables
     rows = [["✔" if check.ok else "✖", check.label] for check in _checks(result)]
-    title = "Checks (standard config files)" if result.used_standard_configs else "Checks"
+    title = (
+        "Checks (standard config files)" if result.used_standard_configs else "Checks"
+    )
     return [(title, ["Result", "Check"], rows)]
 
 

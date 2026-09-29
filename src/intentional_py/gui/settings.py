@@ -53,5 +53,7 @@ def save(settings: dict, path: Path | None = None) -> None:
 
 
 def add_recent(settings: dict, project: str) -> None:
-    recent = [project] + [p for p in settings.get("recent_projects", []) if p != project]
+    recent = [project] + [
+        p for p in settings.get("recent_projects", []) if p != project
+    ]
     settings["recent_projects"] = recent[:MAX_RECENT]

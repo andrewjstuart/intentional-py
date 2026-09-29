@@ -29,7 +29,9 @@ def summarize(files: dict[str, Any]) -> dict[str, dict]:
                 for item in data
                 if isinstance(item, dict)
             )
-            intents.setdefault(match[1], {}).setdefault("phrases", {})[match[2]] = phrases
+            intents.setdefault(match[1], {}).setdefault("phrases", {})[match[2]] = (
+                phrases
+            )
         elif isinstance(data, dict):
             intents.setdefault(stem, {})["intent"] = _intent_fields(data)
     return intents
@@ -56,10 +58,18 @@ def load(source: Path) -> dict[str, dict]:
     """Intent summaries from an intents folder, an unzipped agent export, or an export zip."""
     if source.is_file() and zipfile.is_zipfile(source):
         with utils.file_errors(source), zipfile.ZipFile(source) as archive:
-            names = [n for n in archive.namelist() if re.search(r"(^|/)intents/[^/]+\.json$", n)]
+            names = [
+                n
+                for n in archive.namelist()
+                if re.search(r"(^|/)intents/[^/]+\.json$", n)
+            ]
             if not names:
-                raise exceptions.FileSystemError(f"No intents folder was found in {source}.")
-            return summarize({Path(n).name: _json(archive.read(n), f"{source}:{n}") for n in names})
+                raise exceptions.FileSystemError(
+                    f"No intents folder was found in {source}."
+                )
+            return summarize(
+                {Path(n).name: _json(archive.read(n), f"{source}:{n}") for n in names}
+            )
     if source.is_dir():
         folder = source / "intents" if (source / "intents").is_dir() else source
         files = {}
@@ -76,7 +86,9 @@ def _json(content: bytes, where: str) -> Any:
     try:
         return json.loads(content.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise exceptions.FileSystemError(f"{where} is not a valid intent JSON file ({error}).") from error
+        raise exceptions.FileSystemError(
+            f"{where} is not a valid intent JSON file ({error})."
+        ) from error
 
 
 def compare(new: dict[str, dict], old: dict[str, dict], source: str) -> CompareResult:
@@ -99,7 +111,9 @@ def _differences(new: dict, old: dict) -> list[str]:
     new_fields, old_fields = new.get("intent", {}), old.get("intent", {})
     for field in new_fields.keys() | old_fields.keys():
         if new_fields.get(field) != old_fields.get(field):
-            details.append(f"{field}: {_show(old_fields.get(field))} \u2192 {_show(new_fields.get(field))}")
+            details.append(
+                f"{field}: {_show(old_fields.get(field))} \u2192 {_show(new_fields.get(field))}"
+            )
     new_phrases, old_phrases = new.get("phrases", {}), old.get("phrases", {})
     for language in sorted(new_phrases.keys() | old_phrases.keys()):
         if language not in old_phrases:

@@ -54,7 +54,9 @@ class BuildResult:
     machine_learning_off: list[str] = field(default_factory=list)
     elapsed: float = 0.0
     output_dir: Path | None = None
-    changes: CompareResult | None = None  # against the previous build in the intents folder
+    changes: CompareResult | None = (
+        None  # against the previous build in the intents folder
+    )
     backup: Path | None = None  # zip of the intents folder, when it was cleared first
 
 

@@ -106,9 +106,18 @@ def test_dd_build_machine_learning_column(tmp_path: Path) -> None:
     result = build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     intents_dir = tmp_path / "intents"
-    assert json.loads((intents_dir / "A.Default.json").read_text(encoding="utf-8"))["auto"] is True
-    assert json.loads((intents_dir / "A.On.json").read_text(encoding="utf-8"))["auto"] is True
-    assert json.loads((intents_dir / "A.Off.json").read_text(encoding="utf-8"))["auto"] is False
+    assert (
+        json.loads((intents_dir / "A.Default.json").read_text(encoding="utf-8"))["auto"]
+        is True
+    )
+    assert (
+        json.loads((intents_dir / "A.On.json").read_text(encoding="utf-8"))["auto"]
+        is True
+    )
+    assert (
+        json.loads((intents_dir / "A.Off.json").read_text(encoding="utf-8"))["auto"]
+        is False
+    )
     assert result.machine_learning_off == ["A.Off"]
 
 
@@ -170,7 +179,10 @@ def test_dd_extract_keeps_nl_phrases(tmp_path: Path) -> None:
     assert (lang_dir / "NL" / "HELLO.txt").read_text(encoding="utf-8") == "hello\n"
     assert (lang_dir / "home.txt").read_text(encoding="utf-8") == "at home\n"
     assert not (lang_dir / "old.txt").exists()
-    assert result.backup is not None and result.backup.parent == tmp_path / "Training Phrases"
+    assert (
+        result.backup is not None
+        and result.backup.parent == tmp_path / "Training Phrases"
+    )
     with zipfile.ZipFile(result.backup) as backup:
         assert backup.namelist() == ["old.txt"]
 
@@ -182,7 +194,9 @@ def test_corrupt_workbook_leaves_existing_phrases(tmp_path: Path) -> None:
     xl_file = tmp_path / "broken.xlsx"
     xl_file.write_bytes(b"not an excel file")
 
-    with pytest.raises(exceptions.ExtractionError, match="could not be read as an Excel file"):
+    with pytest.raises(
+        exceptions.ExtractionError, match="could not be read as an Excel file"
+    ):
         extract.excel_data(xl_file, "NL", "en", tmp_path, FakeReporter())
 
     assert (nl_dir / "HELLO.txt").exists()
@@ -194,5 +208,7 @@ def test_non_utf8_phrase_file_names_the_file(tmp_path: Path) -> None:
     bad_file = tmp_path / "Training Phrases" / "en" / "NL" / "SPANISH.txt"
     bad_file.write_bytes("año\n".encode("cp1252"))
 
-    with pytest.raises(exceptions.FileSystemError, match="SPANISH.txt is not saved as UTF-8"):
+    with pytest.raises(
+        exceptions.FileSystemError, match="SPANISH.txt is not saved as UTF-8"
+    ):
         build_intents.nl_config(config, "RTL", "GetIntent", False, FakeReporter())

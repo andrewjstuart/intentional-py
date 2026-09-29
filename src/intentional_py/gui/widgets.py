@@ -55,12 +55,16 @@ def style_tables(root: ctk.CTk) -> None:
     )
 
 
-def make_table(parent, columns: list[str], height: int = 8) -> tuple[ctk.CTkFrame, ttk.Treeview]:
+def make_table(
+    parent, columns: list[str], height: int = 8
+) -> tuple[ctk.CTkFrame, ttk.Treeview]:
     """A styled table with a scrollbar and colour tags for warning and error rows."""
     container = ctk.CTkFrame(parent, fg_color="transparent")
     container.grid_columnconfigure(0, weight=1)
     container.grid_rowconfigure(0, weight=1)
-    table = ttk.Treeview(container, columns=columns, show="headings", height=height, style=TABLE_STYLE)
+    table = ttk.Treeview(
+        container, columns=columns, show="headings", height=height, style=TABLE_STYLE
+    )
     set_columns(table, columns)
     for level, color in LEVEL_COLORS.items():
         table.tag_configure(level, foreground=color)
@@ -93,4 +97,6 @@ def fit_columns(table: ttk.Treeview, max_width: int = 320) -> None:
         width = min(max(font.measure(text) for text in texts) + 24, max_width)
         table.column(column, width=width, stretch=False)
         used += width
-    table.column(columns[-1], width=max(table.winfo_width() - used - 4, 200), stretch=True)
+    table.column(
+        columns[-1], width=max(table.winfo_width() - used - 4, 200), stretch=True
+    )

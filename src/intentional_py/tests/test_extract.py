@@ -15,17 +15,32 @@ def test_extract_exceptions(data_dir: Path):
 
     result = runner.invoke(app, ["extract", "--file", str(xl_file)])
     assert result.exit_code == 1
-    assert f"{xl_file} does NOT exist as a file." + "\nAbort processing...\n" in result.stdout
+    assert (
+        f"{xl_file} does NOT exist as a file." + "\nAbort processing...\n"
+        in result.stdout
+    )
 
 
 def extract(data_dir: Path, file: str, language: str) -> None:
     xl_output_path = Path(data_dir, "Training Phrases", language, "NL")
     result = runner.invoke(
         app,
-        ["extract", "--file", str(Path(data_dir, file)), "--language", language, "--test"],
+        [
+            "extract",
+            "--file",
+            str(Path(data_dir, file)),
+            "--language",
+            language,
+            "--test",
+        ],
     )
     assert result.exit_code == 0
-    assert f"Exporting data to: {xl_output_path}" + f"\nProcessing {file}" + "\nextract complete\n" in result.stdout
+    assert (
+        f"Exporting data to: {xl_output_path}"
+        + f"\nProcessing {file}"
+        + "\nextract complete\n"
+        in result.stdout
+    )
 
 
 def test_extract_XLSM(data_dir: Path):

@@ -10,12 +10,16 @@ app = intentional.app
 
 
 def build_nl(config: Path, *options: str):
-    return runner.invoke(app, ["natural-language", "--config", str(config), *options, "--test"])
+    return runner.invoke(
+        app, ["natural-language", "--config", str(config), *options, "--test"]
+    )
 
 
 # tests the NL functionality of intentional
 def test_NL_exceptions(data_dir: Path):
-    result = build_nl(Path(data_dir, "empty_intents_nl.cfg"), "-v", "RTL", "-c", "GetIntent")
+    result = build_nl(
+        Path(data_dir, "empty_intents_nl.cfg"), "-v", "RTL", "-c", "GetIntent"
+    )
     assert result.exit_code == 0
 
 

@@ -48,7 +48,9 @@ def test_markdown_report_contains_summary_issues_and_changes(tmp_path: Path) -> 
     assert "| A.Old |" in text
 
 
-def test_compare_report_names_the_removed_section_after_its_source(tmp_path: Path) -> None:
+def test_compare_report_names_the_removed_section_after_its_source(
+    tmp_path: Path,
+) -> None:
     output = tmp_path / "compare-report.md"
     result = CompareResult(source="agent.zip", added=["A.New"], removed=["A.Old"])
 
@@ -74,7 +76,6 @@ def test_csv_report_contains_named_sections(tmp_path: Path) -> None:
     assert ["Changes since the previous build"] in rows
     assert ["No longer built, but still in the intents folder"] in rows
     assert ["A.Old"] in rows
-
 
 
 def test_csv_report_neutralizes_formula_triggering_cells(tmp_path: Path) -> None:
@@ -108,9 +109,7 @@ def test_cli_build_writes_optional_markdown_report(tmp_path: Path) -> None:
     config.write_text("A.Pay,Ctx,en,pay,,,\n", encoding="utf-8")
     output = tmp_path / "completed-work.md"
 
-    result = CliRunner().invoke(
-        app, ["--config", str(config), "--report", str(output)]
-    )
+    result = CliRunner().invoke(app, ["--config", str(config), "--report", str(output)])
 
     assert result.exit_code == 0, result.stdout
     text = output.read_text(encoding="utf-8")
