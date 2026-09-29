@@ -68,7 +68,8 @@ def test_synthesized_english_and_duplicate_row_warnings_link_to_a_row() -> None:
     )[1] == "1"
     assert actions.issue(
         "warning",
-        "Row 2: intent 'A.Pay' also has language 'en' in row(s) 1; this row will be used instead.",
+        "Row 2: intent 'A.Pay' also has language 'en' in row(s) 1; its phrases will be used, "
+        "but row 1's context, action, priority, entities and machine learning are kept.",
     )[1] == "2"
 
 

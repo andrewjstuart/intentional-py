@@ -35,6 +35,7 @@ Each config row has 7 comma-separated values; the last one is optional:
 • The phrases are read from Training Phrases\\<language>\\<action>.txt.
 • Language can be en, es, fr, or dtmf (DTMF values only).
 • The English row supplies the shared intent definition. With no English row, one is generated in memory from the first row and uses the matching English phrase file.
+• Two rows can share the same intent and language on purpose, with a different Action, to swap in a different phrase file without duplicating the intent: the first such row still defines the intent (context, action, priority, entities, machine learning); later rows only replace the phrases. A row that is a byte-for-byte copy of an earlier row is dropped automatically instead, with a warning.
 • Machine learning stays on when the last value is TRUE, blank or left off; FALSE turns it off.
 • An action ending in ^ also turns machine learning off for that intent.
 • A priority can follow the intent name in braces, e.g. MYAC.Billing.Pay{high}.

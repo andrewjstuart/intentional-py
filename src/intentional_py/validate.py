@@ -36,7 +36,8 @@ def check_rows(
 
     Missing required values and malformed rows are fatal. Values that the
     builder can safely default are normalized and returned as warnings, as are
-    problems found in the phrase files.
+    problems found in the phrase files. A row that exactly matches an earlier
+    row (an accidental copy-paste) is dropped before any other check runs.
     With mode None, phrase files may be in either the DD or the NL folder.
     """
     fatal_errors: list[str] = []
@@ -46,6 +47,7 @@ def check_rows(
     phrase_owners: dict[tuple[str, str, str], dict[str, int]] = {}
     intent_languages: dict[str, list[tuple[int, str]]] = {}
     first_intent_rows: dict[str, tuple[int, list[str]]] = {}
+    seen_rows: dict[tuple[str, ...], int] = {}
 
     for row_number, row in enumerate(rows, start=1):
         if len(row) not in (6, 7):
@@ -61,11 +63,19 @@ def check_rows(
         # ConfigRow runs the per-row rules (required fields, language, DTMF, machine learning);
         # cross-row and filesystem checks below stay here, since they involve more than one row
         parsed = models.ConfigRow.from_csv_row(row, row_number)
-        fatal_errors.extend(parsed.errors)
-        warnings.extend(parsed.warnings)
         language = parsed.language
         normalized_row[2] = parsed.language
         normalized_row[6] = parsed.machine_learning_text
+
+        first_seen = seen_rows.setdefault(tuple(normalized_row), row_number)
+        if first_seen != row_number:
+            # an exact duplicate is dropped before its own errors/warnings are recorded, so an
+            # accidental copy-paste of an already-invalid row doesn't report the same problem twice
+            warnings.append(f"Row {row_number}: identical to row {first_seen}; the duplicate was dropped.")
+            continue
+
+        fatal_errors.extend(parsed.errors)
+        warnings.extend(parsed.warnings)
 
         if intent:
             intent_languages.setdefault(intent, []).append((row_number, language))
@@ -108,11 +118,16 @@ def check_rows(
             rows_by_language.setdefault(language, []).append(row_number)
         for language, row_numbers in rows_by_language.items():
             if len(row_numbers) > 1:
+                # owner's row keeps the intent definition (build_intents.write_intent mirrors
+                # this by picking the first row); winner's row is the one whose phrases end up
+                # in the usersays file, since build_intents writes it once per row, last wins
                 winner = row_numbers[-1]
+                owner = row_numbers[0]
                 others = ", ".join(str(number) for number in row_numbers[:-1])
                 warnings.append(
                     f"Row {winner}: intent '{intent}' also has language '{language}' "
-                    f"in row(s) {others}; this row will be used instead."
+                    f"in row(s) {others}; its phrases will be used, but row {owner}'s "
+                    "context, action, priority, entities and machine learning are kept."
                 )
         if not any(language == constants.DEFAULT_LANGUAGE for _, language in language_rows):
             row_number, source_row = first_intent_rows[intent]
