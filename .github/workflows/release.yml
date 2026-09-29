@@ -2,6 +2,10 @@
 #
 # - Pushing a version tag such as v1.1.0 builds the executables and publishes them,
 #   with a SHA256SUMS.txt file, as a GitHub Release for that tag.
+# - Publishing a release through the GitHub UI (which creates the tag itself, rather
+#   than it being pushed) also triggers this build; it only creates a NEW workflow
+#   run when a human publishes the release, since GITHUB_TOKEN-created releases
+#   (like the one this workflow makes below) don't retrigger workflows themselves.
 # - "Run workflow" on the Actions tab builds from any branch without publishing; the
 #   executables can be downloaded from the run's "Artifacts" section.
 #
@@ -11,6 +15,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -20,7 +26,7 @@ jobs:
     permissions:
       contents: write # needed to create the release; the other steps only read
     env:
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ github.event.release.tag_name || github.ref_name }}
     steps:
       - uses: actions/checkout@v7
 
@@ -31,7 +37,7 @@ jobs:
         run: uv sync --locked --extra dev --extra gui
 
       - name: Check the tag matches the version in pyproject.toml
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || github.event_name == 'release'
         shell: pwsh
         run: |
           $version = uv run python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
@@ -65,9 +71,9 @@ jobs:
           if-no-files-found: error
 
       # uses the GitHub CLI that is installed on GitHub's runners; adds the files to an
-      # existing release for the tag (e.g. one drafted on GitHub) or creates a new one
+      # existing release for the tag (e.g. one drafted or published on GitHub) or creates one
       - name: Publish the GitHub release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || github.event_name == 'release'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
