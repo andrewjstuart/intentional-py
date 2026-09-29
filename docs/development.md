@@ -35,12 +35,12 @@ If uv reports `invalid peer certificate: UnknownIssuer` (common behind a corpora
 
 ## Testing
 
-The tests are in `src/intentional_py/tests` (see the [code guide](code-guide.md#tests) for what each file covers). They cover the CLI commands, the config checks, the core functions used by both front ends, and the GUI actions; no display is needed. Install the dev tools with `uv sync --extra dev --extra gui`, then run `uv run pytest`. The GUI command test is skipped if the `gui` extra is not installed. The same tests run on GitHub for every push to `main` and every pull request.
+The tests are in `src/intentional_py/tests` (see the [code guide](code-guide.md#tests) for what each file covers). They cover the CLI commands, the config checks, the core functions used by both front ends, and the GUI actions; no display is needed. Install the dev tools with `uv sync --extra dev --extra gui`, then run `uv run pytest`. The GUI command test is skipped if the `gui` extra is not installed. The same tests, plus `ruff check src`, run on GitHub for every push to `main` and every pull request.
 
 ```text
 > uv run pytest -q
-........................................................                 [100%]
-64 passed
+..................................................................................
+82 passed
 ```
 
 ## Packaging the Windows executables

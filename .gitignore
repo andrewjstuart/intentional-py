@@ -61,3 +61,6 @@ override.tf.json
 
 #specific scripts
 update_dependencies.py
+
+
+.devcontainer/devcontainer.json

@@ -7,13 +7,84 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from intentional_py import constants, exceptions, utils
+from intentional_py import constants, exceptions, models, utils
 from intentional_py import validate as validating
 from intentional_py.gui import actions
 from intentional_py.gui.widgets import LEVEL_NAMES, PAD, fit_columns, make_table
 
 FIELDS = ["Intent", "Context", "Language", "Action", "Entities", "DTMF", "Machine learning"]
 ML_CHOICES = {"Default (on)": "", "TRUE": "TRUE", "FALSE": "FALSE"}
+
+
+class EntityDialog(ctk.CTkToplevel):
+    """Adds or edits one entity reference; created once and reused, like RowDialog."""
+
+    def __init__(self, master) -> None:
+        super().__init__(master)
+        self.withdraw()
+        self.title("Entity")
+        self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.on_save = None
+        self.grid_columnconfigure(1, weight=1)
+        self.type_input = ctk.CTkEntry(self, width=280, placeholder_text="e.g. sys.date or digits4")
+        self.type_input.grid(row=0, column=1, sticky="ew", **PAD)
+        ctk.CTkLabel(self, text="Type").grid(row=0, column=0, sticky="w", **PAD)
+        self.alias_input = ctk.CTkEntry(self, width=280, placeholder_text="optional")
+        self.alias_input.grid(row=1, column=1, sticky="ew", **PAD)
+        ctk.CTkLabel(self, text="Alias").grid(row=1, column=0, sticky="w", **PAD)
+        self.required_var = ctk.BooleanVar(self, value=False)
+        ctk.CTkCheckBox(self, text="Required", variable=self.required_var).grid(
+            row=2, column=1, sticky="w", **PAD
+        )
+        buttons = ctk.CTkFrame(self, fg_color="transparent")
+        buttons.grid(row=3, column=0, columnspan=2, sticky="e", **PAD)
+        ctk.CTkButton(buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel).grid(
+            row=0, column=0, padx=(0, 8)
+        )
+        ctk.CTkButton(buttons, text="OK", width=90, command=self._save).grid(row=0, column=1)
+        self.bind("<Return>", lambda _event: self._save())
+        self.bind("<Escape>", lambda _event: self._cancel())
+
+    def show(self, title: str, entity: models.Entity | None, on_save) -> None:
+        self.title(title)
+        self.on_save = on_save
+        self.type_input.delete(0, "end")
+        self.alias_input.delete(0, "end")
+        if entity is not None:
+            self.type_input.insert(0, entity.type.removeprefix("@"))
+            if entity.aliased:
+                self.alias_input.insert(0, entity.name)
+            self.required_var.set(entity.required)
+        else:
+            self.required_var.set(False)
+        self.deiconify()
+        self.after(100, self.lift)
+        self.grab_set()
+        self.type_input.focus_set()
+
+    def _save(self) -> None:
+        on_save, self.on_save = self.on_save, None
+        type_text = self.type_input.get().strip()
+        if not type_text:
+            self._cancel()
+            return
+        alias = self.alias_input.get().strip()
+        text = f"{type_text}[{alias}]" if alias else type_text
+        if self.required_var.get():
+            text += "*"
+        entity = models.Entity.parse(text)
+        self._close()
+        if on_save:
+            on_save(entity)
+
+    def _cancel(self) -> None:
+        self.on_save = None
+        self._close()
+
+    def _close(self) -> None:
+        self.grab_release()
+        self.withdraw()
 
 
 class RowDialog(ctk.CTkToplevel):
@@ -26,25 +97,46 @@ class RowDialog(ctk.CTkToplevel):
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self._cancel)
         self.on_save = None
+        self.entities: list[models.Entity] = []
+        self.entity_dialog = EntityDialog(self)
         self.grid_columnconfigure(1, weight=1)
         self.inputs: dict[str, ctk.CTkEntry | ctk.CTkComboBox | ctk.CTkOptionMenu] = {}
-        for row, name in enumerate(FIELDS):
-            ctk.CTkLabel(self, text=name).grid(row=row, column=0, sticky="w", **PAD)
+        grid_row = 0
+        for name in FIELDS:
+            if name == "Entities":
+                ctk.CTkLabel(self, text=name).grid(row=grid_row, column=0, sticky="nw", **PAD)
+                entities_frame, self.entities_table = make_table(self, ["Type", "Alias", "Required"], height=4)
+                entities_frame.grid(row=grid_row, column=1, sticky="ew", **PAD)
+                self.entities_table.bind("<Double-1>", lambda _event: self._edit_entity())
+                self.entities_table.bind("<Delete>", lambda _event: self._delete_entity())
+                entity_buttons = ctk.CTkFrame(self, fg_color="transparent")
+                entity_buttons.grid(row=grid_row + 1, column=1, sticky="w", padx=10)
+                for column, (text, command) in enumerate(
+                    [("Add", self._add_entity), ("Edit", self._edit_entity), ("Remove", self._delete_entity)]
+                ):
+                    ctk.CTkButton(entity_buttons, text=text, width=70, command=command).grid(
+                        row=0, column=column, padx=(0, 6)
+                    )
+                grid_row += 2
+                continue
+            ctk.CTkLabel(self, text=name).grid(row=grid_row, column=0, sticky="w", **PAD)
             if name == "Language":
                 widget = ctk.CTkComboBox(self, values=[*constants.LANGUAGE_NAMES, "dtmf"], width=360)
             elif name == "Machine learning":
                 widget = ctk.CTkOptionMenu(self, values=list(ML_CHOICES), width=360)
             else:
                 widget = ctk.CTkEntry(self, width=360)
-            widget.grid(row=row, column=1, sticky="ew", **PAD)
+            widget.grid(row=grid_row, column=1, sticky="ew", **PAD)
             self.inputs[name] = widget
+            grid_row += 1
         ctk.CTkLabel(
             self,
-            text="Entities and DTMF values are separated by |, e.g. sys.date|digits4* or 1|2",
+            text="DTMF values are separated by |, e.g. 1|2. For entities: Add, double-click to edit, Delete to remove.",
             text_color="gray",
-        ).grid(row=len(FIELDS), column=0, columnspan=2, sticky="w", padx=10)
+        ).grid(row=grid_row, column=0, columnspan=2, sticky="w", padx=10)
+        grid_row += 1
         buttons = ctk.CTkFrame(self, fg_color="transparent")
-        buttons.grid(row=len(FIELDS) + 1, column=0, columnspan=2, sticky="e", **PAD)
+        buttons.grid(row=grid_row, column=0, columnspan=2, sticky="e", **PAD)
         ctk.CTkButton(buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel).grid(
             row=0, column=0, padx=(0, 8)
         )
@@ -56,6 +148,10 @@ class RowDialog(ctk.CTkToplevel):
         self.title(title)
         self.on_save = on_save
         for name, value in zip(FIELDS, values, strict=True):
+            if name == "Entities":
+                self.entities = [models.Entity.parse(part) for part in value.split("|") if part]
+                self._render_entities()
+                continue
             widget = self.inputs[name]
             if isinstance(widget, ctk.CTkOptionMenu):
                 label = next((k for k, v in ML_CHOICES.items() if v == value.upper()), "Default (on)")
@@ -73,10 +169,55 @@ class RowDialog(ctk.CTkToplevel):
     def _values(self) -> list[str]:
         values = []
         for name in FIELDS:
+            if name == "Entities":
+                values.append("|".join(entity.to_config_text() for entity in self.entities))
+                continue
             widget = self.inputs[name]
             value = widget.get().strip()
             values.append(ML_CHOICES[value] if name == "Machine learning" else value)
         return values
+
+    def _render_entities(self) -> None:
+        self.entities_table.delete(*self.entities_table.get_children())
+        for entity in self.entities:
+            self.entities_table.insert(
+                "",
+                "end",
+                values=[
+                    entity.type.removeprefix("@"),
+                    entity.name if entity.aliased else "",
+                    "Yes" if entity.required else "",
+                ],
+            )
+        fit_columns(self.entities_table)
+
+    def _selected_entity(self) -> int | None:
+        selection = self.entities_table.selection()
+        return self.entities_table.index(selection[0]) if selection else None
+
+    def _add_entity(self) -> None:
+        def save(entity: models.Entity) -> None:
+            self.entities.append(entity)
+            self._render_entities()
+
+        self.entity_dialog.show("Add entity", None, save)
+
+    def _edit_entity(self) -> None:
+        index = self._selected_entity()
+        if index is None:
+            return
+
+        def save(entity: models.Entity) -> None:
+            self.entities[index] = entity
+            self._render_entities()
+
+        self.entity_dialog.show(f"Edit entity {index + 1}", self.entities[index], save)
+
+    def _delete_entity(self) -> None:
+        index = self._selected_entity()
+        if index is not None:
+            del self.entities[index]
+            self._render_entities()
 
     def _save(self) -> None:
         on_save, self.on_save = self.on_save, None

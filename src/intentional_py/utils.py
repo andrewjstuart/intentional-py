@@ -121,7 +121,8 @@ def check_alias(entity_to_check: str) -> tuple[str, str, str, bool]:
     entity_type: str = ""
     entity_name: str = ""
     entity_value: str = ""
-    entity_required: bool = False
+    # a trailing * applies to the whole reference, so it's checked before splitting off an alias
+    entity_to_check, entity_required = check_required(entity_to_check)
     # search for []
     matches: list = re.findall(r"\[(.*?)\]", entity_to_check)
     # remove brackets
@@ -130,13 +131,11 @@ def check_alias(entity_to_check: str) -> tuple[str, str, str, bool]:
 
     if matches:
         alias: str = matches[0]
-        (entity, entity_required) = check_required(entity)
         entity_type = f"@{entity}"  # append @
         entity_name = alias
         entity_value = f"${alias}"  # append $
     else:
         # no alias
-        (entity, entity_required) = check_required(entity)
         entity_type = f"@{entity}"
         entity = entity.removeprefix("sys.")
         entity = entity.lower()
