@@ -23,6 +23,7 @@ The project uses [uv](https://docs.astral.sh/uv/) to manage Python and the depen
 | Run the GUI | `uv run intentional` or `uv run intentional-cli gui` |
 | Run the tests | `uv run pytest` |
 | Lint | `uv run ruff check src` |
+| Format | `uv run ruff format src` (add `--check` to only report, without changing files) |
 | Update the lock file after editing `pyproject.toml` | `uv lock` |
 | Upgrade the dependencies | `uv lock --upgrade`, then `uv sync --extra dev --extra gui` |
 | List dependencies with newer releases than `pyproject.toml` allows | `uv tree --outdated --depth 1` |
@@ -35,12 +36,13 @@ If uv reports `invalid peer certificate: UnknownIssuer` (common behind a corpora
 
 ## Testing
 
-The tests are in `src/intentional_py/tests` (see the [code guide](code-guide.md#tests) for what each file covers). They cover the CLI commands, the config checks, the core functions used by both front ends, and the GUI actions; no display is needed. Install the dev tools with `uv sync --extra dev --extra gui`, then run `uv run pytest`. The GUI command test is skipped if the `gui` extra is not installed. The same tests, plus `ruff check src`, run on GitHub for every push to `main` and every pull request.
+The tests are in `src/intentional_py/tests` (see the [code guide](code-guide.md#tests) for what each file covers). They cover the CLI commands, the config checks, the core functions used by both front ends, and the GUI actions; no display is needed. Install the dev tools with `uv sync --extra dev --extra gui`, then run `uv run pytest`. The GUI command test is skipped if the `gui` extra is not installed. The same tests, plus `ruff check src` and `ruff format --check src`, run on GitHub for every push to `main` and every pull request.
 
 ```text
 > uv run pytest -q
-..................................................................................
-82 passed
+........................................................................ [ 85%]
+............                                                             [100%]
+84 passed
 ```
 
 ## Packaging the Windows executables
