@@ -71,7 +71,7 @@ The executables are created in the `dist` folder. The version is shown in the GU
 | Workflow | File | Runs when | What it does |
 |-|-|-|-|
 | Tests | `tests.yml` | A push to `main`, any pull request, or **Run workflow** | Runs the tests on Windows and Linux. A failure is shown on the pull request and on the badge at the top of the README. |
-| Release | `release.yml` | A tag starting with `v` is pushed, or **Run workflow** | On Windows: runs the tests, builds both executables and `SHA256SUMS.txt`, and for a tag publishes them as a GitHub Release. |
+| Release | `release.yml` | A tag starting with `v` is pushed, a release is published on GitHub (which creates the tag itself, without a push), or **Run workflow** | On Windows: runs the tests, builds both executables and `SHA256SUMS.txt`, and for a tag or a release publishes them to it. |
 
 Both workflows install with `uv sync --locked`, so they fail if `uv.lock` doesn't match `pyproject.toml`. Run `uv lock` and commit `uv.lock` to fix that.
 
