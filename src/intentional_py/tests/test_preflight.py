@@ -96,4 +96,6 @@ def test_validate_reports_empty_and_missing_configs(tmp_path: Path) -> None:
         ("Checking for intents.cfg", True),
         ("Checking for intents_nl.cfg", False),
     ]
-    assert result.configs[0].details == ["Error: The config file does not contain data."]
+    assert result.configs[0].details == [
+        "Error: The config file does not contain data."
+    ]

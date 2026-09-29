@@ -12,7 +12,15 @@ from intentional_py import validate as validating
 from intentional_py.gui import actions
 from intentional_py.gui.widgets import LEVEL_NAMES, PAD, fit_columns, make_table
 
-FIELDS = ["Intent", "Context", "Language", "Action", "Entities", "DTMF", "Machine learning"]
+FIELDS = [
+    "Intent",
+    "Context",
+    "Language",
+    "Action",
+    "Entities",
+    "DTMF",
+    "Machine learning",
+]
 ML_CHOICES = {"Default (on)": "", "TRUE": "TRUE", "FALSE": "FALSE"}
 
 
@@ -27,7 +35,9 @@ class EntityDialog(ctk.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self._cancel)
         self.on_save = None
         self.grid_columnconfigure(1, weight=1)
-        self.type_input = ctk.CTkEntry(self, width=280, placeholder_text="e.g. sys.date or digits4")
+        self.type_input = ctk.CTkEntry(
+            self, width=280, placeholder_text="e.g. sys.date or digits4"
+        )
         self.type_input.grid(row=0, column=1, sticky="ew", **PAD)
         ctk.CTkLabel(self, text="Type").grid(row=0, column=0, sticky="w", **PAD)
         self.alias_input = ctk.CTkEntry(self, width=280, placeholder_text="optional")
@@ -39,10 +49,12 @@ class EntityDialog(ctk.CTkToplevel):
         )
         buttons = ctk.CTkFrame(self, fg_color="transparent")
         buttons.grid(row=3, column=0, columnspan=2, sticky="e", **PAD)
-        ctk.CTkButton(buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel).grid(
-            row=0, column=0, padx=(0, 8)
+        ctk.CTkButton(
+            buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel
+        ).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkButton(buttons, text="OK", width=90, command=self._save).grid(
+            row=0, column=1
         )
-        ctk.CTkButton(buttons, text="OK", width=90, command=self._save).grid(row=0, column=1)
         self.bind("<Return>", lambda _event: self._save())
         self.bind("<Escape>", lambda _event: self._cancel())
 
@@ -104,24 +116,40 @@ class RowDialog(ctk.CTkToplevel):
         grid_row = 0
         for name in FIELDS:
             if name == "Entities":
-                ctk.CTkLabel(self, text=name).grid(row=grid_row, column=0, sticky="nw", **PAD)
-                entities_frame, self.entities_table = make_table(self, ["Type", "Alias", "Required"], height=4)
+                ctk.CTkLabel(self, text=name).grid(
+                    row=grid_row, column=0, sticky="nw", **PAD
+                )
+                entities_frame, self.entities_table = make_table(
+                    self, ["Type", "Alias", "Required"], height=4
+                )
                 entities_frame.grid(row=grid_row, column=1, sticky="ew", **PAD)
-                self.entities_table.bind("<Double-1>", lambda _event: self._edit_entity())
-                self.entities_table.bind("<Delete>", lambda _event: self._delete_entity())
+                self.entities_table.bind(
+                    "<Double-1>", lambda _event: self._edit_entity()
+                )
+                self.entities_table.bind(
+                    "<Delete>", lambda _event: self._delete_entity()
+                )
                 entity_buttons = ctk.CTkFrame(self, fg_color="transparent")
                 entity_buttons.grid(row=grid_row + 1, column=1, sticky="w", padx=10)
                 for column, (text, command) in enumerate(
-                    [("Add", self._add_entity), ("Edit", self._edit_entity), ("Remove", self._delete_entity)]
+                    [
+                        ("Add", self._add_entity),
+                        ("Edit", self._edit_entity),
+                        ("Remove", self._delete_entity),
+                    ]
                 ):
-                    ctk.CTkButton(entity_buttons, text=text, width=70, command=command).grid(
-                        row=0, column=column, padx=(0, 6)
-                    )
+                    ctk.CTkButton(
+                        entity_buttons, text=text, width=70, command=command
+                    ).grid(row=0, column=column, padx=(0, 6))
                 grid_row += 2
                 continue
-            ctk.CTkLabel(self, text=name).grid(row=grid_row, column=0, sticky="w", **PAD)
+            ctk.CTkLabel(self, text=name).grid(
+                row=grid_row, column=0, sticky="w", **PAD
+            )
             if name == "Language":
-                widget = ctk.CTkComboBox(self, values=[*constants.LANGUAGE_NAMES, "dtmf"], width=360)
+                widget = ctk.CTkComboBox(
+                    self, values=[*constants.LANGUAGE_NAMES, "dtmf"], width=360
+                )
             elif name == "Machine learning":
                 widget = ctk.CTkOptionMenu(self, values=list(ML_CHOICES), width=360)
             else:
@@ -137,10 +165,12 @@ class RowDialog(ctk.CTkToplevel):
         grid_row += 1
         buttons = ctk.CTkFrame(self, fg_color="transparent")
         buttons.grid(row=grid_row, column=0, columnspan=2, sticky="e", **PAD)
-        ctk.CTkButton(buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel).grid(
-            row=0, column=0, padx=(0, 8)
+        ctk.CTkButton(
+            buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel
+        ).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkButton(buttons, text="OK", width=90, command=self._save).grid(
+            row=0, column=1
         )
-        ctk.CTkButton(buttons, text="OK", width=90, command=self._save).grid(row=0, column=1)
         self.bind("<Return>", lambda _event: self._save())
         self.bind("<Escape>", lambda _event: self._cancel())
 
@@ -149,12 +179,17 @@ class RowDialog(ctk.CTkToplevel):
         self.on_save = on_save
         for name, value in zip(FIELDS, values, strict=True):
             if name == "Entities":
-                self.entities = [models.Entity.parse(part) for part in value.split("|") if part]
+                self.entities = [
+                    models.Entity.parse(part) for part in value.split("|") if part
+                ]
                 self._render_entities()
                 continue
             widget = self.inputs[name]
             if isinstance(widget, ctk.CTkOptionMenu):
-                label = next((k for k, v in ML_CHOICES.items() if v == value.upper()), "Default (on)")
+                label = next(
+                    (k for k, v in ML_CHOICES.items() if v == value.upper()),
+                    "Default (on)",
+                )
                 widget.set(label)
             elif isinstance(widget, ctk.CTkComboBox):
                 widget.set(value)
@@ -170,7 +205,9 @@ class RowDialog(ctk.CTkToplevel):
         values = []
         for name in FIELDS:
             if name == "Entities":
-                values.append("|".join(entity.to_config_text() for entity in self.entities))
+                values.append(
+                    "|".join(entity.to_config_text() for entity in self.entities)
+                )
                 continue
             widget = self.inputs[name]
             value = widget.get().strip()
@@ -251,7 +288,9 @@ class ConfigEditor(ctk.CTkToplevel):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=3)
         self.grid_rowconfigure(4, weight=1)
-        self.path_label = ctk.CTkLabel(self, text="", anchor="w", font=ctk.CTkFont(weight="bold"))
+        self.path_label = ctk.CTkLabel(
+            self, text="", anchor="w", font=ctk.CTkFont(weight="bold")
+        )
         self.path_label.grid(row=0, column=0, sticky="ew", **PAD)
 
         table_frame, self.table = make_table(self, ["#", *FIELDS], height=14)
@@ -272,16 +311,22 @@ class ConfigEditor(ctk.CTkToplevel):
                 ("Check", self._check),
             ]
         ):
-            ctk.CTkButton(buttons, text=text, width=90, command=command).grid(row=0, column=column, padx=(0, 6))
+            ctk.CTkButton(buttons, text=text, width=90, command=command).grid(
+                row=0, column=column, padx=(0, 6)
+            )
         buttons.grid_columnconfigure(7, weight=1)
-        ctk.CTkButton(buttons, text="Close", width=90, fg_color="gray", command=self._close).grid(
-            row=0, column=8, padx=(6, 0)
+        ctk.CTkButton(
+            buttons, text="Close", width=90, fg_color="gray", command=self._close
+        ).grid(row=0, column=8, padx=(6, 0))
+        ctk.CTkButton(buttons, text="Save", width=90, command=self._save).grid(
+            row=0, column=9, padx=(6, 0)
         )
-        ctk.CTkButton(buttons, text="Save", width=90, command=self._save).grid(row=0, column=9, padx=(6, 0))
 
         self.status = ctk.CTkLabel(self, text="", anchor="w", text_color="gray")
         self.status.grid(row=3, column=0, sticky="ew", padx=10)
-        issues_frame, self.issues = make_table(self, ["Level", "Row", "Message"], height=5)
+        issues_frame, self.issues = make_table(
+            self, ["Level", "Row", "Message"], height=5
+        )
         issues_frame.grid(row=4, column=0, sticky="nsew", padx=10, pady=(0, 10))
 
     # ----- opening and saving -----
@@ -294,14 +339,20 @@ class ConfigEditor(ctk.CTkToplevel):
             try:
                 rows = validating.read_config_rows(config) if config.exists() else []
             except exceptions.IntentionalException as error:
-                messagebox.showerror("Intentional", actions.plain_text(str(error)), parent=self.master)
+                messagebox.showerror(
+                    "Intentional", actions.plain_text(str(error)), parent=self.master
+                )
                 return
-            self.rows = [[cell.strip() for cell in row] + [""] * (7 - len(row)) for row in rows]
+            self.rows = [
+                [cell.strip() for cell in row] + [""] * (7 - len(row)) for row in rows
+            ]
             self.config_path, self.mode, self.dirty = config, mode, False
             self._render()
             self._check()
             if not config.exists():
-                self.status.configure(text=f"{config.name} does not exist yet; it is created when you save.")
+                self.status.configure(
+                    text=f"{config.name} does not exist yet; it is created when you save."
+                )
         self._show()
 
     def _show(self) -> None:
@@ -317,21 +368,28 @@ class ConfigEditor(ctk.CTkToplevel):
                 backup = self.config_path.with_name(f"{self.config_path.name}.bak")
                 with utils.file_errors(backup):
                     shutil.copy2(self.config_path, backup)
-            with utils.file_errors(self.config_path), self.config_path.open(
-                "w", encoding="utf-8", newline=""
-            ) as file:
+            with (
+                utils.file_errors(self.config_path),
+                self.config_path.open("w", encoding="utf-8", newline="") as file,
+            ):
                 csv.writer(file).writerows(self.rows)
         except exceptions.IntentionalException as error:
-            messagebox.showerror("Intentional", actions.plain_text(str(error)), parent=self)
+            messagebox.showerror(
+                "Intentional", actions.plain_text(str(error)), parent=self
+            )
             return
         self.dirty = False
         self._update_title()
         self._check()
-        self.status.configure(text=f"Saved {len(self.rows)} rows. {self.status.cget('text')}")
+        self.status.configure(
+            text=f"Saved {len(self.rows)} rows. {self.status.cget('text')}"
+        )
 
     def _confirm_discard(self) -> bool:
         return messagebox.askyesno(
-            "Intentional", f"Discard the unsaved changes to {self.config_path.name}?", parent=self
+            "Intentional",
+            f"Discard the unsaved changes to {self.config_path.name}?",
+            parent=self,
         )
 
     def _close(self) -> None:
@@ -360,7 +418,9 @@ class ConfigEditor(ctk.CTkToplevel):
             self.rows.insert(position, values)
             self._changed(position)
 
-        self.dialog.show("Add row", ["", "", constants.DEFAULT_LANGUAGE, "", "", "", ""], insert)
+        self.dialog.show(
+            "Add row", ["", "", constants.DEFAULT_LANGUAGE, "", "", "", ""], insert
+        )
 
     def _edit(self) -> None:
         index = self._selected()
@@ -414,18 +474,30 @@ class ConfigEditor(ctk.CTkToplevel):
         """Run the build's checks on the rows as they are now, and colour the rows with problems."""
         if self.config_path is None:
             return
-        _, errors, warnings = validating.check_rows(self.rows, self.config_path.parent, self.mode)
-        issues = [actions.issue("error", e) for e in errors] + [actions.issue("warning", w) for w in warnings]
+        _, errors, warnings = validating.check_rows(
+            self.rows, self.config_path.parent, self.mode
+        )
+        issues = [actions.issue("error", e) for e in errors] + [
+            actions.issue("warning", w) for w in warnings
+        ]
         rows_with = {"error": set(), "warning": set()}
         for level, row, _ in issues:
             if row:
                 rows_with[level].add(int(row) - 1)
         for index, item in enumerate(self.table.get_children()):
-            level = "error" if index in rows_with["error"] else "warning" if index in rows_with["warning"] else ""
+            level = (
+                "error"
+                if index in rows_with["error"]
+                else "warning"
+                if index in rows_with["warning"]
+                else ""
+            )
             self.table.item(item, tags=(level,) if level else ())
         self.issues.delete(*self.issues.get_children())
         for level, row, message in issues:
-            self.issues.insert("", "end", values=(LEVEL_NAMES[level], row, message), tags=(level,))
+            self.issues.insert(
+                "", "end", values=(LEVEL_NAMES[level], row, message), tags=(level,)
+            )
         fit_columns(self.issues)
         if issues:
             text = f"{len(errors)} error(s) and {len(warnings)} warning(s), using the same checks as a build."

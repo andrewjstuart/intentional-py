@@ -60,7 +60,12 @@ class RichReporter:
         if level in {"warning", "error"}:
             title = " | ".join(Text.from_markup(column).plain for column in columns)
             self.issues.extend(
-                (level, "", f"{title}: " + " | ".join(Text.from_markup(cell).plain for cell in row))
+                (
+                    level,
+                    "",
+                    f"{title}: "
+                    + " | ".join(Text.from_markup(cell).plain for cell in row),
+                )
                 for row in rows
             )
         if self._hidden(level):
@@ -119,7 +124,8 @@ class RichReporter:
             )
         if result.backup:
             self.message(
-                "info", f"[green]Previous intents saved to[/green] [blue]{result.backup}[/blue]"
+                "info",
+                f"[green]Previous intents saved to[/green] [blue]{result.backup}[/blue]",
             )
         changes = result.changes
         if changes:
@@ -163,17 +169,26 @@ class RichReporter:
 
     def show_design(self, result: DesignResult) -> None:
         self.table(
-            ["Sheet", "Rows", "Config"], [[result.sheet, str(result.rows), str(result.config)]]
+            ["Sheet", "Rows", "Config"],
+            [[result.sheet, str(result.rows), str(result.config)]],
         )
         if result.backup:
-            self.message("info", f"[green]Previous config saved to[/green] [blue]{result.backup}[/blue]")
+            self.message(
+                "info",
+                f"[green]Previous config saved to[/green] [blue]{result.backup}[/blue]",
+            )
         for error in result.errors:
             self.console.print(f"    Error: {error}", style="red", markup=False)
         if not self.quiet:
             for warning in result.warnings:
-                self.console.print(f"    Warning: {warning}", style="yellow", markup=False)
+                self.console.print(
+                    f"    Warning: {warning}", style="yellow", markup=False
+                )
         if result.errors:
-            self.message("error", "[red]Fix the errors in the design document before building.[/red]")
+            self.message(
+                "error",
+                "[red]Fix the errors in the design document before building.[/red]",
+            )
 
     def show_extract(self, result: ExtractResult) -> None:
         if self.test:
@@ -185,7 +200,8 @@ class RichReporter:
             )
         if result.backup:
             self.message(
-                "info", f"[green]Previous phrases saved to[/green] [blue]{result.backup}[/blue]"
+                "info",
+                f"[green]Previous phrases saved to[/green] [blue]{result.backup}[/blue]",
             )
         for sheet_name in result.empty_sheets:
             if not self._hidden("warning"):

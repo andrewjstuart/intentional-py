@@ -47,11 +47,16 @@ def test_entity_tag_problems_are_grouped_per_file(tmp_path: Path) -> None:
     config = dd_project(
         tmp_path,
         ["A.Pay,Ctx,en,pay,sys.unit-currency*,,"],
-        {"pay": "pay <sys.unit-currency|$5>\npay <sys.unit-currency|$6\npay <sys.date|today>\npay <nope>\n"},
+        {
+            "pay": "pay <sys.unit-currency|$5>\npay <sys.unit-currency|$6\npay <sys.date|today>\npay <nope>\n"
+        },
     )
     warnings = warnings_for(config)
     assert "Row 1: 'pay.txt' has an unmatched '<' or '>' on line 2." in warnings
-    assert "Row 1: 'pay.txt' has an entity tag without the <entity|text> form on line 4." in warnings
+    assert (
+        "Row 1: 'pay.txt' has an entity tag without the <entity|text> form on line 4."
+        in warnings
+    )
     assert (
         "Row 1: 'pay.txt' uses the entity 'sys.date' on line 3, but it is not in the row's Entities column."
         in warnings
@@ -70,7 +75,9 @@ def test_entity_aliases_and_required_markers_match(tmp_path: Path) -> None:
 
 def test_empty_phrase_file(tmp_path: Path) -> None:
     config = dd_project(tmp_path, ["A.Empty,Ctx,en,empty,,,"], {"empty": "\n  \n"})
-    assert warnings_for(config) == ["Row 1: phrase file 'empty.txt' is empty; the intent will have no phrases."]
+    assert warnings_for(config) == [
+        "Row 1: phrase file 'empty.txt' is empty; the intent will have no phrases."
+    ]
 
 
 def test_duplicate_phrases_only_matter_within_a_context(tmp_path: Path) -> None:
@@ -143,13 +150,17 @@ def test_english_row_owns_multilingual_intent_definition(tmp_path: Path) -> None
 
     build_intents.intents("DD", config, tmp_path, QuietReporter())
 
-    intent = json.loads((tmp_path / "intents" / "A.Pay.json").read_text(encoding="utf-8"))
+    intent = json.loads(
+        (tmp_path / "intents" / "A.Pay.json").read_text(encoding="utf-8")
+    )
     assert intent["contexts"] == ["Context-en"]
     assert intent["responses"][0]["action"] == "pay"
     assert (tmp_path / "intents" / "A.Pay_usersays_es.json").exists()
 
 
-def test_duplicate_row_for_same_intent_and_language_does_not_duplicate_phrases(tmp_path: Path) -> None:
+def test_duplicate_row_for_same_intent_and_language_does_not_duplicate_phrases(
+    tmp_path: Path,
+) -> None:
     config = dd_project(
         tmp_path,
         # an accidental copy-paste: the same intent, context, language and action twice
@@ -162,7 +173,9 @@ def test_duplicate_row_for_same_intent_and_language_does_not_duplicate_phrases(t
     assert warnings == ["Row 2: identical to row 1; the duplicate was dropped."]
 
     build_intents.intents("DD", config, tmp_path, QuietReporter())
-    usersays = json.loads((tmp_path / "intents" / "A.Pay_usersays_en.json").read_text(encoding="utf-8"))
+    usersays = json.loads(
+        (tmp_path / "intents" / "A.Pay_usersays_en.json").read_text(encoding="utf-8")
+    )
     texts = sorted(entry["data"][0]["text"] for entry in usersays)
     assert texts == ["make a payment", "pay my bill"]
 
@@ -187,22 +200,31 @@ def test_exact_duplicate_row_is_dropped_before_other_checks(tmp_path: Path) -> N
     assert result.phrases == 2
 
 
-def test_duplicate_row_with_a_different_action_swaps_only_the_phrases(tmp_path: Path) -> None:
+def test_duplicate_row_with_a_different_action_swaps_only_the_phrases(
+    tmp_path: Path,
+) -> None:
     # deliberate, not an accidental copy-paste: same intent/language, a different action so a
     # second phrase file's phrases are used, while the intent keeps returning the first action
     config = dd_project(
         tmp_path,
         ["A.Home,Ctx,en,home,,1,FALSE", "A.Home,Ctx,en,home_newphrases,,1,TRUE"],
-        {"home": "start new service at home\n", "home_newphrases": "extra phrase for home\n"},
+        {
+            "home": "start new service at home\n",
+            "home_newphrases": "extra phrase for home\n",
+        },
     )
 
     build_intents.intents("DD", config, tmp_path, QuietReporter())
 
-    intent = json.loads((tmp_path / "intents" / "A.Home.json").read_text(encoding="utf-8"))
+    intent = json.loads(
+        (tmp_path / "intents" / "A.Home.json").read_text(encoding="utf-8")
+    )
     assert intent["responses"][0]["action"] == "home"
     assert intent["auto"] is False
 
-    usersays = json.loads((tmp_path / "intents" / "A.Home_usersays_en.json").read_text(encoding="utf-8"))
+    usersays = json.loads(
+        (tmp_path / "intents" / "A.Home_usersays_en.json").read_text(encoding="utf-8")
+    )
     texts = [entry["data"][0]["text"] for entry in usersays]
     assert texts == ["1", "extra phrase for home"]
 
@@ -211,29 +233,44 @@ def test_duplicate_row_with_a_different_action_swaps_only_the_phrases(tmp_path: 
 
 
 def test_clean_backs_up_and_removes_old_intents(tmp_path: Path) -> None:
-    config = dd_project(tmp_path, ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,"], {"one": "one\n", "two": "two\n"})
+    config = dd_project(
+        tmp_path,
+        ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,"],
+        {"one": "one\n", "two": "two\n"},
+    )
     build_intents.intents("DD", config, tmp_path, QuietReporter())
     config.write_text("A.One,Ctx,en,one,,,\n", encoding="utf-8")
 
     result = build_intents.intents("DD", config, tmp_path, QuietReporter(), clean=True)
 
     assert result.changes.removed == ["A.Two"]
-    assert sorted(p.name for p in (tmp_path / "intents").iterdir()) == ["A.One.json", "A.One_usersays_en.json"]
+    assert sorted(p.name for p in (tmp_path / "intents").iterdir()) == [
+        "A.One.json",
+        "A.One_usersays_en.json",
+    ]
     with zipfile.ZipFile(result.backup) as backup:
         assert "A.Two.json" in backup.namelist()
 
 
 def test_rebuild_without_clean_keeps_old_intents(tmp_path: Path) -> None:
-    config = dd_project(tmp_path, ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,"], {"one": "one\n", "two": "two\n"})
+    config = dd_project(
+        tmp_path,
+        ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,"],
+        {"one": "one\n", "two": "two\n"},
+    )
     build_intents.intents("DD", config, tmp_path, QuietReporter())
-    (tmp_path / "Training Phrases" / "en" / "one.txt").write_text("one\nuno\n", encoding="utf-8")
+    (tmp_path / "Training Phrases" / "en" / "one.txt").write_text(
+        "one\nuno\n", encoding="utf-8"
+    )
     config.write_text("A.One,Ctx,en,one,,,\n", encoding="utf-8")
 
     result = build_intents.intents("DD", config, tmp_path, QuietReporter())
 
     assert result.backup is None
     assert result.changes.removed == ["A.Two"]
-    assert [(c.name, c.details) for c in result.changes.changed] == [("A.One", ["en phrases: 1 added, 0 removed"])]
+    assert [(c.name, c.details) for c in result.changes.changed] == [
+        ("A.One", ["en phrases: 1 added, 0 removed"])
+    ]
     assert (tmp_path / "intents" / "A.Two.json").exists()
 
 
@@ -241,7 +278,11 @@ def test_rebuild_without_clean_keeps_old_intents(tmp_path: Path) -> None:
 
 
 def test_compare_with_export_zip_ignores_ids(tmp_path: Path) -> None:
-    config = dd_project(tmp_path, ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,FALSE"], {"one": "one\n", "two": "two\n"})
+    config = dd_project(
+        tmp_path,
+        ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,FALSE"],
+        {"one": "one\n", "two": "two\n"},
+    )
     build_intents.intents("DD", config, tmp_path, QuietReporter())
     export = tmp_path / "agent.zip"
     with zipfile.ZipFile(export, "w") as archive:
@@ -251,13 +292,23 @@ def test_compare_with_export_zip_ignores_ids(tmp_path: Path) -> None:
             if path.name == "A.Two.json":
                 data["auto"] = True
             archive.writestr(f"intents/{path.name}", json.dumps(data))
-        archive.writestr("intents/Other.Intent.json", json.dumps({"name": "Other.Intent", "responses": [{}]}))
-    config.write_text("A.One,Ctx,en,one,,,\nA.Two,Ctx,en,two,,,FALSE\nA.Three,Ctx,en,one,,,\n", encoding="utf-8")
+        archive.writestr(
+            "intents/Other.Intent.json",
+            json.dumps({"name": "Other.Intent", "responses": [{}]}),
+        )
+    config.write_text(
+        "A.One,Ctx,en,one,,,\nA.Two,Ctx,en,two,,,FALSE\nA.Three,Ctx,en,one,,,\n",
+        encoding="utf-8",
+    )
 
-    result = build_intents.compare_build("DD", config, tmp_path, export, QuietReporter())
+    result = build_intents.compare_build(
+        "DD", config, tmp_path, export, QuietReporter()
+    )
 
     assert result.added == ["A.Three"]
-    assert [(c.name, c.details) for c in result.changed] == [("A.Two", ["machine learning: on \u2192 off"])]
+    assert [(c.name, c.details) for c in result.changed] == [
+        ("A.Two", ["machine learning: on \u2192 off"])
+    ]
     assert result.removed == ["Other.Intent"]
     assert result.unchanged == 1
     assert not (tmp_path / "intents" / "A.Three.json").exists()
@@ -277,11 +328,27 @@ def make_design(path: Path, header_row: int = 2) -> Path:
     sheet = workbook.active
     sheet.title = "Design"
     sheet.cell(1, 1, "Billing module design")
-    headers = ["Intent", "Context", "Language", "Action", "Entities", "DTMF", "Machine Learning"]
+    headers = [
+        "Intent",
+        "Context",
+        "Language",
+        "Action",
+        "Entities",
+        "DTMF",
+        "Machine Learning",
+    ]
     for column, header in enumerate(headers, start=1):
         sheet.cell(header_row, column, header)
     rows = [
-        ["MYAC.Billing.Pay", "MYAC-Billing", "en", "pay", "sys.unit-currency", 1, "FALSE"],
+        [
+            "MYAC.Billing.Pay",
+            "MYAC-Billing",
+            "en",
+            "pay",
+            "sys.unit-currency",
+            1,
+            "FALSE",
+        ],
         ["MYAC.Billing.Help", "MYAC-Billing", "en", "help", None, None, "TRUE"],
         [None, None, None, None, None, None, None],
         ["MYAC.Billing.Menu", "MYAC-Billing", "en", "menu", None, "2|3", None],
@@ -303,7 +370,15 @@ def test_design_document_becomes_config(tmp_path: Path) -> None:
     with config.open(encoding="utf-8", newline="") as file:
         rows = list(csv.reader(file))
     assert rows == [
-        ["MYAC.Billing.Pay", "MYAC-Billing", "en", "pay", "sys.unit-currency", "1", "FALSE"],
+        [
+            "MYAC.Billing.Pay",
+            "MYAC-Billing",
+            "en",
+            "pay",
+            "sys.unit-currency",
+            "1",
+            "FALSE",
+        ],
         ["MYAC.Billing.Help", "MYAC-Billing", "en", "help", "", "", "TRUE"],
         ["MYAC.Billing.Menu", "MYAC-Billing", "en", "menu", "", "2|3", ""],
     ]
@@ -316,7 +391,9 @@ def test_design_document_without_headers(tmp_path: Path) -> None:
     workbook.active["A1"] = "no headers here"
     workbook.save(tmp_path / "bad.xlsx")
     with pytest.raises(exceptions.ConfigurationError, match="No header row"):
-        design_doc.config_from_design(tmp_path / "bad.xlsx", tmp_path / "intents.cfg", QuietReporter())
+        design_doc.config_from_design(
+            tmp_path / "bad.xlsx", tmp_path / "intents.cfg", QuietReporter()
+        )
 
 
 # ----- CLI commands -----
@@ -336,12 +413,16 @@ def test_cli_design_compare_and_clean(tmp_path: Path, monkeypatch) -> None:
         (phrases / f"{action}.txt").write_text(f"{action}\n", encoding="utf-8")
     config = tmp_path / "intents.cfg"
 
-    result = runner.invoke(app, ["design", "--file", str(xl_file), "--config", str(config)])
+    result = runner.invoke(
+        app, ["design", "--file", str(xl_file), "--config", str(config)]
+    )
     assert result.exit_code == 0, result.stdout
     assert config.exists()
 
     assert runner.invoke(app, ["--config", str(config)]).exit_code == 0
-    result = runner.invoke(app, ["compare", "--export", str(tmp_path / "intents"), "--config", str(config)])
+    result = runner.invoke(
+        app, ["compare", "--export", str(tmp_path / "intents"), "--config", str(config)]
+    )
     assert result.exit_code == 0, result.stdout
     assert "Unchanged" in result.stdout
 

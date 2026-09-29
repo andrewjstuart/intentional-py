@@ -48,7 +48,9 @@ def test_help_has_a_section_for_each_tab() -> None:
 
 
 def test_issue_splits_level_prefix_and_row() -> None:
-    assert actions.issue("warning", "[yellow]Warning:[/yellow] Row 3: context 'a.b' contains '.'.") == (
+    assert actions.issue(
+        "warning", "[yellow]Warning:[/yellow] Row 3: context 'a.b' contains '.'."
+    ) == (
         "warning",
         "3",
         "context 'a.b' contains '.'.",
@@ -62,19 +64,32 @@ def test_issue_splits_level_prefix_and_row() -> None:
 
 def test_synthesized_english_and_duplicate_row_warnings_link_to_a_row() -> None:
     # config editor and results panels colour/highlight a row by parsing 'Row N: ...' from the warning
-    assert actions.issue(
-        "warning",
-        "Row 1: intent 'A.Pay' has no English ('en') row; an English row will be synthesized from this row ('es').",
-    )[1] == "1"
-    assert actions.issue(
-        "warning",
-        "Row 2: intent 'A.Pay' also has language 'en' in row(s) 1; its phrases will be used, "
-        "but row 1's context, action, priority, entities and machine learning are kept.",
-    )[1] == "2"
+    assert (
+        actions.issue(
+            "warning",
+            "Row 1: intent 'A.Pay' has no English ('en') row; an English row will be synthesized from this row ('es').",
+        )[1]
+        == "1"
+    )
+    assert (
+        actions.issue(
+            "warning",
+            "Row 2: intent 'A.Pay' also has language 'en' in row(s) 1; its phrases will be used, "
+            "but row 1's context, action, priority, entities and machine learning are kept.",
+        )[1]
+        == "2"
+    )
 
 
 def test_build_display(tmp_path: Path) -> None:
-    result = BuildResult(intents=2, phrases=5, files=4, languages=["en"], elapsed=0.5, output_dir=tmp_path)
+    result = BuildResult(
+        intents=2,
+        phrases=5,
+        files=4,
+        languages=["en"],
+        elapsed=0.5,
+        output_dir=tmp_path,
+    )
     assert actions.tiles(result)[:2] == [("Intents", "2"), ("Phrases", "5")]
     assert actions.headline("Build DD intents", result, 1) == (
         True,
@@ -86,7 +101,9 @@ def test_build_display(tmp_path: Path) -> None:
 
 def test_extract_display(tmp_path: Path) -> None:
     backup = tmp_path / "NL_2026.zip"
-    result = ExtractResult(output_dir=tmp_path, files=2, phrases=1, empty_sheets=["EMPTY"], backup=backup)
+    result = ExtractResult(
+        output_dir=tmp_path, files=2, phrases=1, empty_sheets=["EMPTY"], backup=backup
+    )
     assert actions.result_issues(result) == [
         ("warning", "", "Sheet EMPTY has no phrases; an empty text file was created.")
     ]
@@ -102,11 +119,17 @@ def test_validate_display() -> None:
             Check(
                 "Validating intents.cfg",
                 False,
-                ["Error: Row 2: intent name 'A-B' cannot contain '-'.", "Warning: Row 4: context 'a.b' contains '.'."],
+                [
+                    "Error: Row 2: intent name 'A-B' cannot contain '-'.",
+                    "Warning: Row 4: context 'a.b' contains '.'.",
+                ],
             )
         ],
     )
-    assert actions.headline("Validate", result, 1) == (False, "Validate: 1 of 2 checks passed")
+    assert actions.headline("Validate", result, 1) == (
+        False,
+        "Validate: 1 of 2 checks passed",
+    )
     assert actions.result_issues(result) == [
         ("error", "2", "intent name 'A-B' cannot contain '-'."),
         ("warning", "4", "context 'a.b' contains '.'."),
@@ -128,8 +151,12 @@ def test_project_dir_is_required(tmp_path: Path) -> None:
 def test_resolve_config_defaults_to_project(tmp_path: Path) -> None:
     # resolve() expands Windows short names and macOS /private links
     tmp_path = tmp_path.resolve()
-    assert actions.resolve_config(tmp_path, "", "intents.cfg") == tmp_path / "intents.cfg"
-    assert actions.resolve_config(tmp_path, "sub/a.cfg", "x") == tmp_path / "sub" / "a.cfg"
+    assert (
+        actions.resolve_config(tmp_path, "", "intents.cfg") == tmp_path / "intents.cfg"
+    )
+    assert (
+        actions.resolve_config(tmp_path, "sub/a.cfg", "x") == tmp_path / "sub" / "a.cfg"
+    )
     other = tmp_path / "other.cfg"
     assert actions.resolve_config(tmp_path / "p", str(other), "x") == other
 
@@ -179,12 +206,18 @@ def test_confirm_waits_for_ui_answer() -> None:
     reporter = GuiReporter(events)
     answers = []
     worker = threading.Thread(
-        target=lambda: answers.append(reporter.confirm("Continue", ["hello", "pay my bill"]))
+        target=lambda: answers.append(
+            reporter.confirm("Continue", ["hello", "pay my bill"])
+        )
     )
     worker.start()
 
     kind, question, details, answer, answered = events.get(timeout=5)
-    assert (kind, question, details) == ("confirm", "Continue", ["hello", "pay my bill"])
+    assert (kind, question, details) == (
+        "confirm",
+        "Continue",
+        ["hello", "pay my bill"],
+    )
     assert worker.is_alive()
     answer["value"] = False
     answered.set()

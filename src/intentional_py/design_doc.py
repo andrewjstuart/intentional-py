@@ -48,19 +48,27 @@ def _sheets(xl_file: Path) -> dict[str, list[list[str]]]:
             if xl_file.suffix.lower() == ".xlsb":
                 with pyxlsb.open_workbook(xl_file) as workbook:
                     return {
-                        name: [[_text(cell.v) for cell in row] for row in workbook.get_sheet(name).rows()]
+                        name: [
+                            [_text(cell.v) for cell in row]
+                            for row in workbook.get_sheet(name).rows()
+                        ]
                         for name in workbook.sheets
                     }
             workbook = openpyxl.load_workbook(xl_file, read_only=True, data_only=True)
             try:
                 return {
-                    sheet.title: [[_text(value) for value in row] for row in sheet.iter_rows(values_only=True)]
+                    sheet.title: [
+                        [_text(value) for value in row]
+                        for row in sheet.iter_rows(values_only=True)
+                    ]
                     for sheet in workbook.worksheets
                 }
             finally:
                 workbook.close()
     except (zipfile.BadZipFile, InvalidFileException, KeyError, ValueError) as error:
-        raise exceptions.ExtractionError(f"{xl_file} could not be read as an Excel file ({error}).") from error
+        raise exceptions.ExtractionError(
+            f"{xl_file} could not be read as an Excel file ({error})."
+        ) from error
 
 
 def _find_header(rows: list[list[str]]) -> tuple[int, dict[str, int]] | None:
@@ -104,7 +112,10 @@ def read_design(xl_file: Path, sheet: str = "") -> tuple[str, list[list[str]]]:
 
     config_rows = []
     for row in sheets[name][header_index + 1 :]:
-        values = [cell(row, key) for key in ("intent", "context", "language", "action", "entities", "dtmf")]
+        values = [
+            cell(row, key)
+            for key in ("intent", "context", "language", "action", "entities", "dtmf")
+        ]
         if not any(values):
             continue
         machine_learning = cell(row, "machine_learning").upper()
@@ -118,16 +129,23 @@ def config_from_design(
     """Write the config file from the design document, backing up any existing config first."""
     sheet_used, rows = read_design(xl_file, sheet)
     if not rows:
-        raise exceptions.ConfigurationError(f"Sheet '{sheet_used}' in {xl_file.name} has no intent rows.")
+        raise exceptions.ConfigurationError(
+            f"Sheet '{sheet_used}' in {xl_file.name} has no intent rows."
+        )
     result = DesignResult(config=config, sheet=sheet_used, rows=len(rows))
     reporter.message("info", f"Reading sheet '{sheet_used}' of {xl_file.name}")
     if config.exists():
-        stamp = datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
+        stamp = (
+            datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
+        )
         result.backup = config.with_name(f"{config.stem}_{stamp}{config.suffix}")
         with utils.file_errors(result.backup):
             shutil.copy2(config, result.backup)
     config.parent.mkdir(parents=True, exist_ok=True)
-    with utils.file_errors(config), config.open("w", encoding="utf-8", newline="") as file:
+    with (
+        utils.file_errors(config),
+        config.open("w", encoding="utf-8", newline="") as file,
+    ):
         csv.writer(file).writerows(rows)
     _, result.errors, result.warnings = validating.check_rows(rows, config.parent, "DD")
     return result

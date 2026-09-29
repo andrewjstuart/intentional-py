@@ -16,10 +16,13 @@ MAX_LINES_LISTED = 5
 
 def read_config_rows(config: Path) -> list[list[str]]:
     """Read a config file's non-blank rows."""
-    with utils.file_errors(config), config.open(
-        mode="r", encoding="utf-8", newline=""
-    ) as config_file:
-        return [row for row in csv.reader(config_file) if any(cell.strip() for cell in row)]
+    with (
+        utils.file_errors(config),
+        config.open(mode="r", encoding="utf-8", newline="") as config_file,
+    ):
+        return [
+            row for row in csv.reader(config_file) if any(cell.strip() for cell in row)
+        ]
 
 
 def preflight_config(
@@ -58,7 +61,9 @@ def check_rows(
 
         # the machine learning column is optional, for configs written before it existed
         normalized_row = [cell.strip() for cell in row] + [""] * (7 - len(row))
-        intent, context, language, action, entities, _dtmf_value, _machine_learning = normalized_row
+        intent, context, language, action, entities, _dtmf_value, _machine_learning = (
+            normalized_row
+        )
 
         # ConfigRow runs the per-row rules (required fields, language, DTMF, machine learning);
         # cross-row and filesystem checks below stay here, since they involve more than one row
@@ -71,7 +76,9 @@ def check_rows(
         if first_seen != row_number:
             # an exact duplicate is dropped before its own errors/warnings are recorded, so an
             # accidental copy-paste of an already-invalid row doesn't report the same problem twice
-            warnings.append(f"Row {row_number}: identical to row {first_seen}; the duplicate was dropped.")
+            warnings.append(
+                f"Row {row_number}: identical to row {first_seen}; the duplicate was dropped."
+            )
             continue
 
         fatal_errors.extend(parsed.errors)
@@ -85,8 +92,12 @@ def check_rows(
             phrase_dirs = {"DD": [phrase_path], "NL": [phrase_path / "NL"]}.get(
                 mode, [phrase_path, phrase_path / "NL"]
             )
-            phrase_files = [utils.find_phrase_file(path, action) for path in phrase_dirs]
-            found = [phrase_file for phrase_file in phrase_files if phrase_file.exists()]
+            phrase_files = [
+                utils.find_phrase_file(path, action) for path in phrase_dirs
+            ]
+            found = [
+                phrase_file for phrase_file in phrase_files if phrase_file.exists()
+            ]
             if not found:
                 warnings.append(
                     f"Row {row_number}: phrase file '{phrase_files[0]}' was not found; "
@@ -102,7 +113,9 @@ def check_rows(
                 if mode != "NL" and intent:
                     for phrase in phrases:
                         key_phrase = " ".join(phrase.casefold().split())
-                        for single_context in filter(None, (c.strip() for c in context.split("|"))):
+                        for single_context in filter(
+                            None, (c.strip() for c in context.split("|"))
+                        ):
                             owners = phrase_owners.setdefault(
                                 (language, single_context, key_phrase), {}
                             )
@@ -129,7 +142,9 @@ def check_rows(
                     f"in row(s) {others}; its phrases will be used, but row {owner}'s "
                     "context, action, priority, entities and machine learning are kept."
                 )
-        if not any(language == constants.DEFAULT_LANGUAGE for _, language in language_rows):
+        if not any(
+            language == constants.DEFAULT_LANGUAGE for _, language in language_rows
+        ):
             row_number, source_row = first_intent_rows[intent]
             language = source_row[2]
             english_row = source_row.copy()
@@ -184,20 +199,26 @@ def _entity_name(entity: str) -> str:
 def _lines(numbers: list[int]) -> str:
     shown = ", ".join(str(number) for number in numbers[:MAX_LINES_LISTED])
     more = len(numbers) - MAX_LINES_LISTED
-    return f"line{'s' if len(numbers) > 1 else ''} {shown}" + (f" and {more} more" if more > 0 else "")
+    return f"line{'s' if len(numbers) > 1 else ''} {shown}" + (
+        f" and {more} more" if more > 0 else ""
+    )
 
 
 def _phrase_problems(phrase_file: Path, phrases: list[str], entities: str) -> list[str]:
     """Entity tag typos and unlisted entities in one phrase file, grouped per problem."""
     if not phrases:
-        return [f"phrase file '{phrase_file.name}' is empty; the intent will have no phrases."]
+        return [
+            f"phrase file '{phrase_file.name}' is empty; the intent will have no phrases."
+        ]
     listed = {_entity_name(entity) for entity in entities.split("|") if entity.strip()}
     unmatched: list[int] = []
     no_separator: list[int] = []
     unlisted: dict[str, list[int]] = {}
     for line_number, phrase in enumerate(phrases, start=1):
         tags = re.findall(r"<([^<>]*)>", phrase)
-        if "<" in re.sub(r"<[^<>]*>", "", phrase) or ">" in re.sub(r"<[^<>]*>", "", phrase):
+        if "<" in re.sub(r"<[^<>]*>", "", phrase) or ">" in re.sub(
+            r"<[^<>]*>", "", phrase
+        ):
             unmatched.append(line_number)
         for tag in tags:
             entity, separator, text = tag.partition("|")
@@ -232,9 +253,13 @@ def _duplicate_phrase_warnings(
         ordered = sorted(owners.items(), key=lambda owner: owner[1])
         first_intent, first_row = ordered[0]
         for intent, row in ordered[1:]:
-            shared.setdefault((row, intent, first_row, first_intent, context, language), []).append(phrase)
+            shared.setdefault(
+                (row, intent, first_row, first_intent, context, language), []
+            ).append(phrase)
     warnings = []
-    for (row, intent, first_row, first_intent, context, language), phrases in sorted(shared.items()):
+    for (row, intent, first_row, first_intent, context, language), phrases in sorted(
+        shared.items()
+    ):
         example = phrases[0]
         count = f"{len(phrases)} phrases" if len(phrases) > 1 else "a phrase"
         warnings.append(

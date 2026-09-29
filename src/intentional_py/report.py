@@ -52,7 +52,11 @@ def _summary(result: Result) -> list[tuple[str, str]]:
         ]
     checks = result.directories + result.config_files + result.configs
     passed = sum(check.ok for check in checks)
-    return [("Checks", str(len(checks))), ("Passed", str(passed)), ("Failed", str(len(checks) - passed))]
+    return [
+        ("Checks", str(len(checks))),
+        ("Passed", str(passed)),
+        ("Failed", str(len(checks) - passed)),
+    ]
 
 
 def _changes(result: CompareResult, title: str) -> Table | None:
@@ -81,7 +85,8 @@ def _tables(result: Result) -> list[Table]:
             if changes:
                 tables.append(changes)
             removed = _removed_table(
-                result.changes.removed, "No longer built, but still in the intents folder"
+                result.changes.removed,
+                "No longer built, but still in the intents folder",
             )
             if removed:
                 tables.append(removed)
@@ -106,13 +111,21 @@ def _tables(result: Result) -> list[Table]:
         changes = _changes(result, f"Differences from {result.source}")
         if changes:
             tables.append(changes)
-        removed = _removed_table(result.removed, f"Only in {result.source} (not built by this config)")
+        removed = _removed_table(
+            result.removed, f"Only in {result.source} (not built by this config)"
+        )
         if removed:
             tables.append(removed)
         return tables
     if isinstance(result, ValidateResult):
         checks = result.directories + result.config_files + result.configs
-        return [("Checks", ["Result", "Check"], [["Pass" if check.ok else "Fail", check.label] for check in checks])]
+        return [
+            (
+                "Checks",
+                ["Result", "Check"],
+                [["Pass" if check.ok else "Fail", check.label] for check in checks],
+            )
+        ]
     if isinstance(result, DesignResult):
         rows = [["Config written", str(result.config)], ["Sheet read", result.sheet]]
         if result.backup:
@@ -123,7 +136,9 @@ def _tables(result: Result) -> list[Table]:
         rows.append(["Previous phrases saved to", str(result.backup)])
     tables = [("Output", ["Item", "Location"], rows)]
     if result.empty_sheets:
-        tables.append(("Empty sheets", ["Sheet"], [[name] for name in result.empty_sheets]))
+        tables.append(
+            ("Empty sheets", ["Sheet"], [[name] for name in result.empty_sheets])
+        )
     return tables
 
 
@@ -147,7 +162,12 @@ def _result_issues(result: Result) -> list[Issue]:
             ("warning", "", f"Sheet {name} has no phrases; an empty file was created.")
             for name in result.empty_sheets
         ]
-    if isinstance(result, BuildResult) and result.changes and result.changes.removed and not result.backup:
+    if (
+        isinstance(result, BuildResult)
+        and result.changes
+        and result.changes.removed
+        and not result.backup
+    ):
         return [
             (
                 "warning",
@@ -197,7 +217,9 @@ def _markdown(
         *(f"| {_escape(label)} | {_escape(value)} |" for label, value in summary),
     ]
     if issues:
-        lines.extend(["", "## Issues", "", "| Level | Row | Message |", "|---|---|---|"])
+        lines.extend(
+            ["", "## Issues", "", "| Level | Row | Message |", "|---|---|---|"]
+        )
         lines.extend(
             f"| {level.title()} | {_escape(row)} | {_escape(message)} |"
             for level, row, message in issues
@@ -270,7 +292,9 @@ def write(
     if suffix == ".csv":
         _write_csv(path, title, generated, _summary(result), all_issues, report_tables)
     else:
-        content = _markdown(title, generated, _summary(result), all_issues, report_tables)
+        content = _markdown(
+            title, generated, _summary(result), all_issues, report_tables
+        )
         with utils.file_errors(path):
             path.write_text(content, encoding="utf-8")
     return path

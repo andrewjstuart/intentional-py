@@ -20,8 +20,11 @@ def is_newer(latest: str, current: str) -> bool:
 def latest_release(timeout: float = 5.0) -> tuple[str, str]:
     """The latest release's version and web page; raises OSError or ValueError when unavailable."""
     request = urllib.request.Request(
-        LATEST_API, headers={"Accept": "application/vnd.github+json", "User-Agent": "intentional"}
+        LATEST_API,
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "intentional"},
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # fixed https URL
+    with urllib.request.urlopen(
+        request, timeout=timeout
+    ) as response:  # fixed https URL
         release = json.loads(response.read().decode("utf-8"))
     return release["tag_name"].lstrip("v"), release.get("html_url") or RELEASES_URL

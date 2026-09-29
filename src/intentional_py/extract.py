@@ -76,7 +76,9 @@ def excel_data(
     xl = Path(xl_file_path, xl_file)
     try:
         with utils.file_errors(xl):
-            phrase_dict = _read_workbook(xl, file_extension, phrase_file_path, label, reporter)
+            phrase_dict = _read_workbook(
+                xl, file_extension, phrase_file_path, label, reporter
+            )
     except (zipfile.BadZipFile, InvalidFileException, KeyError, ValueError) as error:
         raise exceptions.ExtractionError(
             f"{xl} could not be read as an Excel file ({error})."
@@ -89,7 +91,10 @@ def excel_data(
         result.files += 1
         if not phrases:
             result.empty_sheets.append(phrase_file.stem)
-        with utils.file_errors(phrase_file), phrase_file.open(mode="w", encoding="utf-8") as f:
+        with (
+            utils.file_errors(phrase_file),
+            phrase_file.open(mode="w", encoding="utf-8") as f,
+        ):
             for line in phrases:
                 result.phrases += 1
                 f.write(f"{line}\n")
@@ -99,7 +104,11 @@ def excel_data(
 
 
 def _read_workbook(
-    xl: Path, file_extension: str, phrase_file_path: Path, label: str, reporter: Reporter
+    xl: Path,
+    file_extension: str,
+    phrase_file_path: Path,
+    label: str,
+    reporter: Reporter,
 ) -> dict:
     """Return the sorted, de-duplicated phrases of each sheet, keyed by the phrase file to write."""
     phrase_dict: dict = {}

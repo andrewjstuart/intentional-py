@@ -461,7 +461,11 @@ def compare(
     ],
     mode: Annotated[
         str,
-        typer.Option("--mode", "-m", help="Mode of the config: [yellow]'DD'[/yellow] or [yellow]'NL'[/yellow]"),
+        typer.Option(
+            "--mode",
+            "-m",
+            help="Mode of the config: [yellow]'DD'[/yellow] or [yellow]'NL'[/yellow]",
+        ),
     ] = "DD",
     config: Annotated[
         Path | None,
@@ -490,8 +494,12 @@ def compare(
     try:
         mode = mode.upper()
         if mode not in constants.VALID_MODES:
-            raise exceptions.ConfigurationError(f"Invalid mode: {mode}. Valid modes: DD, NL")
-        default = constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
+            raise exceptions.ConfigurationError(
+                f"Invalid mode: {mode}. Valid modes: DD, NL"
+            )
+        default = (
+            constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
+        )
         config = (config or Path(default)).resolve()
         result = build.compare_build(
             mode, config, config.parent, export.resolve(), reporter
@@ -511,11 +519,17 @@ def design(
     ],
     sheet: Annotated[
         str,
-        typer.Option("--sheet", "-s", help="Sheet to read. [default: the first sheet with an intent header row]"),
+        typer.Option(
+            "--sheet",
+            "-s",
+            help="Sheet to read. [default: the first sheet with an intent header row]",
+        ),
     ] = "",
     config: Annotated[
         Path,
-        typer.Option("--config", help="Config file to write; an existing one is backed up first."),
+        typer.Option(
+            "--config", help="Config file to write; an existing one is backed up first."
+        ),
     ] = Path(constants.DEFAULT_DD_CONFIG),
     quiet: Annotated[
         bool,
@@ -536,7 +550,9 @@ def design(
     reporter = RichReporter(quiet=quiet)
     try:
         if not xl_file.is_file():
-            raise exceptions.FileSystemError(f"{xl_file} does [red]NOT[/red] exist as a file.")
+            raise exceptions.FileSystemError(
+                f"{xl_file} does [red]NOT[/red] exist as a file."
+            )
         result = design_doc.config_from_design(
             xl_file.resolve(), config.resolve(), reporter, sheet
         )

@@ -49,7 +49,9 @@ class HelpWindow(ctk.CTkToplevel):
         self.sections = ctk.CTkTabview(self)
         self.sections.pack(fill="both", expand=True, padx=10, pady=10)
         for name, text in help_text.SECTIONS.items():
-            box = ctk.CTkTextbox(self.sections.add(name), wrap="word", font=ctk.CTkFont(size=13))
+            box = ctk.CTkTextbox(
+                self.sections.add(name), wrap="word", font=ctk.CTkFont(size=13)
+            )
             box.pack(fill="both", expand=True)
             box.insert("1.0", text)
             box.configure(state="disabled")
@@ -109,8 +111,14 @@ class ConfirmationDialog(ctk.CTkToplevel):
         self.details.insert("1.0", "\n".join(details))
         self.details.configure(state="disabled")
         self.update_idletasks()
-        x = self.master.winfo_rootx() + (self.master.winfo_width() - self.winfo_width()) // 2
-        y = self.master.winfo_rooty() + (self.master.winfo_height() - self.winfo_height()) // 2
+        x = (
+            self.master.winfo_rootx()
+            + (self.master.winfo_width() - self.winfo_width()) // 2
+        )
+        y = (
+            self.master.winfo_rooty()
+            + (self.master.winfo_height() - self.winfo_height()) // 2
+        )
         self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
         self.deiconify()
         self.after(100, self.lift)
@@ -149,7 +157,9 @@ class App(ctk.CTk):
         self.confirmation_dialog = ConfirmationDialog(self)
         self.settings = settings.load()
         self.clean_var = tk.BooleanVar(self, value=bool(self.settings["clean"]))
-        self.check_updates_var = tk.BooleanVar(self, value=bool(self.settings["check_updates"]))
+        self.check_updates_var = tk.BooleanVar(
+            self, value=bool(self.settings["check_updates"])
+        )
         self.update_url = updates.RELEASES_URL
 
         self.grid_columnconfigure(0, weight=1)
@@ -172,7 +182,9 @@ class App(ctk.CTk):
         frame = ctk.CTkFrame(self)
         frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
         frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(frame, text="Project folder").grid(row=0, column=0, sticky="w", **PAD)
+        ctk.CTkLabel(frame, text="Project folder").grid(
+            row=0, column=0, sticky="w", **PAD
+        )
         self.project_entry = ctk.CTkComboBox(frame, values=self._recent_projects())
         self.project_entry.set(str(project))
         self.project_entry.grid(row=0, column=1, sticky="ew", **PAD)
@@ -194,9 +206,13 @@ class App(ctk.CTk):
             row=0, column=4, padx=(10, 0), pady=6
         )
         self.help_menu = tk.Menu(self, tearoff=0)
-        self.help_menu.add_command(label="Help", accelerator="F1", command=self._show_help)
+        self.help_menu.add_command(
+            label="Help", accelerator="F1", command=self._show_help
+        )
         self.help_menu.add_separator()
-        self.help_menu.add_command(label="Check for updates", command=lambda: self._check_updates(manual=True))
+        self.help_menu.add_command(
+            label="Check for updates", command=lambda: self._check_updates(manual=True)
+        )
         self.help_menu.add_checkbutton(
             label="Check for updates at start-up",
             variable=self.check_updates_var,
@@ -236,9 +252,15 @@ class App(ctk.CTk):
         self.dd_config = self._file_row(
             tab, 0, "Config file", constants.DEFAULT_DD_CONFIG, CONFIG_TYPES
         )
-        self._hint(tab, 1, "Training phrases are read from, and intents written to, the config file's folder.")
+        self._hint(
+            tab,
+            1,
+            "Training phrases are read from, and intents written to, the config file's folder.",
+        )
         self._clean_checkbox(tab, 2)
-        self._run_button(tab, 3, "Build DD intents", self._run_dd, edit=(self.dd_config, "DD"))
+        self._run_button(
+            tab, 3, "Build DD intents", self._run_dd, edit=(self.dd_config, "DD")
+        )
 
     def _build_nl_tab(self, tab: ctk.CTkFrame) -> None:
         self.nl_config = self._file_row(
@@ -254,10 +276,12 @@ class App(ctk.CTk):
         self.nl_reuse.grid(row=0, column=0, **PAD)
         self.nl_lowercase = ctk.CTkCheckBox(options, text="Lowercase actions")
         self.nl_lowercase.grid(row=0, column=1, **PAD)
-        ctk.CTkCheckBox(options, text="Clear the intents folder first", variable=self.clean_var).grid(
-            row=0, column=2, **PAD
+        ctk.CTkCheckBox(
+            options, text="Clear the intents folder first", variable=self.clean_var
+        ).grid(row=0, column=2, **PAD)
+        self._run_button(
+            tab, 4, "Build NL intents", self._run_nl, edit=(self.nl_config, "NL")
         )
-        self._run_button(tab, 4, "Build NL intents", self._run_nl, edit=(self.nl_config, "NL"))
 
     def _build_extract_tab(self, tab: ctk.CTkFrame) -> None:
         self.xl_file = self._file_row(tab, 0, "Excel file", "", EXCEL_TYPES)
@@ -273,19 +297,28 @@ class App(ctk.CTk):
         )
         self.xl_language.grid(row=0, column=3, **PAD)
 
-        self._hint(tab, 2, "Phrases are saved under the project's Training Phrases folder; phrases being replaced are zipped first.")
+        self._hint(
+            tab,
+            2,
+            "Phrases are saved under the project's Training Phrases folder; phrases being replaced are zipped first.",
+        )
         self._run_button(tab, 3, "Extract phrases", self._run_extract)
 
     def _build_validate_tab(self, tab: ctk.CTkFrame) -> None:
         self.val_config = self._file_row(
-            tab, 0, "Config file", "Leave blank to check the standard config files", CONFIG_TYPES
+            tab,
+            0,
+            "Config file",
+            "Leave blank to check the standard config files",
+            CONFIG_TYPES,
         )
         self._run_button(tab, 1, "Validate", self._run_validate)
 
     def _build_compare_tab(self, tab: ctk.CTkFrame) -> None:
         ctk.CTkLabel(tab, text="Agent export").grid(row=0, column=0, sticky="w", **PAD)
         self.export_entry = ctk.CTkEntry(
-            tab, placeholder_text="Export zip, unzipped export folder, or intents folder"
+            tab,
+            placeholder_text="Export zip, unzipped export folder, or intents folder",
         )
         self.export_entry.grid(row=0, column=1, sticky="ew", **PAD)
         browse = ctk.CTkFrame(tab, fg_color="transparent")
@@ -294,11 +327,13 @@ class App(ctk.CTk):
             browse,
             text="Zip…",
             width=60,
-            command=lambda: self._browse_file(self.export_entry, "Agent export", ZIP_TYPES),
+            command=lambda: self._browse_file(
+                self.export_entry, "Agent export", ZIP_TYPES
+            ),
         ).grid(row=0, column=0, padx=(0, 4))
-        ctk.CTkButton(browse, text="Folder…", width=60, command=self._browse_export_folder).grid(
-            row=0, column=1
-        )
+        ctk.CTkButton(
+            browse, text="Folder…", width=60, command=self._browse_export_folder
+        ).grid(row=0, column=1)
 
         options = ctk.CTkFrame(tab, fg_color="transparent")
         options.grid(row=1, column=1, sticky="w")
@@ -306,9 +341,17 @@ class App(ctk.CTk):
         self.compare_mode = ctk.CTkOptionMenu(options, values=["DD", "NL"], width=90)
         self.compare_mode.grid(row=0, column=1, **PAD)
         self.compare_config = self._file_row(
-            tab, 2, "Config file", "Blank uses intents.cfg (DD) or intents_nl.cfg (NL)", CONFIG_TYPES
+            tab,
+            2,
+            "Config file",
+            "Blank uses intents.cfg (DD) or intents_nl.cfg (NL)",
+            CONFIG_TYPES,
         )
-        self._hint(tab, 3, "Shows what a build would add or change compared with the export. Nothing is written.")
+        self._hint(
+            tab,
+            3,
+            "Shows what a build would add or change compared with the export. Nothing is written.",
+        )
         self._run_button(tab, 4, "Compare", self._run_compare)
 
     def _build_design_tab(self, tab: ctk.CTkFrame) -> None:
@@ -325,7 +368,9 @@ class App(ctk.CTk):
             "Machine Learning: TRUE (or blank) keeps it on; FALSE turns it off. "
             "An existing config is backed up before it is replaced.",
         )
-        self._run_button(tab, 4, "Create config", self._run_design, edit=(self.design_config, "DD"))
+        self._run_button(
+            tab, 4, "Create config", self._run_design, edit=(self.design_config, "DD")
+        )
 
     def _build_results(self) -> None:
         frame = ctk.CTkFrame(self)
@@ -357,7 +402,9 @@ class App(ctk.CTk):
         self.progress = ctk.CTkProgressBar(progress)
         self.progress.set(0)
         self.progress.grid(row=0, column=0, sticky="ew")
-        self.progress_label = ctk.CTkLabel(progress, text="", text_color="gray", width=200, anchor="e")
+        self.progress_label = ctk.CTkLabel(
+            progress, text="", text_color="gray", width=200, anchor="e"
+        )
         self.progress_label.grid(row=0, column=1, padx=(10, 0))
 
         self.tiles_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -366,7 +413,9 @@ class App(ctk.CTk):
         self.tiles: list[tuple[ctk.CTkFrame, ctk.CTkLabel, ctk.CTkLabel]] = []
         for column in range(6):
             tile = ctk.CTkFrame(self.tiles_frame, corner_radius=8)
-            value = ctk.CTkLabel(tile, text="", font=ctk.CTkFont(size=22, weight="bold"))
+            value = ctk.CTkLabel(
+                tile, text="", font=ctk.CTkFont(size=22, weight="bold")
+            )
             value.pack(padx=18, pady=(8, 0))
             caption = ctk.CTkLabel(tile, text="", text_color="gray")
             caption.pack(padx=18, pady=(0, 8))
@@ -386,12 +435,16 @@ class App(ctk.CTk):
         self.details_frame = ctk.CTkScrollableFrame(details_tab, fg_color="transparent")
         self.details_frame.pack(fill="both", expand=True)
         self.details_frame.grid_columnconfigure(0, weight=1)
-        self.details_empty = ctk.CTkLabel(self.details_frame, text="Nothing to show yet.", text_color="gray")
+        self.details_empty = ctk.CTkLabel(
+            self.details_frame, text="Nothing to show yet.", text_color="gray"
+        )
         self.details_tables: list[tuple[ctk.CTkLabel, ctk.CTkFrame, ttk.Treeview]] = []
 
         log_tab.grid_columnconfigure(0, weight=1)
         log_tab.grid_rowconfigure(0, weight=1)
-        self.log = ctk.CTkTextbox(log_tab, wrap="word", font=ctk.CTkFont(family="Consolas", size=12))
+        self.log = ctk.CTkTextbox(
+            log_tab, wrap="word", font=ctk.CTkFont(family="Consolas", size=12)
+        )
         self.log.grid(row=0, column=0, sticky="nsew")
         for level, color in LEVEL_COLORS.items():
             self.log.tag_config(level, foreground=color)
@@ -404,12 +457,18 @@ class App(ctk.CTk):
         style_tables(self)
 
     @staticmethod
-    def _table(parent, columns: list[str], height: int = 8) -> tuple[ctk.CTkFrame, ttk.Treeview]:
+    def _table(
+        parent, columns: list[str], height: int = 8
+    ) -> tuple[ctk.CTkFrame, ttk.Treeview]:
         return make_table(parent, columns, height)
 
     def _open_help_menu(self, button: ctk.CTkButton) -> None:
         # right-aligned under the button, as the button sits in the window's corner
-        x = button.winfo_rootx() + button.winfo_width() - self.help_menu.winfo_reqwidth()
+        x = (
+            button.winfo_rootx()
+            + button.winfo_width()
+            - self.help_menu.winfo_reqwidth()
+        )
         y = button.winfo_rooty() + button.winfo_height()
         try:
             self.help_menu.tk_popup(x, y)
@@ -432,7 +491,9 @@ class App(ctk.CTk):
             section = next(iter(help_text.SECTIONS))
         else:
             section = self.mode_tabs.get()
-        self.help_window.show(section if section in help_text.SECTIONS else next(iter(help_text.SECTIONS)))
+        self.help_window.show(
+            section if section in help_text.SECTIONS else next(iter(help_text.SECTIONS))
+        )
 
     @staticmethod
     def _fit_columns(table: ttk.Treeview) -> None:
@@ -443,7 +504,9 @@ class App(ctk.CTk):
 
     # ----- widget helpers -----
 
-    def _entry_row(self, tab: ctk.CTkFrame, row: int, label: str, placeholder: str) -> ctk.CTkEntry:
+    def _entry_row(
+        self, tab: ctk.CTkFrame, row: int, label: str, placeholder: str
+    ) -> ctk.CTkEntry:
         ctk.CTkLabel(tab, text=label).grid(row=row, column=0, sticky="w", **PAD)
         entry = ctk.CTkEntry(tab, placeholder_text=placeholder)
         entry.grid(row=row, column=1, sticky="ew", **PAD)
@@ -463,9 +526,9 @@ class App(ctk.CTk):
 
     @staticmethod
     def _hint(tab: ctk.CTkFrame, row: int, text: str) -> None:
-        ctk.CTkLabel(tab, text=text, text_color="gray", anchor="w", wraplength=620).grid(
-            row=row, column=1, columnspan=2, sticky="w", padx=10
-        )
+        ctk.CTkLabel(
+            tab, text=text, text_color="gray", anchor="w", wraplength=620
+        ).grid(row=row, column=1, columnspan=2, sticky="w", padx=10)
 
     def _run_button(
         self,
@@ -494,7 +557,9 @@ class App(ctk.CTk):
 
     def _clean_checkbox(self, tab: ctk.CTkFrame, row: int) -> None:
         ctk.CTkCheckBox(
-            tab, text="Clear the intents folder first (the old files are zipped)", variable=self.clean_var
+            tab,
+            text="Clear the intents folder first (the old files are zipped)",
+            variable=self.clean_var,
         ).grid(row=row, column=1, sticky="w", **PAD)
 
     @staticmethod
@@ -510,28 +575,41 @@ class App(ctk.CTk):
         return str(project) if project.is_dir() else str(Path.cwd())
 
     def _browse_project(self) -> None:
-        path = filedialog.askdirectory(parent=self, initialdir=self._initial_dir(), title="Project folder")
+        path = filedialog.askdirectory(
+            parent=self, initialdir=self._initial_dir(), title="Project folder"
+        )
         if path:
             self._set_entry(self.project_entry, path)
 
     def _browse_file(self, entry: ctk.CTkEntry, title: str, filetypes: list) -> None:
         path = filedialog.askopenfilename(
-            parent=self, initialdir=self._initial_dir(), title=title, filetypes=filetypes
+            parent=self,
+            initialdir=self._initial_dir(),
+            title=title,
+            filetypes=filetypes,
         )
         if path:
             self._set_entry(entry, path)
 
     def _browse_export_folder(self) -> None:
-        path = filedialog.askdirectory(parent=self, initialdir=self._initial_dir(), title="Agent export folder")
+        path = filedialog.askdirectory(
+            parent=self, initialdir=self._initial_dir(), title="Agent export folder"
+        )
         if path:
             self._set_entry(self.export_entry, path)
 
     def _edit_config(self, entry: ctk.CTkEntry, mode: str) -> None:
-        default = constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
+        default = (
+            constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
+        )
         try:
-            config = actions.resolve_config(actions.project_dir(self.project_entry.get()), entry.get(), default)
+            config = actions.resolve_config(
+                actions.project_dir(self.project_entry.get()), entry.get(), default
+            )
         except exceptions.IntentionalException as error:
-            messagebox.showerror("Intentional", actions.plain_text(str(error)), parent=self)
+            messagebox.showerror(
+                "Intentional", actions.plain_text(str(error)), parent=self
+            )
             return
         if self.editor is None:
             self.editor = ConfigEditor(self)
@@ -546,7 +624,10 @@ class App(ctk.CTk):
         self._set_entry(self.nl_vertical, self.settings["vertical"])
         if self.settings["context"]:
             self._set_entry(self.nl_context, self.settings["context"])
-        for checkbox, key in ((self.nl_lowercase, "lowercase"), (self.nl_reuse, "reuse")):
+        for checkbox, key in (
+            (self.nl_lowercase, "lowercase"),
+            (self.nl_reuse, "reuse"),
+        ):
             checkbox.select() if self.settings[key] else checkbox.deselect()
         for menu, key, allowed in (
             (self.xl_mode, "extract_mode", ["NL", "DD"]),
@@ -591,18 +672,29 @@ class App(ctk.CTk):
             self.update_button.configure(text=f"Version {version} available")
             self.update_button.grid()
             if manual and messagebox.askyesno(
-                "Intentional", f"Version {version} is available (you have {__version__}).\n\nOpen the download page?",
+                "Intentional",
+                f"Version {version} is available (you have {__version__}).\n\nOpen the download page?",
                 parent=self,
             ):
                 webbrowser.open(url)
         elif manual:
-            messagebox.showinfo("Intentional", f"You have the latest version ({__version__}).", parent=self)
+            messagebox.showinfo(
+                "Intentional",
+                f"You have the latest version ({__version__}).",
+                parent=self,
+            )
 
     # ----- jobs -----
 
     def _run_dd(self) -> None:
-        project, config, clean = self.project_entry.get(), self.dd_config.get(), self.clean_var.get()
-        self._start("Build DD intents", lambda r: actions.build_dd(project, config, r, clean))
+        project, config, clean = (
+            self.project_entry.get(),
+            self.dd_config.get(),
+            self.clean_var.get(),
+        )
+        self._start(
+            "Build DD intents", lambda r: actions.build_dd(project, config, r, clean)
+        )
 
     def _run_nl(self) -> None:
         values = (
@@ -645,7 +737,9 @@ class App(ctk.CTk):
             self.design_sheet.get(),
             self.design_config.get(),
         )
-        self._start("Create config from design document", lambda r: actions.design(*values, r))
+        self._start(
+            "Create config from design document", lambda r: actions.design(*values, r)
+        )
 
     def _start(self, title: str, job: Callable[[GuiReporter], actions.Result]) -> None:
         if self.running:
@@ -685,7 +779,9 @@ class App(ctk.CTk):
         if self.editor is not None and self.editor.dirty:
             self.editor.open(self.editor.config_path, self.editor.mode)
             if not messagebox.askyesno(
-                "Intentional", "The config editor has unsaved changes.\n\nClose anyway?", parent=self
+                "Intentional",
+                "The config editor has unsaved changes.\n\nClose anyway?",
+                parent=self,
             ):
                 return
         self._save_settings()
@@ -715,10 +811,16 @@ class App(ctk.CTk):
             for row in rows:
                 self._log(level, "    " + " | ".join(row))
             # single-column tables are titled lists (duplicates, 'uh'/'um' phrases)
-            title, columns = (columns[0], ["Phrase"]) if len(columns) == 1 else ("NL config", columns)
+            title, columns = (
+                (columns[0], ["Phrase"])
+                if len(columns) == 1
+                else ("NL config", columns)
+            )
             self.job_tables.append((title, columns, rows))
             if level in LEVEL_COLORS:
-                self.job_issues.append(("warning", "", f"{title} ({len(rows)}), listed under Details"))
+                self.job_issues.append(
+                    ("warning", "", f"{title} ({len(rows)}), listed under Details")
+                )
         elif kind == "progress_start":
             _, total = data
             self.progress.set(0)
@@ -744,7 +846,9 @@ class App(ctk.CTk):
         elif kind == "update_failed":
             manual, error = data
             if manual:
-                messagebox.showwarning("Intentional", f"Could not check for updates:\n{error}", parent=self)
+                messagebox.showwarning(
+                    "Intentional", f"Could not check for updates:\n{error}", parent=self
+                )
 
     def _finish(self, result: actions.Result) -> None:
         issues = self.job_issues + actions.result_issues(result)
@@ -774,12 +878,18 @@ class App(ctk.CTk):
         self._log("error", text)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         if text.startswith("Traceback"):
-            failures = [f"Unexpected error: {lines[-1]}. The full details are in the Log."]
+            failures = [
+                f"Unexpected error: {lines[-1]}. The full details are in the Log."
+            ]
         else:
             # 'Configuration validation failed:' is followed by one '- Row N: ...' line per problem
-            failures = [line[2:] for line in lines if line.startswith("- ")] or [" ".join(lines)]
+            failures = [line[2:] for line in lines if line.startswith("- ")] or [
+                " ".join(lines)
+            ]
         self.job_issues.extend(actions.issue("error", failure) for failure in failures)
-        self.headline.configure(text=f"✖ {self.job_title} failed", text_color=LEVEL_COLORS["error"])
+        self.headline.configure(
+            text=f"✖ {self.job_title} failed", text_color=LEVEL_COLORS["error"]
+        )
         self._show_issues(self.job_issues)
         self._show_details(self.job_tables)
         self._select_result_tab(self.issues_tab)
@@ -797,7 +907,9 @@ class App(ctk.CTk):
     def _show_issues(self, issues: list[actions.Issue]) -> None:
         self.issues_table.delete(*self.issues_table.get_children())
         for level, row, message in issues:
-            self.issues_table.insert("", "end", values=(LEVEL_NAMES[level], row, message), tags=(level,))
+            self.issues_table.insert(
+                "", "end", values=(LEVEL_NAMES[level], row, message), tags=(level,)
+            )
         self._fit_columns(self.issues_table)
         errors = sum(level == "error" for level, _, _ in issues)
         warnings = len(issues) - errors
@@ -811,7 +923,9 @@ class App(ctk.CTk):
     def _show_details(self, tables: list[actions.Table]) -> None:
         # widgets are reused between jobs for the same reason as the tiles
         while len(self.details_tables) < len(tables):
-            title = ctk.CTkLabel(self.details_frame, anchor="w", font=ctk.CTkFont(weight="bold"))
+            title = ctk.CTkLabel(
+                self.details_frame, anchor="w", font=ctk.CTkFont(weight="bold")
+            )
             container, table = self._table(self.details_frame, [""])
             self.details_tables.append((title, container, table))
         if tables:
@@ -840,7 +954,11 @@ class App(ctk.CTk):
         try:
             actions.open_folder(self.output_dir)
         except OSError as error:
-            messagebox.showerror("Intentional", f"Could not open {self.output_dir}:\n{error}", parent=self)
+            messagebox.showerror(
+                "Intentional",
+                f"Could not open {self.output_dir}:\n{error}",
+                parent=self,
+            )
 
     def _save_report(self) -> None:
         if self.report_result is None:
