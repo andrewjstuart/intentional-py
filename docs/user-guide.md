@@ -57,7 +57,7 @@ MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
 
 - **Intent**: by convention, parts are separated by periods (`.`). A `-` is not allowed in the name.
 - **Context**: by convention, parts are separated by dashes (`-`).
-- **Language**: `en`, `es` or `fr`, or `dtmf` to add only the DTMF values as phrases. When an intent has several language rows, its `en` row supplies the shared intent definition and every row supplies that language's phrases. If it has no `en` row, an English row is generated in memory from the first row: its context, action, entities, DTMF and machine-learning value are reused, and phrases are read from the matching `Training Phrases/en/<action>.txt`. The config file itself is not changed.
+- **Language**: `en`, `es` or `fr`, or `dtmf` to add only the DTMF values as phrases. When an intent has several language rows, its `en` row supplies the shared intent definition and every row supplies that language's phrases. If it has no `en` row, an English row is generated in memory from the first row: its context, action, entities, DTMF and machine-learning value are reused, and phrases are read from the matching `Training Phrases/en/<action>.txt`. The config file itself is not changed. Two rows can also share the same intent **and** language on purpose, to swap in a different set of phrases without duplicating the intent; see [Special values](#special-values).
 - **Action**: the value returned by the intent; the phrases are read from `<action>.txt`.
 - **Entities** and **DTMF** can be empty, but their commas are still needed so the columns line up.
 - **Machine Learning** is optional, for configs written before the column existed. It maps directly to Dialogflow's JSON `auto` field:
@@ -94,6 +94,16 @@ MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
    | `ignore` | `5` |
 
 5. **Action ending in a caret (`^`)**: turns machine learning off for that intent, the same as `FALSE` in the last column.
+6. **Repeating a row to swap phrases**: two rows can share the same intent and language, with a different Action, so the intent keeps returning one action but reads its phrases from a different file:
+
+   ```text
+   MYAC.NewServiceHomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
+   MYAC.NewServiceHomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home_altphrases,,1,FALSE
+   ```
+
+   The **first** row still defines the intent (context, action, priority, entities, machine learning) — here, the intent returns `home` and reads `Training Phrases/en/home.txt`. Every later row for the same intent and language replaces the phrases with its own Action's file instead (`home_altphrases.txt` above), rather than adding to the first row's phrases. A warning is shown whenever this happens, naming the rows involved.
+
+   This only applies when rows differ in some way. A row that is a byte-for-byte copy of an earlier row (every column the same) is an accidental duplicate rather than an intentional phrase swap, and is dropped automatically, with a warning naming the row it duplicates.
 
 ## Phrase files
 

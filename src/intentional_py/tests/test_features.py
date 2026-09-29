@@ -159,14 +159,52 @@ def test_duplicate_row_for_same_intent_and_language_does_not_duplicate_phrases(t
 
     warnings = warnings_for(config)
 
-    assert warnings == [
-        "Row 2: intent 'A.Pay' also has language 'en' in row(s) 1; this row will be used instead."
-    ]
+    assert warnings == ["Row 2: identical to row 1; the duplicate was dropped."]
 
     build_intents.intents("DD", config, tmp_path, QuietReporter())
     usersays = json.loads((tmp_path / "intents" / "A.Pay_usersays_en.json").read_text(encoding="utf-8"))
     texts = sorted(entry["data"][0]["text"] for entry in usersays)
     assert texts == ["make a payment", "pay my bill"]
+
+
+def test_exact_duplicate_row_is_dropped_before_other_checks(tmp_path: Path) -> None:
+    # the duplicate is removed entirely, so it never reaches the build: the intent is
+    # created once and its phrases are not double-counted, unlike a row that only shares
+    # the same intent and language (see test_duplicate_row_with_a_different_action_swaps_only_the_phrases)
+    config = dd_project(
+        tmp_path,
+        ["A.Pay,Ctx,en,pay,,,", "A.Pay,Ctx,en,pay,,,"],
+        {"pay": "pay my bill\nmake a payment\n"},
+    )
+
+    rows, errors, warnings = validate.preflight_config(config, tmp_path, "DD")
+    assert errors == []
+    assert warnings == ["Row 2: identical to row 1; the duplicate was dropped."]
+    assert len(rows) == 1
+
+    result = build_intents.intents("DD", config, tmp_path, QuietReporter())
+    assert result.intents == 1
+    assert result.phrases == 2
+
+
+def test_duplicate_row_with_a_different_action_swaps_only_the_phrases(tmp_path: Path) -> None:
+    # deliberate, not an accidental copy-paste: same intent/language, a different action so a
+    # second phrase file's phrases are used, while the intent keeps returning the first action
+    config = dd_project(
+        tmp_path,
+        ["A.Home,Ctx,en,home,,1,FALSE", "A.Home,Ctx,en,home_newphrases,,1,TRUE"],
+        {"home": "start new service at home\n", "home_newphrases": "extra phrase for home\n"},
+    )
+
+    build_intents.intents("DD", config, tmp_path, QuietReporter())
+
+    intent = json.loads((tmp_path / "intents" / "A.Home.json").read_text(encoding="utf-8"))
+    assert intent["responses"][0]["action"] == "home"
+    assert intent["auto"] is False
+
+    usersays = json.loads((tmp_path / "intents" / "A.Home_usersays_en.json").read_text(encoding="utf-8"))
+    texts = [entry["data"][0]["text"] for entry in usersays]
+    assert texts == ["1", "extra phrase for home"]
 
 
 # ----- clean and previous-build comparison -----

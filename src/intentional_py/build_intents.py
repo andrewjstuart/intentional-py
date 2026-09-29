@@ -115,17 +115,24 @@ def _generate(
         row[0] for row in rows if row[2] == constants.DEFAULT_LANGUAGE
     }
     first_row_for_intent: dict[str, int] = {}
+    first_english_row_for_intent: dict[str, int] = {}
     for row_number, row in enumerate(rows):
         first_row_for_intent.setdefault(row[0], row_number)
+        if row[2] == constants.DEFAULT_LANGUAGE:
+            first_english_row_for_intent.setdefault(row[0], row_number)
 
     label = f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"
     for row_number, row in enumerate(reporter.track(rows, label)):
+        # only the intent's first English row (or its first row overall, if it has no
+        # English row) owns the shared definition (context, action, priority, entities,
+        # machine learning); every row still writes its own phrases, so a repeated
+        # intent+language row can swap in different phrases without changing the intent
         write_intent = (
             row[2] == constants.DEFAULT_LANGUAGE
-            or (
-                row[0] not in intents_with_english
-                and first_row_for_intent[row[0]] == row_number
-            )
+            and first_english_row_for_intent[row[0]] == row_number
+        ) or (
+            row[0] not in intents_with_english
+            and first_row_for_intent[row[0]] == row_number
         )
         (
             data,
@@ -137,8 +144,9 @@ def _generate(
             temp_ml,
         ) = create_json(models.ConfigRow.from_csv_row(row, row_number + 1), mode, base_dir, reporter, write_intent)
 
-        # a duplicate (intent, language) row overwrites rather than merges, so its
-        # phrases are not doubled; preflight warns when this happens (see validate.py)
+        # a duplicate (intent, language) row's phrases replace the earlier row's phrases
+        # rather than merging with them, so they are not doubled; the intent itself still
+        # keeps its first row's definition (see write_intent above and validate.py's warning)
         files_to_write.update(data)
         result.intents += temp_intents
         result.phrases += temp_phrases
@@ -259,56 +267,56 @@ def create_json(
             "conditionalFollowupEvents": []
         }        
         """
-    intent_data: dict = json.loads(intent_json)
-    # modify with correct values
-    intent_data["id"] = str(uuid.uuid4())
-    intent_data["name"] = df_intent
-    intent_data["auto"] = machine_learning
-    intent_data["contexts"][0] = row.context_text
-    intent_data["responses"][0]["action"] = clean_action
-    intent_data["responses"][0]["messages"][0]["lang"] = language
-    intent_data["priority"] = priority
-
-    intents_cnt += 1  # store for return
-    if not machine_learning:
-        machine_learning_off = df_intent
-    if clean_action == "nomatch":
-        nomatch_cnt += 1
-
-    if row.entities:
-        # create entity JSON
-        entity_list: list = []
-        entity_json = """
-            {
-                "id": "entity_id",
-                "name": "entity_name",
-                "required": false,
-                "dataType": "entity_type",
-                "value": "entity_value",
-                "defaultValue": "",
-                "isList": false,
-                "prompts": [],
-                "promptMessages": [],
-                "noMatchPromptMessages": [],
-                "noInputPromptMessages": [],
-                "outputDialogContexts": []
-            }
-            """
-        for entity in row.entities:
-            # add values to the JSON object
-            entity_data: dict = json.loads(entity_json)
-            entity_data["id"] = str(uuid.uuid4())
-            entity_data["name"] = entity.name
-            entity_data["required"] = entity.required
-            entity_data["dataType"] = entity.type
-            entity_data["value"] = entity.value
-            entity_list.append(entity_data)
-            entities_cnt += 1
-
-        # add proper JSON to the output
-        intent_data["responses"][0]["parameters"] = entity_list
-
     if write_intent:
+        intent_data: dict = json.loads(intent_json)
+        # modify with correct values
+        intent_data["id"] = str(uuid.uuid4())
+        intent_data["name"] = df_intent
+        intent_data["auto"] = machine_learning
+        intent_data["contexts"][0] = row.context_text
+        intent_data["responses"][0]["action"] = clean_action
+        intent_data["responses"][0]["messages"][0]["lang"] = language
+        intent_data["priority"] = priority
+
+        intents_cnt += 1  # store for return
+        if not machine_learning:
+            machine_learning_off = df_intent
+        if clean_action == "nomatch":
+            nomatch_cnt += 1
+
+        if row.entities:
+            # create entity JSON
+            entity_list: list = []
+            entity_json = """
+                {
+                    "id": "entity_id",
+                    "name": "entity_name",
+                    "required": false,
+                    "dataType": "entity_type",
+                    "value": "entity_value",
+                    "defaultValue": "",
+                    "isList": false,
+                    "prompts": [],
+                    "promptMessages": [],
+                    "noMatchPromptMessages": [],
+                    "noInputPromptMessages": [],
+                    "outputDialogContexts": []
+                }
+                """
+            for entity in row.entities:
+                # add values to the JSON object
+                entity_data: dict = json.loads(entity_json)
+                entity_data["id"] = str(uuid.uuid4())
+                entity_data["name"] = entity.name
+                entity_data["required"] = entity.required
+                entity_data["dataType"] = entity.type
+                entity_data["value"] = entity.value
+                entity_list.append(entity_data)
+                entities_cnt += 1
+
+            # add proper JSON to the output
+            intent_data["responses"][0]["parameters"] = entity_list
+
         files_to_write[output_file] = intent_data
 
     # set phrase file path
@@ -411,7 +419,9 @@ def create_json(
                     phrase_list.append(phrase_data)
                     phrases_cnt += 1  # store for return
 
-    # written by intents() once every row has been processed
+    # this key is shared by every row with the same intent and language, so if a config
+    # repeats one, only the last row processed for that pair ends up in the written file
+    # (see write_intent above, and the duplicate-row warning in validate.py)
     files_to_write[output_phrase_file] = phrase_list
 
     return (
