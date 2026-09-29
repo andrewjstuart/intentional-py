@@ -23,11 +23,18 @@ class Entity(BaseModel):
     name: str
     value: str
     required: bool = False
+    aliased: bool = False  # True when [alias] was present, so to_config_text() can round-trip it
 
     @classmethod
     def parse(cls, text: str) -> Entity:
         entity_type, name, value, required = utils.check_alias(text)
-        return cls(type=entity_type, name=name, value=value, required=required)
+        return cls(type=entity_type, name=name, value=value, required=required, aliased="[" in text)
+
+    def to_config_text(self) -> str:
+        """The Entities column text for this one entity, e.g. sys.phone-number[phone]*."""
+        type_text = self.type.removeprefix("@")
+        star = "*" if self.required else ""
+        return f"{type_text}[{self.name}]{star}" if self.aliased else f"{type_text}{star}"
 
 
 class ConfigRow(BaseModel):
@@ -36,6 +43,7 @@ class ConfigRow(BaseModel):
     intent: str
     priority: int = constants.DEFAULT_PRIORITY
     contexts: list[str] = Field(default_factory=list)
+    context_text: str = ""  # the raw Context cell, unsplit; JSON only has room for one context value
     language: str = constants.DEFAULT_LANGUAGE
     action: str
     entities: list[Entity] = Field(default_factory=list)
@@ -108,6 +116,7 @@ class ConfigRow(BaseModel):
             intent=intent,
             priority=priority,
             contexts=[part for part in context_text.split("|") if part],
+            context_text=context_text,
             language=language,
             action=action_text,
             entities=[Entity.parse(part) for part in entities_text.split("|") if part],

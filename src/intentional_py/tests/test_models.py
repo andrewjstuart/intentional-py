@@ -16,12 +16,30 @@ def test_valid_row_parses_context_entities_and_priority() -> None:
     assert row.machine_learning is False
     assert row.machine_learning_text == "false"
     assert row.entities == [
-        models.Entity(type="@digits4", name="last_4", value="$last_4", required=False),
-        models.Entity(type="@sys.date", name="date", value="$date", required=True),
+        models.Entity(type="@digits4", name="last_4", value="$last_4", required=False, aliased=True),
+        models.Entity(type="@sys.date", name="date", value="$date", required=True, aliased=False),
     ]
     assert row.ok
     assert row.errors == []
     assert row.warnings == []
+    assert row.context_text == "Ctx-A|Ctx-B"
+
+
+def test_entity_parse_marks_an_aliased_entity_as_required() -> None:
+    # a trailing * after the closing bracket applies to the whole reference, alias included
+    assert models.Entity.parse("sys.phone-number[phone]*") == models.Entity(
+        type="@sys.phone-number", name="phone", value="$phone", required=True, aliased=True
+    )
+    assert models.Entity.parse("sys.phone-number[phone]") == models.Entity(
+        type="@sys.phone-number", name="phone", value="$phone", required=False, aliased=True
+    )
+
+
+def test_entity_to_config_text_round_trips_through_parse() -> None:
+    for text in ["sys.date", "sys.date*", "digits4", "digits4[last_4]", "sys.phone-number[phone]*"]:
+        entity = models.Entity.parse(text)
+        assert entity.to_config_text() == text
+        assert models.Entity.parse(entity.to_config_text()) == entity
 
 
 def test_blank_machine_learning_defaults_to_true_without_a_warning() -> None:

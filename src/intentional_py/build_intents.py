@@ -13,7 +13,7 @@ from pathlib import Path
 from time import perf_counter
 
 from intentional_py import compare as comparing
-from intentional_py import constants, exceptions, utils
+from intentional_py import constants, exceptions, models, utils
 from intentional_py import validate as validating
 from intentional_py.reporting import BuildResult, CompareResult, Reporter
 
@@ -135,7 +135,7 @@ def _generate(
             temp_lang,
             temp_nomatch,
             temp_ml,
-        ) = create_json(row, mode, base_dir, reporter, write_intent)
+        ) = create_json(models.ConfigRow.from_csv_row(row, row_number + 1), mode, base_dir, reporter, write_intent)
 
         # a duplicate (intent, language) row overwrites rather than merges, so its
         # phrases are not doubled; preflight warns when this happens (see validate.py)
@@ -157,7 +157,7 @@ def _generate(
 
 
 def create_json(
-    row: list,
+    row: models.ConfigRow,
     mode: str,
     default_path: Path,
     reporter: Reporter,
@@ -166,7 +166,7 @@ def create_json(
     """Create the JSON for one config row, which must already have passed preflight_config.
 
     Args:
-        row (list): line from config file
+        row (models.ConfigRow): one config row, already validated and normalized.
         mode (str): Directed dialog (DD) or Natural Language (NL), which selects the phrase folder
         default_path (Path): project directory containing the training phrases and receiving the intents
         reporter (Reporter): Receives messages.
@@ -183,23 +183,8 @@ def create_json(
             str: name of the intent if machine learning is off, otherwise empty
 
     """
-    # annotations for variables
-    df_intent: str
-    df_context: str
-    language: str
-    action: str
-    df_entity: str
-    dtmf_value: str
-    machine_learning: str
-    (
-        df_intent,
-        df_context,
-        language,
-        action,
-        df_entity,
-        dtmf_value,
-        machine_learning,
-    ) = row
+    df_intent = row.intent
+    priority = row.priority
 
     files_to_write: dict = {}  # variable to store all the files to write
     # counters
@@ -209,28 +194,25 @@ def create_json(
     nomatch_cnt: int = 0
     machine_learning_off: str = ""
 
-    # rows come from preflight_config, which rejects missing values and normalizes language and ML
-    # check for priority, appended to DF intent name with curly brackets {}
-    df_intent, priority = utils.check_priority(df_intent)
-
-    language = language.lower()
+    language = row.language
     dtmf_only: bool = language == "dtmf"
     if dtmf_only:
         language = constants.DEFAULT_LANGUAGE
     langs_used: str = language  # store for return
 
+    action = row.action
     clean_action: str = action
+    machine_learning = row.machine_learning
 
     if action.endswith("^"):
-        machine_learning = "FALSE"
+        machine_learning = False
         clean_action = action.removesuffix("^")
 
     # phrases are read from the '-NM' file, but the intent returns 'nomatch'
     if clean_action.endswith("-NM"):
         clean_action = "nomatch"
 
-    dtmf_list: list = dtmf_value.split("|") if dtmf_value else []
-    machine_learning = machine_learning.lower()
+    dtmf_list: list = row.dtmf
 
     # set output file paths; the folder is created when the files are written
     output_file_path: Path = Path(default_path, constants.DEFAULT_INTENTS_DIR)
@@ -281,19 +263,19 @@ def create_json(
     # modify with correct values
     intent_data["id"] = str(uuid.uuid4())
     intent_data["name"] = df_intent
-    intent_data["auto"] = bool(utils.strtobool(machine_learning))
-    intent_data["contexts"][0] = df_context
+    intent_data["auto"] = machine_learning
+    intent_data["contexts"][0] = row.context_text
     intent_data["responses"][0]["action"] = clean_action
     intent_data["responses"][0]["messages"][0]["lang"] = language
     intent_data["priority"] = priority
 
     intents_cnt += 1  # store for return
-    if not utils.strtobool(machine_learning):
+    if not machine_learning:
         machine_learning_off = df_intent
     if clean_action == "nomatch":
         nomatch_cnt += 1
 
-    if df_entity:
+    if row.entities:
         # create entity JSON
         entity_list: list = []
         entity_json = """
@@ -312,16 +294,14 @@ def create_json(
                 "outputDialogContexts": []
             }
             """
-        # optional to pass entity
-        for entity in df_entity.split("|"):
-            (ent_type, ent_name, ent_value, ent_required) = utils.check_alias(entity)
+        for entity in row.entities:
             # add values to the JSON object
             entity_data: dict = json.loads(entity_json)
             entity_data["id"] = str(uuid.uuid4())
-            entity_data["name"] = ent_name
-            entity_data["required"] = ent_required
-            entity_data["dataType"] = ent_type
-            entity_data["value"] = ent_value
+            entity_data["name"] = entity.name
+            entity_data["required"] = entity.required
+            entity_data["dataType"] = entity.type
+            entity_data["value"] = entity.value
             entity_list.append(entity_data)
             entities_cnt += 1
 
