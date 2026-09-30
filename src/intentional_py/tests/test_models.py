@@ -119,16 +119,14 @@ def test_dtmf_row_without_a_value_is_an_error() -> None:
     assert row.errors == ["Row 1: DTMF rows require a DTMF value."]
 
 
-def test_invalid_dtmf_characters_are_a_warning_not_an_error() -> None:
+def test_invalid_dtmf_characters_are_an_error() -> None:
+    # DTMF is a hardware/platform constraint (0-9, '#', '*'), not this project's own
+    # convention, so unlike the intent/context naming rules it is not configurable
     row = models.ConfigRow.from_csv_row(
         ["A.Menu", "Ctx", "en", "menu", "", "1|x", ""], row_number=4
     )
 
-    assert row.ok
-    assert row.dtmf == ["1", "x"]
-    assert row.warnings == [
-        "Row 4: invalid DTMF values ['x'] will be retained for compatibility."
-    ]
+    assert row.errors == ["Row 4: invalid DTMF values ['x']; must be 0-9, '#' or '*'."]
 
 
 def test_invalid_language_is_a_warning_not_an_error() -> None:
