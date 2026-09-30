@@ -1,6 +1,6 @@
 import pytest
 
-from intentional_py import models
+from intentional_py import constants, models
 
 
 def test_valid_row_parses_context_entities_and_priority() -> None:
@@ -145,6 +145,40 @@ def test_intent_path_separator_is_an_error_even_with_relaxed_rules() -> None:
     )
 
     assert row.errors == ["Row 1: intent name '../../evil' cannot contain '/' or '\\'."]
+
+
+def test_project_layout_defaults_match_the_original_hardcoded_layout() -> None:
+    layout = models.ProjectLayout()
+
+    assert layout.training_phrases_dir == constants.DEFAULT_TRAINING_PHRASES_DIR
+    assert layout.intents_dir == constants.DEFAULT_INTENTS_DIR
+    assert layout.nl_subfolder == constants.DEFAULT_NL_SUBFOLDER
+    assert layout.dd_config == constants.DEFAULT_DD_CONFIG
+    assert layout.nl_config == constants.DEFAULT_NL_CONFIG
+
+
+def test_project_layout_fields_can_be_overridden() -> None:
+    layout = models.ProjectLayout(
+        training_phrases_dir="Phrases",
+        intents_dir="output",
+        nl_subfolder="natural-language",
+        dd_config="dd.cfg",
+        nl_config="nl.cfg",
+    )
+
+    assert layout.training_phrases_dir == "Phrases"
+    assert layout.intents_dir == "output"
+    assert layout.nl_subfolder == "natural-language"
+    assert layout.dd_config == "dd.cfg"
+    assert layout.nl_config == "nl.cfg"
+
+
+def test_nl_defaults_default_matches_the_original_hardcoded_context() -> None:
+    assert models.NlDefaults().context == constants.DEFAULT_NL_CONTEXT
+
+
+def test_nl_defaults_context_can_be_overridden() -> None:
+    assert models.NlDefaults(context="MainContext").context == "MainContext"
 
 
 def test_action_with_a_path_separator_is_an_error() -> None:

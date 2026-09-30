@@ -59,6 +59,30 @@ class NamingRules(BaseModel):
     context_discouraged_chars: str = "."  # any of these chars in a context is a warning
 
 
+class ProjectLayout(BaseModel):
+    """Project folder/file names, overridable per user; these defaults match the original
+    hardcoded layout. Not a Dialogflow requirement, just organization, so a user can use
+    their own structure across every project, the same way as NamingRules (see
+    user_settings.py).
+    """
+
+    training_phrases_dir: str = constants.DEFAULT_TRAINING_PHRASES_DIR
+    intents_dir: str = constants.DEFAULT_INTENTS_DIR
+    nl_subfolder: str = constants.DEFAULT_NL_SUBFOLDER
+    dd_config: str = constants.DEFAULT_DD_CONFIG
+    nl_config: str = constants.DEFAULT_NL_CONFIG
+
+
+class NlDefaults(BaseModel):
+    """Default value prefilled for the NL build's '--context' option, overridable per
+    user; a team's convention (the name they use for the context shared by every NL
+    intent), not a Dialogflow requirement, so it persists the same way as NamingRules
+    and ProjectLayout (see user_settings.py) instead of being retyped for every build.
+    """
+
+    context: str = constants.DEFAULT_NL_CONTEXT
+
+
 class ConfigRow(BaseModel):
     """One row of intents.cfg / intents_nl.cfg, and the problems found while reading it."""
 

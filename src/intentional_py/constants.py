@@ -38,6 +38,7 @@ VALID_ML_VALUES = {"true", "false"}
 # Directory structure
 DEFAULT_TRAINING_PHRASES_DIR = "Training Phrases"
 DEFAULT_INTENTS_DIR = "intents"
+DEFAULT_NL_SUBFOLDER = "NL"
 
 # File extensions
 SUPPORTED_EXCEL_EXTENSIONS = {".xlsb", ".xlsm", ".xlsx"}

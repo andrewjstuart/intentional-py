@@ -34,7 +34,7 @@ from intentional_py import build_intents as build
 from intentional_py import extract as extracting
 from intentional_py import report as report_writer
 from intentional_py import validate as validating
-from intentional_py.models import NamingRules
+from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
 from intentional_py.rich_reporter import RichReporter
 
 console = Console()
@@ -101,13 +101,13 @@ def main(
         ),
     ] = False,
     config: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--config",
             "-config",
-            help="Name of the config file when not using the standard files.",
+            help="Name of the config file when not using the standard files. (default: intents.cfg)",
         ),
-    ] = Path(constants.DEFAULT_DD_CONFIG),
+    ] = None,
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
@@ -142,8 +142,9 @@ def main(
     if ctx.invoked_subcommand is None:
         quiet = False if test else quiet
         reporter = RichReporter(quiet=quiet, test=test)
+        layout = user_settings.load_project_layout()
         # the config's folder holds the training phrases and receives the intents
-        config = config.resolve()
+        config = (config or Path(layout.dd_config)).resolve()
         try:
             result = build.intents(
                 "DD",
@@ -152,6 +153,7 @@ def main(
                 reporter,
                 clean,
                 user_settings.load_naming_rules(),
+                layout,
             )
             reporter.show_build(result)
             _save_report(report, "Build DD intents", result, reporter)
@@ -166,12 +168,12 @@ def main(
 @app.command("nl | natural-language")
 def natural_language(
     config: Annotated[
-        Path,
+        Path | None,
         typer.Option(
             "--config",
-            help="Name of the config file when not using the standard files.",
+            help="Name of the config file when not using the standard files. (default: intents_nl.cfg)",
         ),
-    ] = Path(constants.DEFAULT_NL_CONFIG),
+    ] = None,
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
@@ -195,14 +197,14 @@ def natural_language(
         ),
     ] = "",
     context: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--context",
             "-c",
-            help="Context used for the NL intent names. [bold red]Rebuilds the NL config file[/bold red]",
+            help="Context used for the NL intent names. [bold red]Rebuilds the NL config file[/bold red] (default: GetIntent)",
             rich_help_panel="Natural Language Options",
         ),
-    ] = constants.DEFAULT_NL_CONTEXT,
+    ] = None,
     lowercase: Annotated[
         bool,
         typer.Option(
@@ -243,8 +245,10 @@ def natural_language(
 
     quiet = False if test else quiet
     reporter = RichReporter(quiet=quiet, test=test)
+    layout = user_settings.load_project_layout()
+    context = context or user_settings.load_nl_defaults().context
     # the config's folder holds the training phrases and receives the intents
-    config = config.resolve()
+    config = (config or Path(layout.nl_config)).resolve()
     try:
         # rebuild the NL config unless --reuse is given and it exists; ask for a vertical if missing
         file_not_exist: bool = not config.exists()
@@ -258,7 +262,7 @@ def natural_language(
                     "No vertical prefix abbreviation provided.\nEnter a vertical prefix abbreviation: "
                 )
                 vertical = use_vertical
-            build.nl_config(config, vertical, context, lowercase, reporter)
+            build.nl_config(config, vertical, context, lowercase, reporter, layout)
 
         result = build.intents(
             "NL",
@@ -267,6 +271,7 @@ def natural_language(
             reporter,
             clean,
             user_settings.load_naming_rules(),
+            layout,
         )
         reporter.show_build(result)
         _save_report(report, "Build NL intents", result, reporter)
@@ -377,7 +382,12 @@ def extract(
         # phrases go to the CWD; tests keep them beside the Excel file instead
         base_dir = xl_file.parent if test else Path.cwd()
         result = extracting.excel_data(
-            xl_file, mode.upper(), language.lower(), base_dir, reporter
+            xl_file,
+            mode.upper(),
+            language.lower(),
+            base_dir,
+            reporter,
+            user_settings.load_project_layout(),
         )
         reporter.show_extract(result)
         _save_report(report, "Extract phrases", result, reporter)
@@ -426,7 +436,11 @@ def validate(
         # without a valid config file, the standard files in the CWD are validated
         base_dir = config.resolve().parent if config.is_file() else Path.cwd()
         result = validating.validate(
-            config, base_dir, reporter, user_settings.load_naming_rules()
+            config,
+            base_dir,
+            reporter,
+            user_settings.load_naming_rules(),
+            user_settings.load_project_layout(),
         )
         reporter.show_validate(result)
         _save_report(report, "Validate", result, reporter)
@@ -442,7 +456,7 @@ def gui(
         typer.Option(
             "--project",
             "-p",
-            help="Project folder to open in the GUI. [default: current directory]",
+            help="Project folder to open in the GUI. (default: current directory)",
         ),
     ] = None,
 ) -> None:
@@ -495,7 +509,7 @@ def compare(
         Path | None,
         typer.Option(
             "--config",
-            help="Config file to build from. [default: intents.cfg, or intents_nl.cfg for NL]",
+            help="Config file to build from. (default: intents.cfg, or intents_nl.cfg for NL)",
         ),
     ] = None,
     quiet: Annotated[
@@ -521,9 +535,8 @@ def compare(
             raise exceptions.ConfigurationError(
                 f"Invalid mode: {mode}. Valid modes: DD, NL"
             )
-        default = (
-            constants.DEFAULT_NL_CONFIG if mode == "NL" else constants.DEFAULT_DD_CONFIG
-        )
+        layout = user_settings.load_project_layout()
+        default = layout.nl_config if mode == "NL" else layout.dd_config
         config = (config or Path(default)).resolve()
         result = build.compare_build(
             mode,
@@ -532,6 +545,7 @@ def compare(
             export.resolve(),
             reporter,
             user_settings.load_naming_rules(),
+            layout,
         )
         reporter.show_compare(result)
         _save_report(report, "Compare intents", result, reporter)
@@ -551,15 +565,16 @@ def design(
         typer.Option(
             "--sheet",
             "-s",
-            help="Sheet to read. [default: the first sheet with an intent header row]",
+            help="Sheet to read. (default: the first sheet with an intent header row)",
         ),
     ] = "",
     config: Annotated[
-        Path,
+        Path | None,
         typer.Option(
-            "--config", help="Config file to write; an existing one is backed up first."
+            "--config",
+            help="Config file to write; an existing one is backed up first. (default: intents.cfg)",
         ),
-    ] = Path(constants.DEFAULT_DD_CONFIG),
+    ] = None,
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
@@ -582,6 +597,8 @@ def design(
             raise exceptions.FileSystemError(
                 f"{xl_file} does [red]NOT[/red] exist as a file."
             )
+        layout = user_settings.load_project_layout()
+        config = config or Path(layout.dd_config)
         result = design_doc.config_from_design(
             xl_file.resolve(),
             config.resolve(),
@@ -602,14 +619,14 @@ def naming_rules(
         str | None,
         typer.Option(
             "--set-intent-forbidden-chars",
-            help="Characters that make an intent name invalid (a fatal error). [default: -]",
+            help="Characters that make an intent name invalid (a fatal error). (default: -)",
         ),
     ] = None,
     set_context_discouraged_chars: Annotated[
         str | None,
         typer.Option(
             "--set-context-discouraged-chars",
-            help="Characters that make a context print a warning. [default: .]",
+            help="Characters that make a context print a warning. (default: .)",
         ),
     ] = None,
     reset: Annotated[
@@ -643,3 +660,123 @@ def naming_rules(
     console.print(
         f"Context discouraged characters: [yellow]'{rules.context_discouraged_chars}'[/yellow]"
     )
+
+
+@app.command("project-layout")
+def project_layout(
+    set_training_phrases_dir: Annotated[
+        str | None,
+        typer.Option(
+            "--set-training-phrases-dir",
+            help="Folder holding the training phrases. (default: Training Phrases)",
+        ),
+    ] = None,
+    set_intents_dir: Annotated[
+        str | None,
+        typer.Option(
+            "--set-intents-dir",
+            help="Folder that receives the built intents. (default: intents)",
+        ),
+    ] = None,
+    set_nl_subfolder: Annotated[
+        str | None,
+        typer.Option(
+            "--set-nl-subfolder",
+            help="Subfolder, under each language, holding NL phrases. (default: NL)",
+        ),
+    ] = None,
+    set_dd_config: Annotated[
+        str | None,
+        typer.Option(
+            "--set-dd-config",
+            help="Default directed dialog config file name. (default: intents.cfg)",
+        ),
+    ] = None,
+    set_nl_config: Annotated[
+        str | None,
+        typer.Option(
+            "--set-nl-config",
+            help="Default natural language config file name. (default: intents_nl.cfg)",
+        ),
+    ] = None,
+    reset: Annotated[
+        bool,
+        typer.Option(
+            "--reset", help="Reset all of these back to their original defaults."
+        ),
+    ] = False,
+) -> None:
+    """
+    Show or change the saved project folder/file layout.
+
+    This is not a Dialogflow requirement, just this project's organization.
+    Saved to the user's profile, so a change applies to every project, on the CLI
+    and the GUI, until changed again.
+    """
+    layout = user_settings.load_project_layout()
+    changed = reset
+    if reset:
+        layout = ProjectLayout()
+    if set_training_phrases_dir is not None:
+        layout.training_phrases_dir = set_training_phrases_dir
+        changed = True
+    if set_intents_dir is not None:
+        layout.intents_dir = set_intents_dir
+        changed = True
+    if set_nl_subfolder is not None:
+        layout.nl_subfolder = set_nl_subfolder
+        changed = True
+    if set_dd_config is not None:
+        layout.dd_config = set_dd_config
+        changed = True
+    if set_nl_config is not None:
+        layout.nl_config = set_nl_config
+        changed = True
+    if changed:
+        user_settings.save_project_layout(layout)
+        console.print(
+            f"[green]Saved to {user_settings.project_layout_path()}[/green]\n"
+        )
+    console.print(
+        f"Training phrases folder: [yellow]'{layout.training_phrases_dir}'[/yellow]"
+    )
+    console.print(f"Intents output folder: [yellow]'{layout.intents_dir}'[/yellow]")
+    console.print(f"NL phrases subfolder: [yellow]'{layout.nl_subfolder}'[/yellow]")
+    console.print(f"Directed dialog config file: [yellow]'{layout.dd_config}'[/yellow]")
+    console.print(
+        f"Natural language config file: [yellow]'{layout.nl_config}'[/yellow]"
+    )
+
+
+@app.command("nl-defaults")
+def nl_defaults(
+    set_context: Annotated[
+        str | None,
+        typer.Option(
+            "--set-context",
+            help="Default context prefilled for 'nl --context'. (default: GetIntent)",
+        ),
+    ] = None,
+    reset: Annotated[
+        bool,
+        typer.Option("--reset", help="Reset back to the original default."),
+    ] = False,
+) -> None:
+    """
+    Show or change the saved default NL context.
+
+    This is not a Dialogflow requirement, just the name a team uses for the context
+    shared by every NL intent. Saved to the user's profile, so a change applies to
+    every project, on the CLI and the GUI, until changed again.
+    """
+    defaults = user_settings.load_nl_defaults()
+    changed = reset
+    if reset:
+        defaults = NlDefaults()
+    if set_context is not None:
+        defaults.context = set_context
+        changed = True
+    if changed:
+        user_settings.save_nl_defaults(defaults)
+        console.print(f"[green]Saved to {user_settings.nl_defaults_path()}[/green]\n")
+    console.print(f"Default NL context: [yellow]'{defaults.context}'[/yellow]")

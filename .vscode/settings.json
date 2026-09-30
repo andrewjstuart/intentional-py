@@ -6,5 +6,8 @@
     },
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff"
-    }
+    },
+    "github.copilot.chat.commitMessageGeneration.instructions": [
+        { "file": ".github/instructions/commit-style.md" }
+    ]
 }

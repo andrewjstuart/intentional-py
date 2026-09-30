@@ -30,9 +30,10 @@ def preflight_config(
     base_path: Path,
     mode: str | None,
     rules: models.NamingRules | None = None,
+    layout: models.ProjectLayout | None = None,
 ) -> tuple[list[list[str]], list[str], list[str]]:
     """Validate and normalize a config file's rows before a build starts; see check_rows."""
-    return check_rows(read_config_rows(config), base_path, mode, rules)
+    return check_rows(read_config_rows(config), base_path, mode, rules, layout)
 
 
 def check_rows(
@@ -40,6 +41,7 @@ def check_rows(
     base_path: Path,
     mode: str | None,
     rules: models.NamingRules | None = None,
+    layout: models.ProjectLayout | None = None,
 ) -> tuple[list[list[str]], list[str], list[str]]:
     """Validate and normalize config rows.
 
@@ -50,7 +52,10 @@ def check_rows(
     With mode None, phrase files may be in either the DD or the NL folder.
     rules (NamingRules | None): intent/context naming rules; defaults to the
         original hardcoded behavior when not given (see models.NamingRules).
+    layout (ProjectLayout | None): project folder/file names; defaults to the
+        original hardcoded layout when not given.
     """
+    layout = layout or models.ProjectLayout()
     fatal_errors: list[str] = []
     warnings: list[str] = []
     normalized_rows: list[list[str]] = []
@@ -96,10 +101,11 @@ def check_rows(
             intent_languages.setdefault(intent, []).append((row_number, language))
 
         if action and language != "dtmf" and action != "nomatch":
-            phrase_path = base_path / constants.DEFAULT_TRAINING_PHRASES_DIR / language
-            phrase_dirs = {"DD": [phrase_path], "NL": [phrase_path / "NL"]}.get(
-                mode, [phrase_path, phrase_path / "NL"]
-            )
+            phrase_path = base_path / layout.training_phrases_dir / language
+            phrase_dirs = {
+                "DD": [phrase_path],
+                "NL": [phrase_path / layout.nl_subfolder],
+            }.get(mode, [phrase_path, phrase_path / layout.nl_subfolder])
             phrase_files = [
                 utils.find_phrase_file(path, action) for path in phrase_dirs
             ]
@@ -165,13 +171,12 @@ def check_rows(
             action = english_row[3]
             if action and action != "nomatch":
                 phrase_path = (
-                    base_path
-                    / constants.DEFAULT_TRAINING_PHRASES_DIR
-                    / constants.DEFAULT_LANGUAGE
+                    base_path / layout.training_phrases_dir / constants.DEFAULT_LANGUAGE
                 )
-                phrase_dirs = {"DD": [phrase_path], "NL": [phrase_path / "NL"]}.get(
-                    mode, [phrase_path, phrase_path / "NL"]
-                )
+                phrase_dirs = {
+                    "DD": [phrase_path],
+                    "NL": [phrase_path / layout.nl_subfolder],
+                }.get(mode, [phrase_path, phrase_path / layout.nl_subfolder])
                 phrase_files = [
                     utils.find_phrase_file(path, action) for path in phrase_dirs
                 ]
@@ -282,6 +287,7 @@ def validate(
     base_dir: Path,
     reporter: Reporter,
     rules: models.NamingRules | None = None,
+    layout: models.ProjectLayout | None = None,
 ) -> ValidateResult:
     """Validates the directories and files for the project.
 
@@ -291,15 +297,18 @@ def validate(
         reporter (Reporter): Receives messages.
         rules (NamingRules | None): intent/context naming rules; defaults to the
             original hardcoded behavior when not given.
+        layout (ProjectLayout | None): project folder/file names; defaults to the
+            original hardcoded layout when not given.
     """
+    layout = layout or models.ProjectLayout()
     result = ValidateResult()
     reporter.message("info", "[yellow]Validating directories and files[/yellow]\n")
 
     # check for directory structure
-    phrase_path = Path(base_dir, constants.DEFAULT_TRAINING_PHRASES_DIR)
+    phrase_path = Path(base_dir, layout.training_phrases_dir)
     phrases_exist = phrase_path.exists()
     result.directories.append(
-        Check(f"{constants.DEFAULT_TRAINING_PHRASES_DIR} path", phrases_exist)
+        Check(f"{layout.training_phrases_dir} path", phrases_exist)
     )
     if phrases_exist:
         for code, name in constants.LANGUAGE_NAMES.items():
@@ -308,7 +317,10 @@ def validate(
             result.directories.append(Check(f"{name} path", lang_exists))
             if lang_exists:
                 result.directories.append(
-                    Check(f"{name} NL path", Path(lang_path, "NL").exists())
+                    Check(
+                        f"{name} {layout.nl_subfolder} path",
+                        Path(lang_path, layout.nl_subfolder).exists(),
+                    )
                 )
 
     config_list: list = []
@@ -317,8 +329,8 @@ def validate(
         result.used_standard_configs = True
         config_list.extend(
             [
-                Path(base_dir, constants.DEFAULT_DD_CONFIG),
-                Path(base_dir, constants.DEFAULT_NL_CONFIG),
+                Path(base_dir, layout.dd_config),
+                Path(base_dir, layout.nl_config),
             ]
         )
     else:
@@ -333,7 +345,7 @@ def validate(
         result.config_files.append(Check(f"Checking for {file.name}", True))
 
         # the same checks a build runs, so validate reports exactly what a build would
-        rows, errors, warnings = preflight_config(file, base_dir, None, rules)
+        rows, errors, warnings = preflight_config(file, base_dir, None, rules, layout)
         if not rows and not errors:
             errors = ["The config file does not contain data."]
         details = [f"Error: {error}" for error in errors]

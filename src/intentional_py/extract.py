@@ -14,7 +14,7 @@ import openpyxl
 import pyxlsb
 from openpyxl.utils.exceptions import InvalidFileException
 
-from intentional_py import constants, exceptions, utils
+from intentional_py import constants, exceptions, models, utils
 from intentional_py.reporting import ExtractResult, Reporter
 
 
@@ -42,9 +42,15 @@ def _backup_existing(phrase_dir: Path, mode: str) -> Path | None:
 
 
 def excel_data(
-    xl_file: Path, mode: str, language: str, base_dir: Path, reporter: Reporter
+    xl_file: Path,
+    mode: str,
+    language: str,
+    base_dir: Path,
+    reporter: Reporter,
+    layout: models.ProjectLayout | None = None,
 ) -> ExtractResult:
     """Save each sheet's phrases as a text file under base_dir's Training Phrases folder."""
+    layout = layout or models.ProjectLayout()
     t1_start = perf_counter()
 
     xl_file_path: Path
@@ -59,11 +65,11 @@ def excel_data(
 
     # set up path to save files
     # set phrase file path
-    phrase_file_path: Path = Path(
-        base_dir, constants.DEFAULT_TRAINING_PHRASES_DIR, language
-    )
+    phrase_file_path: Path = Path(base_dir, layout.training_phrases_dir, language)
     phrase_file_path = (
-        Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
+        Path(phrase_file_path, layout.nl_subfolder)
+        if mode == "NL"
+        else phrase_file_path
     )
 
     reporter.message("info", f"Exporting data to: [blue]{phrase_file_path}[/blue]")

@@ -2,6 +2,7 @@ import csv
 from pathlib import Path
 
 from intentional_py import validate
+from intentional_py.models import ProjectLayout
 from intentional_py.tests.conftest import write_config
 
 
@@ -64,6 +65,22 @@ def test_preflight_requires_dtmf_value(tmp_path: Path) -> None:
     _, fatal_errors, _ = validate.preflight_config(config, tmp_path, "DD")
 
     assert fatal_errors == ["Row 1: DTMF rows require a DTMF value."]
+
+
+def test_preflight_finds_phrase_files_in_a_custom_layout(tmp_path: Path) -> None:
+    layout = ProjectLayout(training_phrases_dir="Phrases")
+    phrase_dir = tmp_path / "Phrases" / "en"
+    phrase_dir.mkdir(parents=True)
+    (phrase_dir / "welcome.txt").write_text("hello\n", encoding="utf-8")
+    config = tmp_path / "intents.cfg"
+    write_config(config, ["welcome", "GetIntent", "en", "welcome", "", "", "TRUE"])
+
+    _, fatal_errors, warnings = validate.preflight_config(
+        config, tmp_path, "DD", layout=layout
+    )
+
+    assert fatal_errors == []
+    assert not any("phrase file" in warning for warning in warnings)
 
 
 class NullReporter:

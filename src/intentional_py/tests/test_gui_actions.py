@@ -44,6 +44,7 @@ def test_help_has_a_section_for_each_tab() -> None:
         "Validate",
         "Compare",
         "Design doc",
+        "Settings",
     ]
 
 

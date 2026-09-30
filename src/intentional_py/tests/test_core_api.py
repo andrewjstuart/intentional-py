@@ -6,6 +6,7 @@ import openpyxl
 import pytest
 
 from intentional_py import build_intents, exceptions, extract
+from intentional_py.models import ProjectLayout
 from intentional_py.tests.conftest import FakeReporter, make_nl_phrases
 
 
@@ -89,6 +90,54 @@ def test_dd_build_machine_learning_column(tmp_path: Path) -> None:
         is False
     )
     assert result.machine_learning_off == ["A.Off"]
+
+
+def test_dd_build_with_a_custom_project_layout(tmp_path: Path) -> None:
+    layout = ProjectLayout(training_phrases_dir="Phrases", intents_dir="output")
+    phrase_dir = tmp_path / "Phrases" / "en"
+    phrase_dir.mkdir(parents=True)
+    (phrase_dir / "billing.txt").write_text("pay my bill\n", encoding="utf-8")
+    config = tmp_path / "intents.cfg"
+    config.write_text("MYAC.Billing,Ctx,en,billing,,,\n", encoding="utf-8")
+
+    result = build_intents.intents(
+        "DD", config, tmp_path, FakeReporter(), layout=layout
+    )
+
+    assert result.output_dir == tmp_path / "output"
+    assert (tmp_path / "output" / "MYAC.Billing_usersays_en.json").exists()
+    assert not (tmp_path / "intents").exists()
+    # the default folder names are not used at all with a custom layout
+    assert not (tmp_path / "Training Phrases").exists()
+
+
+def test_nl_build_with_a_custom_project_layout(tmp_path: Path) -> None:
+    layout = ProjectLayout(training_phrases_dir="Phrases", nl_subfolder="Natural")
+    nl_dir = tmp_path / "Phrases" / "en" / "Natural"
+    nl_dir.mkdir(parents=True)
+    (nl_dir / "BILLING.txt").write_text("pay my bill\n", encoding="utf-8")
+    config = tmp_path / "intents_nl.cfg"
+    reporter = FakeReporter(answer=True)
+
+    build_intents.nl_config(config, "RTL", "GetIntent", False, reporter, layout)
+    result = build_intents.intents("NL", config, tmp_path, reporter, layout=layout)
+
+    assert result.intents == 1
+    assert (tmp_path / "intents" / "RTL.Billing.json").exists()
+
+
+def test_extract_with_a_custom_project_layout(tmp_path: Path) -> None:
+    layout = ProjectLayout(training_phrases_dir="Phrases", nl_subfolder="Natural")
+    workbook = openpyxl.Workbook()
+    workbook.active.title = "HELLO"
+    workbook.active["A1"] = "hi there"
+    xl_file = tmp_path / "phrases.xlsx"
+    workbook.save(xl_file)
+
+    result = extract.excel_data(xl_file, "NL", "en", tmp_path, FakeReporter(), layout)
+
+    assert result.output_dir == tmp_path / "Phrases" / "en" / "Natural"
+    assert not (tmp_path / "Training Phrases").exists()
 
 
 def test_dd_cli_uses_config_directory(tmp_path: Path, monkeypatch) -> None:
