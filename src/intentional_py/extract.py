@@ -7,6 +7,7 @@ Includes backup functionality for existing phrase directories.
 
 import shutil
 import zipfile
+from contextlib import closing
 from pathlib import Path
 from time import perf_counter
 
@@ -131,16 +132,18 @@ def _read_workbook(
                 phrase_dict[Path(phrase_file_path, f"{sheet}.txt")] = sorted(phrases)
     elif file_extension in [".xlsm", ".xlsx"]:
         # uses openpyxl
-        wb = openpyxl.load_workbook(xl)
-        for sheet_name in reporter.track(wb.sheetnames, label):
-            phrases: set = set()
-            sheet = wb[sheet_name]
-            for row in sheet.iter_rows(values_only=True):
-                phrase = "".join(str(cell) for cell in row if cell is not None)
-                # add the phrases to a set to remove duplicates
-                if phrase.strip():
-                    phrases.add(phrase)
-            phrase_dict[Path(phrase_file_path, f"{sheet_name}.txt")] = sorted(phrases)
+        with closing(openpyxl.load_workbook(xl, read_only=True, data_only=True)) as wb:
+            for sheet_name in reporter.track(wb.sheetnames, label):
+                phrases: set = set()
+                sheet = wb[sheet_name]
+                for row in sheet.iter_rows(values_only=True):
+                    phrase = "".join(str(cell) for cell in row if cell is not None)
+                    # add the phrases to a set to remove duplicates
+                    if phrase.strip():
+                        phrases.add(phrase)
+                phrase_dict[Path(phrase_file_path, f"{sheet_name}.txt")] = sorted(
+                    phrases
+                )
     else:
         raise exceptions.ExtractionError(f"[red]Unsupported file format[/red]: {xl}")
     return phrase_dict

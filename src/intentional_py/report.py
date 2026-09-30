@@ -4,67 +4,23 @@ import csv
 import datetime
 from pathlib import Path
 
-from intentional_py import exceptions, utils
+from intentional_py import exceptions, result_views, utils
 from intentional_py.reporting import (
     BuildResult,
     CompareResult,
     DesignResult,
-    ExtractResult,
-    Level,
     ValidateResult,
 )
-
-Result = BuildResult | ExtractResult | ValidateResult | CompareResult | DesignResult
-Issue = tuple[Level, str, str]
-Table = tuple[str, list[str], list[list[str]]]
+from intentional_py.result_views import Issue, Result, Table
 
 
 def _summary(result: Result) -> list[tuple[str, str]]:
-    if isinstance(result, BuildResult):
-        rows = [
-            ("Intents", str(result.intents)),
-            ("Phrases", str(result.phrases)),
-            ("Entities", str(result.entities)),
-            ("Languages", ", ".join(result.languages) or "-"),
-            ("Files", str(result.files)),
-        ]
-        if result.nomatch:
-            rows.append(("NoMatch", str(result.nomatch)))
-        return rows
-    if isinstance(result, ExtractResult):
-        return [
-            ("Files", str(result.files)),
-            ("Phrases", str(result.phrases)),
-            ("Empty sheets", str(len(result.empty_sheets))),
-        ]
-    if isinstance(result, CompareResult):
-        return [
-            ("Added", str(len(result.added))),
-            ("Changed", str(len(result.changed))),
-            ("Unchanged", str(result.unchanged)),
-            ("Only in export", str(len(result.removed))),
-        ]
-    if isinstance(result, DesignResult):
-        return [
-            ("Rows", str(result.rows)),
-            ("Errors", str(len(result.errors))),
-            ("Warnings", str(len(result.warnings))),
-        ]
-    checks = result.directories + result.config_files + result.configs
-    passed = sum(check.ok for check in checks)
-    return [
-        ("Checks", str(len(checks))),
-        ("Passed", str(passed)),
-        ("Failed", str(len(checks) - passed)),
-    ]
+    return result_views.summary_rows(result)
 
 
 def _changes(result: CompareResult, title: str) -> Table | None:
     """Added and changed intents, matching the table shown by both front ends."""
-    rows = [["Added", name, ""] for name in result.added]
-    rows.extend(
-        ["Changed", change.name, "; ".join(change.details)] for change in result.changed
-    )
+    rows = result_views.change_rows(result)
     return (title, ["Change", "Intent", "Details"], rows) if rows else None
 
 
@@ -118,7 +74,7 @@ def _tables(result: Result) -> list[Table]:
             tables.append(removed)
         return tables
     if isinstance(result, ValidateResult):
-        checks = result.directories + result.config_files + result.configs
+        checks = result_views.checks(result)
         return [
             (
                 "Checks",
@@ -143,40 +99,7 @@ def _tables(result: Result) -> list[Table]:
 
 
 def _result_issues(result: Result) -> list[Issue]:
-    if isinstance(result, ValidateResult):
-        return [
-            (
-                "error" if detail.startswith("Error") else "warning",
-                "",
-                detail.removeprefix("Error: ").removeprefix("Warning: "),
-            )
-            for check in result.configs
-            for detail in check.details
-        ]
-    if isinstance(result, DesignResult):
-        return [("error", "", text) for text in result.errors] + [
-            ("warning", "", text) for text in result.warnings
-        ]
-    if isinstance(result, ExtractResult):
-        return [
-            ("warning", "", f"Sheet {name} has no phrases; an empty file was created.")
-            for name in result.empty_sheets
-        ]
-    if (
-        isinstance(result, BuildResult)
-        and result.changes
-        and result.changes.removed
-        and not result.backup
-    ):
-        return [
-            (
-                "warning",
-                "",
-                "No longer built, but still in the intents folder: "
-                + ", ".join(result.changes.removed),
-            )
-        ]
-    return []
+    return result_views.result_issues(result)
 
 
 def _escape(value: object) -> str:

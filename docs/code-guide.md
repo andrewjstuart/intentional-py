@@ -33,7 +33,7 @@ flowchart TD
         CMP["compare.py"]
         DES["design_doc.py"]
     end
-    CORE --> SHARED["reporting.py · report.py · models.py · user_settings.py · constants.py · exceptions.py · utils.py"]
+    CORE --> SHARED["reporting.py · report.py · result_views.py · models.py · user_settings.py · constants.py · exceptions.py · utils.py"]
 ```
 
 Because the core doesn't print, the same code runs behind both front ends. It talks back through a **reporter** object that each front end supplies (see [Design ideas worth knowing](#design-ideas-worth-knowing)).
@@ -73,6 +73,7 @@ All the source is in `src/intentional_py`.
 | [exceptions.py](../src/intentional_py/exceptions.py) | The program's own error types, all based on `IntentionalException`. The front ends catch this one type to show a friendly message instead of a crash. |
 | [reporting.py](../src/intentional_py/reporting.py) | The link between the core and the front ends. `Reporter` lists what the core may ask a front end to do (show a message or table, track progress, ask a yes/no question). The result classes (`BuildResult`, `ValidateResult`, …) are what each task returns. |
 | [report.py](../src/intentional_py/report.py) | Writes a completed result, its issues and detail tables as a Markdown or CSV report. Both front ends call the same formatter. |
+| [result_views.py](../src/intentional_py/result_views.py) | **The one place that reads a result's fields to decide what to show.** `summary_rows()`/`summary_tiles()`, `change_rows()`, `result_issues()`, `checks()` and `output_folder()` interpret `BuildResult`/`ExtractResult`/`ValidateResult`/`CompareResult`/`DesignResult` by `isinstance`. `report.py` and `gui/actions.py` both call these instead of each re-implementing the same `isinstance` checks, so the CLI report and the GUI tiles/issues can't quietly drift apart. Also defines the canonical `Result`/`Issue`/`Table` type aliases that `report.py` and `gui/actions.py` import rather than redefine. |
 | [user_settings.py](../src/intentional_py/user_settings.py) | Loads and saves `NamingRules` (`naming_rules.json`), `ProjectLayout` (`project_layout.json`) and `NlDefaults` (`nl_defaults.json`) in the user's profile, shared by the CLI and the GUI. Unlike `gui/settings.py` (GUI-only convenience preferences), this is read by core functions' callers on both front ends, so a saved override applies everywhere. |
 | [utils.py](../src/intentional_py/utils.py) | Small helpers used by several files: reading the priority from an intent name, splitting entity tags out of phrases, entity aliases, zipping folders, finding duplicate phrases, `timestamp()` for backup file names, `safe_join()` (rejects a config-supplied name that would write or read outside the intended folder), and `file_errors()`, which turns file problems into readable errors. |
 
@@ -92,7 +93,7 @@ The GUI is built with [CustomTkinter](https://customtkinter.tomschimansky.com/),
 | File | What it does |
 |-|-|
 | [gui/app.py](../src/intentional_py/gui/app.py) | **The main window**: the project folder row, one tab per task, a Settings tab (naming rules, project layout and NL defaults, since all three are project-wide rather than task-specific), the results panel, Help, saved reports, and the reusable duplicate-phrase dialog. The `_build_…` methods create the widgets, the `_run_…` methods start a job, and `_handle()` / `_finish()` show what the job reports. The largest file, but it only arranges and displays; the work is elsewhere. |
-| [gui/actions.py](../src/intentional_py/gui/actions.py) | **What each Run button does**, without any widgets: turns the form values into a core call (`build_dd()`, `extract()`, …), and turns results into the figures, issues and tables the window shows. Having no widgets means it can be tested without a screen. |
+| [gui/actions.py](../src/intentional_py/gui/actions.py) | **What each Run button does**, without any widgets: turns the form values into a core call (`build_dd()`, `extract()`, …), and turns results into the figures, issues and tables the window shows (sharing the result-interpretation logic in `result_views.py` with `report.py`). Having no widgets means it can be tested without a screen. |
 | [gui/worker.py](../src/intentional_py/gui/worker.py) | **Runs a job in the background** so the window doesn't freeze. `JobRunner` starts the job on another thread; `GuiReporter` is the GUI's reporter, which puts each message on a queue that the window reads every 100 ms. |
 | [gui/config_editor.py](../src/intentional_py/gui/config_editor.py) | The **Edit config…** window: the config as a table, a dialog to edit one row, and Check and Save. |
 | [gui/widgets.py](../src/intentional_py/gui/widgets.py) | Styling and table helpers shared by the main window and the config editor (colours, table style, column sizing). |
@@ -194,5 +195,5 @@ In the GUI, the same `intents()` function runs. The only differences are who cal
 | Add a language | `VALID_LANGUAGES` and `LANGUAGE_NAMES` in [constants.py](../src/intentional_py/constants.py) |
 | Add a CLI option or command | [intentional.py](../src/intentional_py/intentional.py) |
 | Add a GUI tab | a `_build_…_tab` and `_run_…` method in [gui/app.py](../src/intentional_py/gui/app.py), a function in [gui/actions.py](../src/intentional_py/gui/actions.py), and a section in [gui/help_text.py](../src/intentional_py/gui/help_text.py) |
-| Change how a result is shown | `show_…` in [rich_reporter.py](../src/intentional_py/rich_reporter.py) for the CLI; `tiles()`, `result_issues()` and `detail_tables()` in [gui/actions.py](../src/intentional_py/gui/actions.py) for the GUI |
+| Change how a result is shown | `show_…` in [rich_reporter.py](../src/intentional_py/rich_reporter.py) for the CLI; [result_views.py](../src/intentional_py/result_views.py) for logic shared with the report, or `tiles()`, `result_issues()` and `detail_tables()` in [gui/actions.py](../src/intentional_py/gui/actions.py) for GUI-only wording/order |
 | Change the Help text | [gui/help_text.py](../src/intentional_py/gui/help_text.py) |
