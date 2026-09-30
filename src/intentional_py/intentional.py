@@ -105,7 +105,7 @@ def main(
         typer.Option(
             "--config",
             "-config",
-            help="Name of the config file when not using the standard files. [default: intents.cfg]",
+            help="Name of the config file when not using the standard files. (default: intents.cfg)",
         ),
     ] = None,
     quiet: Annotated[
@@ -171,7 +171,7 @@ def natural_language(
         Path | None,
         typer.Option(
             "--config",
-            help="Name of the config file when not using the standard files. [default: intents_nl.cfg]",
+            help="Name of the config file when not using the standard files. (default: intents_nl.cfg)",
         ),
     ] = None,
     quiet: Annotated[
@@ -201,7 +201,7 @@ def natural_language(
         typer.Option(
             "--context",
             "-c",
-            help="Context used for the NL intent names. [bold red]Rebuilds the NL config file[/bold red] [default: GetIntent]",
+            help="Context used for the NL intent names. [bold red]Rebuilds the NL config file[/bold red] (default: GetIntent)",
             rich_help_panel="Natural Language Options",
         ),
     ] = None,
@@ -456,7 +456,7 @@ def gui(
         typer.Option(
             "--project",
             "-p",
-            help="Project folder to open in the GUI. [default: current directory]",
+            help="Project folder to open in the GUI. (default: current directory)",
         ),
     ] = None,
 ) -> None:
@@ -509,7 +509,7 @@ def compare(
         Path | None,
         typer.Option(
             "--config",
-            help="Config file to build from. [default: intents.cfg, or intents_nl.cfg for NL]",
+            help="Config file to build from. (default: intents.cfg, or intents_nl.cfg for NL)",
         ),
     ] = None,
     quiet: Annotated[
@@ -565,14 +565,14 @@ def design(
         typer.Option(
             "--sheet",
             "-s",
-            help="Sheet to read. [default: the first sheet with an intent header row]",
+            help="Sheet to read. (default: the first sheet with an intent header row)",
         ),
     ] = "",
     config: Annotated[
         Path | None,
         typer.Option(
             "--config",
-            help="Config file to write; an existing one is backed up first. [default: intents.cfg]",
+            help="Config file to write; an existing one is backed up first. (default: intents.cfg)",
         ),
     ] = None,
     quiet: Annotated[
@@ -619,14 +619,14 @@ def naming_rules(
         str | None,
         typer.Option(
             "--set-intent-forbidden-chars",
-            help="Characters that make an intent name invalid (a fatal error). [default: -]",
+            help="Characters that make an intent name invalid (a fatal error). (default: -)",
         ),
     ] = None,
     set_context_discouraged_chars: Annotated[
         str | None,
         typer.Option(
             "--set-context-discouraged-chars",
-            help="Characters that make a context print a warning. [default: .]",
+            help="Characters that make a context print a warning. (default: .)",
         ),
     ] = None,
     reset: Annotated[
@@ -668,35 +668,35 @@ def project_layout(
         str | None,
         typer.Option(
             "--set-training-phrases-dir",
-            help="Folder holding the training phrases. [default: Training Phrases]",
+            help="Folder holding the training phrases. (default: Training Phrases)",
         ),
     ] = None,
     set_intents_dir: Annotated[
         str | None,
         typer.Option(
             "--set-intents-dir",
-            help="Folder that receives the built intents. [default: intents]",
+            help="Folder that receives the built intents. (default: intents)",
         ),
     ] = None,
     set_nl_subfolder: Annotated[
         str | None,
         typer.Option(
             "--set-nl-subfolder",
-            help="Subfolder, under each language, holding NL phrases. [default: NL]",
+            help="Subfolder, under each language, holding NL phrases. (default: NL)",
         ),
     ] = None,
     set_dd_config: Annotated[
         str | None,
         typer.Option(
             "--set-dd-config",
-            help="Default directed dialog config file name. [default: intents.cfg]",
+            help="Default directed dialog config file name. (default: intents.cfg)",
         ),
     ] = None,
     set_nl_config: Annotated[
         str | None,
         typer.Option(
             "--set-nl-config",
-            help="Default natural language config file name. [default: intents_nl.cfg]",
+            help="Default natural language config file name. (default: intents_nl.cfg)",
         ),
     ] = None,
     reset: Annotated[
@@ -754,7 +754,7 @@ def nl_defaults(
         str | None,
         typer.Option(
             "--set-context",
-            help="Default context prefilled for 'nl --context'. [default: GetIntent]",
+            help="Default context prefilled for 'nl --context'. (default: GetIntent)",
         ),
     ] = None,
     reset: Annotated[
