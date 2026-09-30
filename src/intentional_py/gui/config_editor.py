@@ -7,7 +7,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from intentional_py import constants, exceptions, models, utils
+from intentional_py import constants, exceptions, models, user_settings, utils
 from intentional_py import validate as validating
 from intentional_py.gui import actions
 from intentional_py.gui.widgets import LEVEL_NAMES, PAD, fit_columns, make_table
@@ -474,8 +474,9 @@ class ConfigEditor(ctk.CTkToplevel):
         """Run the build's checks on the rows as they are now, and colour the rows with problems."""
         if self.config_path is None:
             return
+        rules = user_settings.load_naming_rules()
         _, errors, warnings = validating.check_rows(
-            self.rows, self.config_path.parent, self.mode
+            self.rows, self.config_path.parent, self.mode, rules
         )
         issues = [actions.issue("error", e) for e in errors] + [
             actions.issue("warning", w) for w in warnings

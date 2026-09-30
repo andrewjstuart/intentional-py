@@ -16,6 +16,7 @@ from rich.text import Text
 from intentional_py import build_intents, constants, design_doc, exceptions
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
+from intentional_py.models import NamingRules
 from intentional_py.reporting import (
     BuildResult,
     CompareResult,
@@ -55,12 +56,16 @@ def resolve_config(project: Path, text: str, default: str) -> Path:
 
 
 def build_dd(
-    project_text: str, config_text: str, reporter: Reporter, clean: bool = False
+    project_text: str,
+    config_text: str,
+    reporter: Reporter,
+    clean: bool = False,
+    rules: NamingRules | None = None,
 ) -> BuildResult:
     config = resolve_config(
         project_dir(project_text), config_text, constants.DEFAULT_DD_CONFIG
     )
-    return build_intents.intents("DD", config, config.parent, reporter, clean)
+    return build_intents.intents("DD", config, config.parent, reporter, clean, rules)
 
 
 def build_nl(
@@ -72,6 +77,7 @@ def build_nl(
     reuse: bool,
     reporter: Reporter,
     clean: bool = False,
+    rules: NamingRules | None = None,
 ) -> BuildResult:
     config = resolve_config(
         project_dir(project_text), config_text, constants.DEFAULT_NL_CONFIG
@@ -92,11 +98,16 @@ def build_nl(
             lowercase,
             reporter,
         )
-    return build_intents.intents("NL", config, config.parent, reporter, clean)
+    return build_intents.intents("NL", config, config.parent, reporter, clean, rules)
 
 
 def compare(
-    project_text: str, mode: str, config_text: str, export_text: str, reporter: Reporter
+    project_text: str,
+    mode: str,
+    config_text: str,
+    export_text: str,
+    reporter: Reporter,
+    rules: NamingRules | None = None,
 ) -> CompareResult:
     project = project_dir(project_text)
     mode = mode.upper()
@@ -110,11 +121,18 @@ def compare(
         )
     export = Path(export_text.strip()).expanduser()
     export = (export if export.is_absolute() else project / export).resolve()
-    return build_intents.compare_build(mode, config, config.parent, export, reporter)
+    return build_intents.compare_build(
+        mode, config, config.parent, export, reporter, rules
+    )
 
 
 def design(
-    project_text: str, xl_text: str, sheet: str, config_text: str, reporter: Reporter
+    project_text: str,
+    xl_text: str,
+    sheet: str,
+    config_text: str,
+    reporter: Reporter,
+    rules: NamingRules | None = None,
 ) -> DesignResult:
     project = project_dir(project_text)
     if not xl_text.strip():
@@ -124,7 +142,9 @@ def design(
     if not xl_file.is_file():
         raise exceptions.FileSystemError(f"Excel file does not exist: {xl_file}")
     config = resolve_config(project, config_text, constants.DEFAULT_DD_CONFIG)
-    return design_doc.config_from_design(xl_file, config, reporter, sheet.strip())
+    return design_doc.config_from_design(
+        xl_file, config, reporter, sheet.strip(), rules
+    )
 
 
 def extract(
@@ -147,14 +167,19 @@ def extract(
     return extracting.excel_data(xl_file, mode, language, project, reporter)
 
 
-def validate(project_text: str, config_text: str, reporter: Reporter) -> ValidateResult:
+def validate(
+    project_text: str,
+    config_text: str,
+    reporter: Reporter,
+    rules: NamingRules | None = None,
+) -> ValidateResult:
     project = project_dir(project_text)
     if not config_text.strip():
-        return validating.validate(Path(), project, reporter)
+        return validating.validate(Path(), project, reporter, rules)
     config = resolve_config(project, config_text, "")
     if not config.is_file():
         raise exceptions.FileSystemError(f"Config file does not exist: {config}")
-    return validating.validate(config, config.parent, reporter)
+    return validating.validate(config, config.parent, reporter, rules)
 
 
 def issue(level: Level, text: str) -> Issue:

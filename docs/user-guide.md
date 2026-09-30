@@ -57,6 +57,8 @@ MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
 
 - **Intent**: by convention, parts are separated by periods (`.`). A `-` is not allowed in the name.
 - **Context**: by convention, parts are separated by dashes (`-`).
+
+These two rules are this project's naming convention, not a Dialogflow requirement, and can be changed with the `naming-rules` command (or the GUI's **? > Naming rules…**) if a project needs different standards; see [Commands and options](#commands-and-options).
 - **Language**: `en`, `es` or `fr`, or `dtmf` to add only the DTMF values as phrases. When an intent has several language rows, its `en` row supplies the shared intent definition and every row supplies that language's phrases. If it has no `en` row, an English row is generated in memory from the first row: its context, action, entities, DTMF and machine-learning value are reused, and phrases are read from the matching `Training Phrases/en/<action>.txt`. The config file itself is not changed. Two rows can also share the same intent **and** language on purpose, to swap in a different set of phrases without duplicating the intent; see [Special values](#special-values).
 - **Action**: the value returned by the intent; the phrases are read from `<action>.txt`.
 - **Entities** and **DTMF** can be empty, but their commas are still needed so the columns line up.
@@ -232,7 +234,7 @@ Start the GUI with `intentional.exe`, `uv run intentional`, or `uv run intention
 - **Project folder**: see [Project folder](#project-folder). The list offers recently used folders, and the last one opens at start-up. The version number is shown next to it.
 - **Tabs**: one per [task](#tasks). Leave a config box blank to use the standard file in the project folder.
 - **Edit config…** (on the build and Design doc tabs) opens the config file as a table. Rows can be added, edited (double-click), duplicated, deleted and reordered. **Check** runs the same checks as a build and colours the rows with errors or warnings. **Save** writes the file and keeps the previous version as `<name>.bak`.
-- **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
+- **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; **Naming rules…**, to change the intent/context naming convention (see [Commands and options](#commands-and-options)); and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
 
 Below the tabs, the results of the last job are shown:
 
@@ -260,6 +262,7 @@ Every command has `--help`, and `-q` / `--quiet` to show less output. Every task
 | `validate` | `--config <file>` |
 | `compare` | `-e` / `--export <zip or folder>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
 | `design` | `-f` / `--file <workbook>` (required), `-s` / `--sheet <name>`, `--config <file>` (default `intents.cfg`) |
+| `naming-rules` | `--set-intent-forbidden-chars <chars>`, `--set-context-discouraged-chars <chars>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\naming_rules.json` on Windows, `~/.config/intentional/naming_rules.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `gui` | `-p` / `--project <folder>` |
 
 `intentional-cli --version` (or `-v`) shows the version.

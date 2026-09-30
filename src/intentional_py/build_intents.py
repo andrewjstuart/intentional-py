@@ -24,6 +24,7 @@ def intents(
     base_dir: Path,
     reporter: Reporter,
     clean: bool = False,
+    rules: models.NamingRules | None = None,
 ) -> BuildResult:
     """Build the intents described in the config file, after the preflight checks in validate.py.
 
@@ -33,11 +34,15 @@ def intents(
         base_dir (Path): Project directory containing the training phrases and receiving the intents.
         reporter (Reporter): Receives messages and progress.
         clean (bool): Zip and remove everything in the intents folder before writing.
+        rules (NamingRules | None): intent/context naming rules; defaults to the
+            original hardcoded behavior when not given.
 
     Returns:
         BuildResult: counts, changes since the previous build, and output folder.
     """
-    files_to_write, result, t1_start = _generate(mode, config, base_dir, reporter)
+    files_to_write, result, t1_start = _generate(
+        mode, config, base_dir, reporter, rules
+    )
     output_dir = Path(base_dir, constants.DEFAULT_INTENTS_DIR)
 
     previous = (
@@ -77,10 +82,17 @@ def intents(
 
 
 def compare_build(
-    mode: str, config: Path, base_dir: Path, source: Path, reporter: Reporter
+    mode: str,
+    config: Path,
+    base_dir: Path,
+    source: Path,
+    reporter: Reporter,
+    rules: models.NamingRules | None = None,
 ) -> CompareResult:
     """Compare what the config would build with an agent export or intents folder; writes nothing."""
-    files_to_write, _result, t1_start = _generate(mode, config, base_dir, reporter)
+    files_to_write, _result, t1_start = _generate(
+        mode, config, base_dir, reporter, rules
+    )
     result = comparing.compare(
         _summarize(files_to_write), comparing.load(source), str(source)
     )
@@ -95,7 +107,11 @@ def _summarize(files_to_write: dict) -> dict:
 
 
 def _generate(
-    mode: str, config: Path, base_dir: Path, reporter: Reporter
+    mode: str,
+    config: Path,
+    base_dir: Path,
+    reporter: Reporter,
+    rules: models.NamingRules | None = None,
 ) -> tuple[dict, BuildResult, float]:
     """Check the config and create every intent's JSON in memory, keyed by output file."""
     # check if config file exists
@@ -110,7 +126,9 @@ def _generate(
     machine_learning_off: set = set()
 
     # Perform preflight validation on the config file to catch errors and warnings early
-    rows, fatal_errors, warnings = validating.preflight_config(config, base_dir, mode)
+    rows, fatal_errors, warnings = validating.preflight_config(
+        config, base_dir, mode, rules
+    )
     for warning in warnings:
         reporter.message("warning", f"[yellow]Warning:[/yellow] {warning}")
     if fatal_errors:
@@ -157,7 +175,7 @@ def _generate(
             temp_nomatch,
             temp_ml,
         ) = create_json(
-            models.ConfigRow.from_csv_row(row, row_number + 1),
+            models.ConfigRow.from_csv_row(row, row_number + 1, rules),
             mode,
             base_dir,
             reporter,
