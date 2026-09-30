@@ -262,12 +262,24 @@ def zip_directory(
             zippy.write(file_path, arcname=file_path.relative_to(directory_path))
 
 
+def safe_join(base: Path, name: str) -> Path:
+    """Join `name` onto `base`, rejecting a name that would escape `base` (e.g. via '..',
+    a path separator, or an absolute path). Defense in depth for names that come from
+    user-editable config values (intent, action) rather than code, alongside the
+    row-level checks in models.py that reject these before a build ever starts.
+    """
+    candidate = base / name
+    if not candidate.resolve().is_relative_to(base.resolve()):
+        raise exceptions.ConfigurationError(f"'{name}' is not a valid file name.")
+    return candidate
+
+
 def find_phrase_file(phrase_dir: Path, action: str) -> Path:
     """Return the phrase file for an action, falling back to the name without a trailing '^'."""
-    exact = Path(phrase_dir, f"{action}{constants.PHRASE_FILE_EXTENSION}")
+    exact = safe_join(phrase_dir, f"{action}{constants.PHRASE_FILE_EXTENSION}")
     if exact.exists() or not action.endswith("^"):
         return exact
-    stripped = Path(
+    stripped = safe_join(
         phrase_dir, f"{action.removesuffix('^')}{constants.PHRASE_FILE_EXTENSION}"
     )
     return stripped if stripped.exists() else exact

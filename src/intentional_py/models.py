@@ -111,6 +111,12 @@ class ConfigRow(BaseModel):
 
         if not intent_text:
             errors.append(f"Row {row_number}: intent name is required.")
+        elif "/" in intent_text or "\\" in intent_text:
+            # unconditional, not part of NamingRules: the intent name becomes a file name,
+            # so a path separator could write a file outside the intents folder
+            errors.append(
+                f"Row {row_number}: intent name '{intent_text}' cannot contain '/' or '\\'."
+            )
         else:
             found = sorted(
                 {c for c in rules.intent_forbidden_chars if c in intent_text}
@@ -135,6 +141,12 @@ class ConfigRow(BaseModel):
 
         if not action_text:
             errors.append(f"Row {row_number}: action is required.")
+        elif "/" in action_text or "\\" in action_text:
+            # unconditional: the action is used to find a phrase file, so a path separator
+            # could read a file outside the Training Phrases folder
+            errors.append(
+                f"Row {row_number}: action '{action_text}' cannot contain '/' or '\\'."
+            )
 
         language = language_text.lower()
         if language not in constants.VALID_LANGUAGES | {"dtmf"}:

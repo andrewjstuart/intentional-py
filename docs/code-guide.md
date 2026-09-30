@@ -74,7 +74,7 @@ All the source is in `src/intentional_py`.
 | [reporting.py](../src/intentional_py/reporting.py) | The link between the core and the front ends. `Reporter` lists what the core may ask a front end to do (show a message or table, track progress, ask a yes/no question). The result classes (`BuildResult`, `ValidateResult`, …) are what each task returns. |
 | [report.py](../src/intentional_py/report.py) | Writes a completed result, its issues and detail tables as a Markdown or CSV report. Both front ends call the same formatter. |
 | [user_settings.py](../src/intentional_py/user_settings.py) | Loads and saves `NamingRules` in the user's profile (`naming_rules.json`), shared by the CLI and the GUI. Unlike `gui/settings.py` (GUI-only convenience preferences), this is read by core functions' callers on both front ends, so a saved override applies everywhere. |
-| [utils.py](../src/intentional_py/utils.py) | Small helpers used by several files: reading the priority from an intent name, splitting entity tags out of phrases, entity aliases, zipping folders, finding duplicate phrases, and `file_errors()`, which turns file problems into readable errors. |
+| [utils.py](../src/intentional_py/utils.py) | Small helpers used by several files: reading the priority from an intent name, splitting entity tags out of phrases, entity aliases, zipping folders, finding duplicate phrases, `safe_join()` (rejects a config-supplied name that would write or read outside the intended folder), and `file_errors()`, which turns file problems into readable errors. |
 
 ### Command line
 

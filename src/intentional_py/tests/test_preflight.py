@@ -33,6 +33,19 @@ def test_preflight_rejects_malformed_rows_before_build(tmp_path: Path) -> None:
     assert fatal_errors == ["Row 1: expected 6 or 7 values, found 3."]
 
 
+def test_preflight_rejects_a_path_traversal_intent_name(tmp_path: Path) -> None:
+    # the intent name becomes a file name; this is a safety rule, not a relaxable
+    # naming convention, so it's caught here before a build ever writes a file
+    config = tmp_path / "intents.cfg"
+    write_config(config, ["../../evil", "GetIntent", "en", "welcome", "", "", ""])
+
+    _, fatal_errors, _ = validate.preflight_config(config, tmp_path, "DD")
+
+    assert fatal_errors == [
+        "Row 1: intent name '../../evil' cannot contain '/' or '\\'."
+    ]
+
+
 def test_machine_learning_column_is_optional(tmp_path: Path) -> None:
     config = tmp_path / "intents.cfg"
     # no ML column, a blank one, and an explicit FALSE

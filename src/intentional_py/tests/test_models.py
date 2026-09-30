@@ -136,6 +136,28 @@ def test_custom_naming_rules_can_add_a_different_forbidden_character() -> None:
     assert allowed.ok
 
 
+def test_intent_path_separator_is_an_error_even_with_relaxed_rules() -> None:
+    # unconditional: the intent name becomes a file name, so this can't be relaxed via
+    # NamingRules the way the '-' convention can (a real safety rule, not a team convention)
+    rules = models.NamingRules(intent_forbidden_chars="")
+    row = models.ConfigRow.from_csv_row(
+        ["../../evil", "Ctx", "en", "pay", "", "", ""], row_number=1, rules=rules
+    )
+
+    assert row.errors == ["Row 1: intent name '../../evil' cannot contain '/' or '\\'."]
+
+
+def test_action_with_a_path_separator_is_an_error() -> None:
+    # unconditional: the action is used to find a phrase file
+    row = models.ConfigRow.from_csv_row(
+        ["A.Pay", "Ctx", "en", "../../etc/passwd", "", "", ""], row_number=1
+    )
+
+    assert row.errors == [
+        "Row 1: action '../../etc/passwd' cannot contain '/' or '\\'."
+    ]
+
+
 def test_dtmf_row_without_a_value_is_an_error() -> None:
     row = models.ConfigRow.from_csv_row(
         ["A.Menu", "Ctx", "dtmf", "menu", "", "", ""], row_number=1
