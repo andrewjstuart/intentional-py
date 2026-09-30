@@ -1,7 +1,9 @@
 """GUI actions that do not depend on the widget toolkit.
 
 Each action checks the form values, calls the core module, and returns its
-result. The helpers at the bottom turn results into tiles, issues and tables.
+result. The helpers at the bottom turn results into tiles, issues and tables,
+sharing the result-interpretation logic in result_views.py with report.py so
+the GUI and the CLI report can't drift apart.
 """
 
 import os
@@ -13,7 +15,13 @@ from pathlib import Path
 from rich.errors import MarkupError
 from rich.text import Text
 
-from intentional_py import build_intents, constants, design_doc, exceptions
+from intentional_py import (
+    build_intents,
+    constants,
+    design_doc,
+    exceptions,
+    result_views,
+)
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
 from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
@@ -26,10 +34,7 @@ from intentional_py.reporting import (
     Reporter,
     ValidateResult,
 )
-
-Result = BuildResult | ExtractResult | ValidateResult | CompareResult | DesignResult
-Issue = tuple[Level, str, str]  # level, config row (or ""), message
-Table = tuple[str, list[str], list[list[str]]]  # title, columns, rows
+from intentional_py.result_views import Issue, Result, Table
 
 
 def plain_text(text: str) -> str:
@@ -204,55 +209,15 @@ def issue(level: Level, text: str) -> Issue:
     return (level, match[1], match[2]) if match else (level, "", text)
 
 
-def _checks(result: ValidateResult) -> list:
-    return result.directories + result.config_files + result.configs
-
-
 def tiles(result: Result) -> list[tuple[str, str]]:
     """Headline figures as (label, value)."""
-    if isinstance(result, BuildResult):
-        figures = [
-            ("Intents", str(result.intents)),
-            ("Phrases", str(result.phrases)),
-            ("Entities", str(result.entities)),
-            ("Files", str(result.files)),
-            ("Languages", ", ".join(result.languages) or "-"),
-        ]
-        if result.nomatch:
-            figures.append(("NoMatch", str(result.nomatch)))
-        return figures
-    if isinstance(result, ExtractResult):
-        return [
-            ("Files", str(result.files)),
-            ("Phrases", str(result.phrases)),
-            ("Empty sheets", str(len(result.empty_sheets))),
-        ]
-    if isinstance(result, CompareResult):
-        return [
-            ("Added", str(len(result.added))),
-            ("Changed", str(len(result.changed))),
-            ("Unchanged", str(result.unchanged)),
-            ("Only in export", str(len(result.removed))),
-        ]
-    if isinstance(result, DesignResult):
-        return [
-            ("Rows", str(result.rows)),
-            ("Errors", str(len(result.errors))),
-            ("Warnings", str(len(result.warnings))),
-        ]
-    checks = _checks(result)
-    failed = sum(not check.ok for check in checks)
-    return [
-        ("Checks", str(len(checks))),
-        ("Passed", str(len(checks) - failed)),
-        ("Failed", str(failed)),
-    ]
+    return result_views.summary_tiles(result)
 
 
 def headline(title: str, result: Result, warnings: int) -> tuple[bool, str]:
     """Whether the job fully succeeded, and a one-line description of it."""
     if isinstance(result, ValidateResult):
-        checks = _checks(result)
+        checks = result_views.checks(result)
         passed = sum(check.ok for check in checks)
         return passed == len(
             checks
@@ -278,45 +243,20 @@ def result_issues(result: Result) -> list[Issue]:
             for check in result.configs
             for detail in check.details
         ]
-    if isinstance(result, ExtractResult):
-        return [
-            (
-                "warning",
-                "",
-                f"Sheet {name} has no phrases; an empty text file was created.",
-            )
-            for name in result.empty_sheets
-        ]
     if isinstance(result, DesignResult):
         return [issue("error", e) for e in result.errors] + [
             issue("warning", w) for w in result.warnings
         ]
-    if (
-        isinstance(result, BuildResult)
-        and result.changes
-        and result.changes.removed
-        and not result.backup
-    ):
-        names = ", ".join(result.changes.removed)
-        return [
-            (
-                "warning",
-                "",
-                (
-                    f"No longer built, but still in the intents folder: {names}. "
-                    "Tick 'Clear the intents folder first' to remove them."
-                ),
-            )
-        ]
-    return []
-
-
-def _change_rows(result: CompareResult) -> list[list[str]]:
-    rows = [["Added", name, ""] for name in result.added]
-    rows += [
-        ["Changed", change.name, "; ".join(change.details)] for change in result.changed
-    ]
-    return rows
+    return result_views.result_issues(
+        result,
+        build_removed_message=(
+            "No longer built, but still in the intents folder: {names}. "
+            "Tick 'Clear the intents folder first' to remove them."
+        ),
+        extract_empty_sheet_message=(
+            "Sheet {name} has no phrases; an empty text file was created."
+        ),
+    )
 
 
 def detail_tables(result: Result) -> list[Table]:
@@ -327,7 +267,7 @@ def detail_tables(result: Result) -> list[Table]:
                 (
                     "Changes since the previous build",
                     ["Change", "Intent", "Details"],
-                    _change_rows(result.changes),
+                    result_views.change_rows(result.changes),
                 )
             )
         if result.backup:
@@ -354,7 +294,7 @@ def detail_tables(result: Result) -> list[Table]:
                 (
                     "Differences from the export",
                     ["Change", "Intent", "Details"],
-                    _change_rows(result),
+                    result_views.change_rows(result),
                 )
             )
         if result.removed:
@@ -381,7 +321,9 @@ def detail_tables(result: Result) -> list[Table]:
                 ("Empty sheets", ["Sheet"], [[n] for n in result.empty_sheets])
             )
         return tables
-    rows = [["✔" if check.ok else "✖", check.label] for check in _checks(result)]
+    rows = [
+        ["✔" if check.ok else "✖", check.label] for check in result_views.checks(result)
+    ]
     title = (
         "Checks (standard config files)" if result.used_standard_configs else "Checks"
     )
@@ -389,11 +331,7 @@ def detail_tables(result: Result) -> list[Table]:
 
 
 def output_folder(result: Result) -> Path | None:
-    if isinstance(result, ValidateResult | CompareResult):
-        return None
-    if isinstance(result, DesignResult):
-        return result.config.parent
-    return result.output_dir
+    return result_views.output_folder(result)
 
 
 def open_folder(path: Path) -> None:
