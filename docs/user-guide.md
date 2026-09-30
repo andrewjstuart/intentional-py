@@ -82,7 +82,7 @@ These two rules are this project's naming convention, not a Dialogflow requireme
 
 ### Special values
 
-1. **Several contexts or DTMF values**: separate them with a pipe (`|`).
+1. **Several contexts or DTMF values**: separate them with a pipe (`|`). A DTMF value must be a single digit `0`-`9`, `#` or `*`; anything else is an error.
 2. **Entity alias**: Dialogflow uses the entity name as the parameter name by default. Some clients use a different name, set in brackets: `digits4[last_4]` assigns the `digits4` entity to the `last_4` parameter.
 3. **Several entities**: separate them with a pipe (`|`). A star (`*`) marks a required entity: `digits4*|digits9-10|sys.phone-number|sys.unit-currency|sys.date`.
 4. **Priority**: add it in curly brackets after the intent name, e.g. `GLB.Reuse.No{high}` or `GLB.Reuse.Yes{1}`.

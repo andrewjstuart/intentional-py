@@ -150,9 +150,9 @@ class ConfigRow(BaseModel):
         dtmf = [part for part in dtmf_text.split("|") if part]
         invalid_dtmf = set(dtmf) - constants.VALID_DTMF_VALUES
         if invalid_dtmf:
-            warnings.append(
-                f"Row {row_number}: invalid DTMF values {sorted(invalid_dtmf)} "
-                "will be retained for compatibility."
+            errors.append(
+                f"Row {row_number}: invalid DTMF values {sorted(invalid_dtmf)}; "
+                "must be 0-9, '#' or '*'."
             )
 
         if not ml_text:
