@@ -59,6 +59,8 @@ Intent Creation/
 └── intents.cfg           one intent per line
 ```
 
+These names are Intentional's own convention, not a Dialogflow requirement, and can be changed (see [Project folder](docs/user-guide.md#project-folder)).
+
 **GUI**: start `intentional.exe`, choose the **Project folder**, and on the **Build DD** tab select **Build DD intents**. The results show below the tabs, and **Open folder** opens the `intents` folder.
 
 **CLI**: from the project folder, run:

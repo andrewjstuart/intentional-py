@@ -111,7 +111,8 @@ The tests are in `src/intentional_py/tests` and run with `uv run pytest`. Each `
 | [test_version.py](../src/intentional_py/tests/test_version.py) | `--version`, and that the version in `__init__.py` matches `pyproject.toml`. |
 | [test_validate.py](../src/intentional_py/tests/test_validate.py), [test_extract.py](../src/intentional_py/tests/test_extract.py), [test_dd.py](../src/intentional_py/tests/test_dd.py), [test_nl.py](../src/intentional_py/tests/test_nl.py) | The CLI commands end to end, using the sample project in `tests/data`. |
 | [test_preflight.py](../src/intentional_py/tests/test_preflight.py) | The config rules in `validate.py`: defaults, malformed rows, the optional ML column. |
-| [test_models.py](../src/intentional_py/tests/test_models.py) | `ConfigRow`'s per-row rules directly: required fields, language, DTMF, machine learning, and the fatal-error/warning split. |
+| [test_models.py](../src/intentional_py/tests/test_models.py) | `ConfigRow`'s per-row rules directly: required fields, language, DTMF, machine learning, the fatal-error/warning split, the unconditional path-traversal rejection, and `NamingRules`/`ProjectLayout`/`NlDefaults` defaults and overrides. |
+| [test_utils.py](../src/intentional_py/tests/test_utils.py) | `utils.timestamp()`'s format, and `safe_join()`/`find_phrase_file()` rejecting path traversal and absolute paths. |
 | [test_user_settings.py](../src/intentional_py/tests/test_user_settings.py), [test_naming_rules_cli.py](../src/intentional_py/tests/test_naming_rules_cli.py), [test_project_layout_cli.py](../src/intentional_py/tests/test_project_layout_cli.py), [test_nl_defaults_cli.py](../src/intentional_py/tests/test_nl_defaults_cli.py) | `NamingRules`, `ProjectLayout` and `NlDefaults` load/save (missing or damaged file, round trip), and the `naming-rules` / `project-layout` / `nl-defaults` CLI commands. |
 | [test_core_api.py](../src/intentional_py/tests/test_core_api.py) | The core functions called directly, with a fake reporter: NL config, extraction backups, file errors. |
 | [test_features.py](../src/intentional_py/tests/test_features.py) | The 1.1 features: phrase checks, clean, compare, the design document, synthesized English rows, settings and updates. |
@@ -132,6 +133,7 @@ These are in the repository's top folder.
 | `version_info.py` | Creates the version details shown in the executables' Windows file properties. |
 | `.github/workflows/` | The GitHub Actions workflows that test every change and build releases (see [development](development.md#releases-and-automated-builds)). |
 | `.github/dependabot.yml` | Tells Dependabot to suggest dependency updates weekly. |
+| `.github/instructions/commit-style.md` | The commit message format (Conventional Commits + gitmoji), wired into VS Code's Generate Commit Message via `.vscode/settings.json`. |
 | `README.md`, `docs/` | The project overview, user guide, code guide, development guide, and future plans. Published version history is kept in GitHub Releases. |
 
 ## Following one build through the code
