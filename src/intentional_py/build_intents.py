@@ -24,6 +24,7 @@ def intents(
     reporter: Reporter,
     clean: bool = False,
     rules: models.NamingRules | None = None,
+    layout: models.ProjectLayout | None = None,
 ) -> BuildResult:
     """Build the intents described in the config file, after the preflight checks in validate.py.
 
@@ -35,14 +36,17 @@ def intents(
         clean (bool): Zip and remove everything in the intents folder before writing.
         rules (NamingRules | None): intent/context naming rules; defaults to the
             original hardcoded behavior when not given.
+        layout (ProjectLayout | None): project folder/file names; defaults to the
+            original hardcoded layout when not given.
 
     Returns:
         BuildResult: counts, changes since the previous build, and output folder.
     """
+    layout = layout or models.ProjectLayout()
     files_to_write, result, t1_start = _generate(
-        mode, config, base_dir, reporter, rules
+        mode, config, base_dir, reporter, rules, layout
     )
-    output_dir = Path(base_dir, constants.DEFAULT_INTENTS_DIR)
+    output_dir = Path(base_dir, layout.intents_dir)
 
     previous = (
         [path for path in output_dir.glob("*") if path.is_file()]
@@ -62,7 +66,7 @@ def intents(
             )
     if clean and previous:
         stamp = utils.timestamp()
-        result.backup = Path(base_dir, f"{constants.DEFAULT_INTENTS_DIR}_{stamp}.zip")
+        result.backup = Path(base_dir, f"{layout.intents_dir}_{stamp}.zip")
         with utils.file_errors(result.backup):
             utils.zip_directory(output_dir, result.backup, previous)
             for path in previous:
@@ -85,10 +89,11 @@ def compare_build(
     source: Path,
     reporter: Reporter,
     rules: models.NamingRules | None = None,
+    layout: models.ProjectLayout | None = None,
 ) -> CompareResult:
     """Compare what the config would build with an agent export or intents folder; writes nothing."""
     files_to_write, _result, t1_start = _generate(
-        mode, config, base_dir, reporter, rules
+        mode, config, base_dir, reporter, rules, layout
     )
     result = comparing.compare(
         _summarize(files_to_write), comparing.load(source), str(source)
@@ -109,8 +114,10 @@ def _generate(
     base_dir: Path,
     reporter: Reporter,
     rules: models.NamingRules | None = None,
+    layout: models.ProjectLayout | None = None,
 ) -> tuple[dict, BuildResult, float]:
     """Check the config and create every intent's JSON in memory, keyed by output file."""
+    layout = layout or models.ProjectLayout()
     # check if config file exists
     if not Path(config).exists():
         raise exceptions.FileSystemError(
@@ -124,7 +131,7 @@ def _generate(
 
     # Perform preflight validation on the config file to catch errors and warnings early
     rows, fatal_errors, warnings = validating.preflight_config(
-        config, base_dir, mode, rules
+        config, base_dir, mode, rules, layout
     )
     for warning in warnings:
         reporter.message("warning", f"[yellow]Warning:[/yellow] {warning}")
@@ -177,6 +184,7 @@ def _generate(
             base_dir,
             reporter,
             write_intent,
+            layout,
         )
 
         # a duplicate (intent, language) row's phrases replace the earlier row's phrases
@@ -205,6 +213,7 @@ def create_json(
     default_path: Path,
     reporter: Reporter,
     write_intent: bool = True,
+    layout: models.ProjectLayout | None = None,
 ) -> tuple[dict, int, int, int, str, int, str]:
     """Create the JSON for one config row, which must already have passed preflight_config.
 
@@ -214,6 +223,8 @@ def create_json(
         default_path (Path): project directory containing the training phrases and receiving the intents
         reporter (Reporter): Receives messages.
         write_intent (bool): Whether this row owns the shared intent definition file.
+        layout (ProjectLayout | None): project folder/file names; defaults to the
+            original hardcoded layout when not given.
 
     Returns:
         tuple[dict, int, int, int, str, int, str]
@@ -226,6 +237,7 @@ def create_json(
             str: name of the intent if machine learning is off, otherwise empty
 
     """
+    layout = layout or models.ProjectLayout()
     df_intent = row.intent
     priority = row.priority
 
@@ -258,7 +270,7 @@ def create_json(
     dtmf_list: list = row.dtmf
 
     # set output file paths; the folder is created when the files are written
-    output_file_path: Path = Path(default_path, constants.DEFAULT_INTENTS_DIR)
+    output_file_path: Path = Path(default_path, layout.intents_dir)
 
     # safe_join rejects an intent name that would write outside output_file_path (e.g. '../');
     # models.ConfigRow already rejects a '/' or '\' in the name before this ever runs
@@ -357,11 +369,11 @@ def create_json(
         files_to_write[output_file] = intent_data
 
     # set phrase file path
-    phrase_file_path: Path = Path(
-        default_path, constants.DEFAULT_TRAINING_PHRASES_DIR, language
-    )
+    phrase_file_path: Path = Path(default_path, layout.training_phrases_dir, language)
     phrase_file_path = (
-        Path(phrase_file_path, "NL") if mode == "NL" else phrase_file_path
+        Path(phrase_file_path, layout.nl_subfolder)
+        if mode == "NL"
+        else phrase_file_path
     )
 
     if not phrase_file_path.exists():
@@ -476,7 +488,12 @@ def create_json(
 
 
 def nl_config(
-    config: Path, vertical: str, context: str, lowercase: bool, reporter: Reporter
+    config: Path,
+    vertical: str,
+    context: str,
+    lowercase: bool,
+    reporter: Reporter,
+    layout: models.ProjectLayout | None = None,
 ) -> None:
     """Builds a config file for NL intent creation. It creates the file by reading the existing NL directories
     looking for text file corresponding the to intent names. These files contain training phrases for the
@@ -488,7 +505,10 @@ def nl_config(
         context (str): context used to reference all the intents at the same time
         lowercase (bool): flag to adjust the action to be lowercase and is only used by specific clients
         reporter (Reporter): Receives messages and answers the duplicate phrase prompt.
+        layout (ProjectLayout | None): project folder/file names; defaults to the
+            original hardcoded layout when not given.
     """
+    layout = layout or models.ProjectLayout()
     # the training phrases are read from the config file's folder
     (config_file_path, config_file_name, _temp_file_extension) = utils.check_for_path(
         config
@@ -506,9 +526,7 @@ def nl_config(
         table_row.append(f"[cyan]{lowercase}[/cyan]")
 
     # set phrase file path
-    phrase_file_path: Path = Path(
-        config_file_path, constants.DEFAULT_TRAINING_PHRASES_DIR
-    )
+    phrase_file_path: Path = Path(config_file_path, layout.training_phrases_dir)
     if not phrase_file_path.exists():
         raise exceptions.FileSystemError(
             f"[red]Phrase file path [blue]{phrase_file_path}[/blue] does not exist![/red]"
@@ -517,7 +535,7 @@ def nl_config(
     # determine languages available by the files available, and then which are used by the having text files
     languages_used: set = set()
     for lang in phrase_file_path.iterdir():
-        lang_path: Path = Path(lang, "NL")
+        lang_path: Path = Path(lang, layout.nl_subfolder)
         if lang_path.exists():
             filenames: list = [
                 item.name for item in lang_path.iterdir() if item.is_file()
@@ -533,7 +551,7 @@ def nl_config(
 
     # build the intent file
     for lang in sorted(languages_used):
-        lang_path: Path = Path(lang, "NL")
+        lang_path: Path = Path(lang, layout.nl_subfolder)
         lang = Path(lang.stem)
         files_to_add: list = []
         entity_dict: dict = {}
@@ -608,7 +626,7 @@ def nl_config(
 
     # check for duplicate phrases in the training phrases
     for lang in sorted(languages_used):
-        lang_path: Path = Path(lang, "NL")
+        lang_path: Path = Path(lang, layout.nl_subfolder)
         lang = Path(lang.stem)
         duplicates, phrases_to_review = utils.check_for_duplicate_phrases(lang_path)
         if phrases_to_review:

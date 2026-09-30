@@ -22,6 +22,9 @@ Project folder layout:
    intents.cfg                 DD config
    intents_nl.cfg              NL config (created by Build NL)
    intents\\                    output for Dialogflow
+
+These are this project's own convention, not a Dialogflow requirement, and can be
+changed with ? > Project layout… if a project needs different folder or file names.
 """,
     "Build DD": """\
 Builds directed dialog intents from a config file.

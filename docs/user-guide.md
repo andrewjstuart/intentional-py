@@ -39,6 +39,8 @@ Intent Creation/
 
 In the GUI, choose this folder as the **Project folder**. On the CLI, either run the command from this folder or pass `--config` with the path of a config file in it: the config file's folder is used for `Training Phrases` and `intents`.
 
+These folder and file names are this project's own convention, not a Dialogflow requirement, and can be changed with the `project-layout` command (or the GUI's **? > Project layout…**) if a project needs different names; see [Commands and options](#commands-and-options). Once changed, the new names apply to every project, on the CLI and the GUI, until changed again.
+
 ## Config files
 
 A config file has one intent per line, with comma-separated values. `intents.cfg` is written by hand, from the design document, or with the GUI's config editor. `intents_nl.cfg` is created by the NL build from the NL phrase files. Both use the same format, and a different file can be used with `--config` (or the config box in the GUI).
@@ -233,7 +235,7 @@ Start the GUI with `intentional.exe`, `uv run intentional`, or `uv run intention
 - **Project folder**: see [Project folder](#project-folder). The list offers recently used folders, and the last one opens at start-up. The version number is shown next to it.
 - **Tabs**: one per [task](#tasks). Leave a config box blank to use the standard file in the project folder.
 - **Edit config…** (on the build and Design doc tabs) opens the config file as a table. Rows can be added, edited (double-click), duplicated, deleted and reordered. **Check** runs the same checks as a build and colours the rows with errors or warnings. **Save** writes the file and keeps the previous version as `<name>.bak`.
-- **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; **Naming rules…**, to change the intent/context naming convention (see [Commands and options](#commands-and-options)); and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
+- **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; **Naming rules…**, to change the intent/context naming convention; **Project layout…**, to change the project folder/file names (see [Commands and options](#commands-and-options)); and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
 
 Below the tabs, the results of the last job are shown:
 
@@ -262,6 +264,7 @@ Every command has `--help`, and `-q` / `--quiet` to show less output. Every task
 | `compare` | `-e` / `--export <zip or folder>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
 | `design` | `-f` / `--file <workbook>` (required), `-s` / `--sheet <name>`, `--config <file>` (default `intents.cfg`) |
 | `naming-rules` | `--set-intent-forbidden-chars <chars>`, `--set-context-discouraged-chars <chars>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\naming_rules.json` on Windows, `~/.config/intentional/naming_rules.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
+| `project-layout` | `--set-training-phrases-dir <name>`, `--set-intents-dir <name>`, `--set-nl-subfolder <name>`, `--set-dd-config <file>`, `--set-nl-config <file>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\project_layout.json` on Windows, `~/.config/intentional/project_layout.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `gui` | `-p` / `--project <folder>` |
 
 `intentional-cli --version` (or `-v`) shows the version.

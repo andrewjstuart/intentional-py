@@ -30,7 +30,7 @@ from intentional_py.gui.widgets import (
     style_tables,
 )
 from intentional_py.gui.worker import GuiReporter, JobRunner
-from intentional_py.models import NamingRules
+from intentional_py.models import NamingRules, ProjectLayout
 from intentional_py.reporting import Level
 
 POLL_MS = 100
@@ -222,6 +222,95 @@ class NamingRulesDialog(ctk.CTkToplevel):
         self.withdraw()
 
 
+class ProjectLayoutDialog(ctk.CTkToplevel):
+    """Edits the user's saved project folder/file names; created once and reused.
+
+    These are not Dialogflow requirements, just this project's folder/file naming
+    convention (see models.ProjectLayout); a user can use their own organization
+    instead. Saved to the user's profile (user_settings.py), so it applies to
+    every project until changed again, on both the CLI and the GUI.
+    """
+
+    FIELDS = (
+        ("training_phrases_dir", "Training phrases folder"),
+        ("intents_dir", "Intents output folder"),
+        ("nl_subfolder", "NL phrases subfolder"),
+        ("dd_config", "Directed dialog config file"),
+        ("nl_config", "Natural language config file"),
+    )
+
+    def __init__(self, master: ctk.CTk) -> None:
+        super().__init__(master)
+        self.withdraw()
+        self.title("Project layout")
+        self.resizable(False, False)
+        self.transient(master)
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.grid_columnconfigure(1, weight=1)
+        self.entries: dict[str, ctk.CTkEntry] = {}
+        for row, (field, label) in enumerate(self.FIELDS):
+            ctk.CTkLabel(self, text=label, anchor="w").grid(
+                row=row * 2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0)
+            )
+            entry = ctk.CTkEntry(self, width=220)
+            entry.grid(row=row * 2 + 1, column=0, columnspan=2, sticky="w", padx=10)
+            self.entries[field] = entry
+        note_row = len(self.FIELDS) * 2
+        ctk.CTkLabel(
+            self,
+            text="Applies to every project, on the CLI and the GUI, until changed again.",
+            text_color="gray",
+        ).grid(row=note_row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        buttons = ctk.CTkFrame(self, fg_color="transparent")
+        buttons.grid(row=note_row + 1, column=0, columnspan=2, sticky="e", **PAD)
+        ctk.CTkButton(
+            buttons,
+            text="Reset to defaults",
+            width=120,
+            fg_color="gray",
+            command=self._reset,
+        ).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkButton(
+            buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel
+        ).grid(row=0, column=1, padx=(0, 8))
+        ctk.CTkButton(buttons, text="Save", width=90, command=self._save).grid(
+            row=0, column=2
+        )
+        self.bind("<Return>", lambda _event: self._save())
+        self.bind("<Escape>", lambda _event: self._cancel())
+
+    def show(self) -> None:
+        layout = user_settings.load_project_layout()
+        self._fill(layout)
+        self.deiconify()
+        self.after(100, self.lift)
+        self.grab_set()
+        self.entries[self.FIELDS[0][0]].focus_set()
+
+    def _fill(self, layout: ProjectLayout) -> None:
+        for field, _label in self.FIELDS:
+            entry = self.entries[field]
+            entry.delete(0, "end")
+            entry.insert(0, getattr(layout, field))
+
+    def _reset(self) -> None:
+        self._fill(ProjectLayout())
+
+    def _save(self) -> None:
+        layout = ProjectLayout(
+            **{field: self.entries[field].get() for field, _label in self.FIELDS}
+        )
+        user_settings.save_project_layout(layout)
+        self._close()
+
+    def _cancel(self) -> None:
+        self._close()
+
+    def _close(self) -> None:
+        self.grab_release()
+        self.withdraw()
+
+
 class App(ctk.CTk):
     def __init__(self, project: Path | None = None) -> None:
         super().__init__()
@@ -244,6 +333,7 @@ class App(ctk.CTk):
         self.editor: ConfigEditor | None = None
         self.confirmation_dialog = ConfirmationDialog(self)
         self.naming_rules_dialog = NamingRulesDialog(self)
+        self.project_layout_dialog = ProjectLayoutDialog(self)
         self.settings = settings.load()
         self.clean_var = tk.BooleanVar(self, value=bool(self.settings["clean"]))
         self.check_updates_var = tk.BooleanVar(
@@ -310,6 +400,9 @@ class App(ctk.CTk):
         self.help_menu.add_separator()
         self.help_menu.add_command(
             label="Naming rules…", command=self.naming_rules_dialog.show
+        )
+        self.help_menu.add_command(
+            label="Project layout…", command=self.project_layout_dialog.show
         )
         self.help_menu.add_command(label="About Intentional", command=self._show_about)
         help_button = ctk.CTkButton(
@@ -785,9 +878,10 @@ class App(ctk.CTk):
             self.clean_var.get(),
         )
         rules = user_settings.load_naming_rules()
+        layout = user_settings.load_project_layout()
         self._start(
             "Build DD intents",
-            lambda r: actions.build_dd(project, config, r, clean, rules),
+            lambda r: actions.build_dd(project, config, r, clean, rules, layout),
         )
 
     def _run_nl(self) -> None:
@@ -801,8 +895,10 @@ class App(ctk.CTk):
         )
         clean = self.clean_var.get()
         rules = user_settings.load_naming_rules()
+        layout = user_settings.load_project_layout()
         self._start(
-            "Build NL intents", lambda r: actions.build_nl(*values, r, clean, rules)
+            "Build NL intents",
+            lambda r: actions.build_nl(*values, r, clean, rules, layout),
         )
 
     def _run_extract(self) -> None:
@@ -812,12 +908,16 @@ class App(ctk.CTk):
             self.xl_mode.get(),
             self.xl_language.get(),
         )
-        self._start("Extract phrases", lambda r: actions.extract(*values, r))
+        layout = user_settings.load_project_layout()
+        self._start("Extract phrases", lambda r: actions.extract(*values, r, layout))
 
     def _run_validate(self) -> None:
         project, config = self.project_entry.get(), self.val_config.get()
         rules = user_settings.load_naming_rules()
-        self._start("Validate", lambda r: actions.validate(project, config, r, rules))
+        layout = user_settings.load_project_layout()
+        self._start(
+            "Validate", lambda r: actions.validate(project, config, r, rules, layout)
+        )
 
     def _run_compare(self) -> None:
         values = (
@@ -827,7 +927,8 @@ class App(ctk.CTk):
             self.export_entry.get(),
         )
         rules = user_settings.load_naming_rules()
-        self._start("Compare", lambda r: actions.compare(*values, r, rules))
+        layout = user_settings.load_project_layout()
+        self._start("Compare", lambda r: actions.compare(*values, r, rules, layout))
 
     def _run_design(self) -> None:
         values = (
@@ -837,9 +938,10 @@ class App(ctk.CTk):
             self.design_config.get(),
         )
         rules = user_settings.load_naming_rules()
+        layout = user_settings.load_project_layout()
         self._start(
             "Create config from design document",
-            lambda r: actions.design(*values, r, rules),
+            lambda r: actions.design(*values, r, rules, layout),
         )
 
     def _start(self, title: str, job: Callable[[GuiReporter], actions.Result]) -> None:

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from intentional_py import validate
+from intentional_py.models import ProjectLayout
 
 # Rich wraps at 80 columns when not attached to a terminal, which splits asserted messages.
 os.environ["COLUMNS"] = "200"
@@ -53,13 +54,19 @@ def write_config(path: Path, row: list[str]) -> None:
         csv.writer(config_file).writerow(row)
 
 
-def dd_project(base: Path, rows: list[str], phrases: dict[str, str]) -> Path:
+def dd_project(
+    base: Path,
+    rows: list[str],
+    phrases: dict[str, str],
+    layout: ProjectLayout | None = None,
+) -> Path:
     """A DD project: intents.cfg with the given raw rows, and one phrase file per entry."""
-    phrase_dir = base / "Training Phrases" / "en"
+    layout = layout or ProjectLayout()
+    phrase_dir = base / layout.training_phrases_dir / "en"
     phrase_dir.mkdir(parents=True, exist_ok=True)
     for name, text in phrases.items():
         (phrase_dir / f"{name}.txt").write_text(text, encoding="utf-8")
-    config = base / "intents.cfg"
+    config = base / layout.dd_config
     config.write_text("".join(f"{row}\n" for row in rows), encoding="utf-8")
     return config
 
