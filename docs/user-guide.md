@@ -150,7 +150,7 @@ Reads `intents.cfg` (or the chosen config) and writes the intent JSON files to t
 Creates `intents_nl.cfg` from the phrase files in `Training Phrases/<language>/NL`, then builds the intents the same way as DD.
 
 - **Vertical** (`-v`): the prefix for the intent names, e.g. `FIN` gives `FIN.PayBill`. Asked for if missing.
-- **Context** (`-c`): the context for every NL intent (default `GetIntent`).
+- **Context** (`-c`): the context for every NL intent. Defaults to the saved `nl-defaults` context (`GetIntent` unless changed).
 - **Lowercase actions** (`-lc`): also writes each action in lowercase, for clients that coded the NL actions that way.
 - **Reuse existing config** (`--reuse`): builds from the existing `intents_nl.cfg` instead of creating it again.
 
@@ -233,8 +233,8 @@ intentional-cli.exe compare --export agent.zip --report billing-changes.md
 Start the GUI with `intentional.exe`, `uv run intentional`, or `uv run intentional-cli gui` (optionally with `--project <folder>`). The GUI doesn't take command-line options; if `intentional` or `intentional.exe` is started with any, it opens normally and shows a reminder to use `intentional-cli` instead.
 
 - **Project folder**: see [Project folder](#project-folder). The list offers recently used folders, and the last one opens at start-up. The version number is shown next to it.
-- **Tabs**: one per [task](#tasks), plus a **Settings** tab for the naming rules and project layout (see below); these apply to every project, not just the current one, so they are kept separate from the per-project tasks. Leave a config box blank to use the standard file in the project folder.
-- **Settings** tab: the saved naming rules and project layout, editable directly (mirrors the `naming-rules` and `project-layout` CLI commands). **Reset to defaults** only changes the form; **Save settings** is what actually saves both sections. Reopening the tab reloads the currently saved values, in case they were changed elsewhere (e.g. the CLI) since it was last open.
+- **Tabs**: one per [task](#tasks), plus a **Settings** tab for the naming rules, project layout and NL defaults (see below); these apply to every project, not just the current one, so they are kept separate from the per-project tasks. Leave a config box blank to use the standard file in the project folder.
+- **Settings** tab: the saved naming rules, project layout and NL defaults, editable directly (mirrors the `naming-rules`, `project-layout` and `nl-defaults` CLI commands). **Reset to defaults** only changes the form; **Save settings** is what actually saves all three sections. Reopening the tab reloads the currently saved values, in case they were changed elsewhere (e.g. the CLI) since it was last open.
 - **Edit config…** (on the build and Design doc tabs) opens the config file as a table. Rows can be added, edited (double-click), duplicated, deleted and reordered. **Check** runs the same checks as a build and colours the rows with errors or warnings. **Save** writes the file and keeps the previous version as `<name>.bak`.
 - **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
 
@@ -258,14 +258,15 @@ Every command has `--help`, and `-q` / `--quiet` to show less output. Every task
 
 | Command | Options |
 |-|-|
-| *(none)*: build DD intents | `--config <file>` (default `intents.cfg`), `--clean` |
-| `nl` (or `natural-language`): build NL intents | `-v` / `--vertical <prefix>`, `-c` / `--context <name>` (default `GetIntent`), `-lc` / `--lowercase`, `-r` / `--reuse`, `--config <file>` (default `intents_nl.cfg`), `--clean` |
+| *(none)*: build DD intents | `--config <file>` (default from `project-layout`, originally `intents.cfg`), `--clean` |
+| `nl` (or `natural-language`): build NL intents | `-v` / `--vertical <prefix>`, `-c` / `--context <name>` (default from `nl-defaults`, originally `GetIntent`), `-lc` / `--lowercase`, `-r` / `--reuse`, `--config <file>` (default from `project-layout`, originally `intents_nl.cfg`), `--clean` |
 | `extract` (or `x`) | `-f` / `--file <workbook>`, `-m` / `--mode DD\|NL` (default `NL`), `-l` / `--lang en\|es\|fr` (default `en`) |
 | `validate` | `--config <file>` |
 | `compare` | `-e` / `--export <zip or folder>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
-| `design` | `-f` / `--file <workbook>` (required), `-s` / `--sheet <name>`, `--config <file>` (default `intents.cfg`) |
+| `design` | `-f` / `--file <workbook>` (required), `-s` / `--sheet <name>`, `--config <file>` (default from `project-layout`, originally `intents.cfg`) |
 | `naming-rules` | `--set-intent-forbidden-chars <chars>`, `--set-context-discouraged-chars <chars>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\naming_rules.json` on Windows, `~/.config/intentional/naming_rules.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `project-layout` | `--set-training-phrases-dir <name>`, `--set-intents-dir <name>`, `--set-nl-subfolder <name>`, `--set-dd-config <file>`, `--set-nl-config <file>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\project_layout.json` on Windows, `~/.config/intentional/project_layout.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
+| `nl-defaults` | `--set-context <name>`, `--reset`. With no options, shows the current value. Saved to the user's profile (`%APPDATA%\Intentional\nl_defaults.json` on Windows, `~/.config/intentional/nl_defaults.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `gui` | `-p` / `--project <folder>` |
 
 `intentional-cli --version` (or `-v`) shows the version.

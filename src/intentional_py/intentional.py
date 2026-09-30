@@ -34,7 +34,7 @@ from intentional_py import build_intents as build
 from intentional_py import extract as extracting
 from intentional_py import report as report_writer
 from intentional_py import validate as validating
-from intentional_py.models import NamingRules, ProjectLayout
+from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
 from intentional_py.rich_reporter import RichReporter
 
 console = Console()
@@ -197,14 +197,14 @@ def natural_language(
         ),
     ] = "",
     context: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--context",
             "-c",
-            help="Context used for the NL intent names. [bold red]Rebuilds the NL config file[/bold red]",
+            help="Context used for the NL intent names. [bold red]Rebuilds the NL config file[/bold red] [default: GetIntent]",
             rich_help_panel="Natural Language Options",
         ),
-    ] = constants.DEFAULT_NL_CONTEXT,
+    ] = None,
     lowercase: Annotated[
         bool,
         typer.Option(
@@ -246,6 +246,7 @@ def natural_language(
     quiet = False if test else quiet
     reporter = RichReporter(quiet=quiet, test=test)
     layout = user_settings.load_project_layout()
+    context = context or user_settings.load_nl_defaults().context
     # the config's folder holds the training phrases and receives the intents
     config = (config or Path(layout.nl_config)).resolve()
     try:
@@ -745,3 +746,37 @@ def project_layout(
     console.print(
         f"Natural language config file: [yellow]'{layout.nl_config}'[/yellow]"
     )
+
+
+@app.command("nl-defaults")
+def nl_defaults(
+    set_context: Annotated[
+        str | None,
+        typer.Option(
+            "--set-context",
+            help="Default context prefilled for 'nl --context'. [default: GetIntent]",
+        ),
+    ] = None,
+    reset: Annotated[
+        bool,
+        typer.Option("--reset", help="Reset back to the original default."),
+    ] = False,
+) -> None:
+    """
+    Show or change the saved default NL context.
+
+    This is not a Dialogflow requirement, just the name a team uses for the context
+    shared by every NL intent. Saved to the user's profile, so a change applies to
+    every project, on the CLI and the GUI, until changed again.
+    """
+    defaults = user_settings.load_nl_defaults()
+    changed = reset
+    if reset:
+        defaults = NlDefaults()
+    if set_context is not None:
+        defaults.context = set_context
+        changed = True
+    if changed:
+        user_settings.save_nl_defaults(defaults)
+        console.print(f"[green]Saved to {user_settings.nl_defaults_path()}[/green]\n")
+    console.print(f"Default NL context: [yellow]'{defaults.context}'[/yellow]")

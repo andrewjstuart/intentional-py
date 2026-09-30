@@ -1,6 +1,6 @@
-"""Naming-rule and project-layout overrides kept between sessions, in the user's profile,
-shared by the CLI and the GUI (unlike gui/settings.py, which is GUI-only convenience
-preferences).
+"""Naming-rule, project-layout and NL-default overrides kept between sessions, in the
+user's profile, shared by the CLI and the GUI (unlike gui/settings.py, which is
+GUI-only convenience preferences).
 
 Windows: %APPDATA%\\Intentional\\<name>.json; elsewhere ~/.config/intentional/<name>.json.
 """
@@ -14,7 +14,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from intentional_py.models import NamingRules, ProjectLayout
+from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -69,3 +69,15 @@ def load_project_layout(path: Path | None = None) -> ProjectLayout:
 
 def save_project_layout(layout: ProjectLayout, path: Path | None = None) -> None:
     _save(layout, path or project_layout_path())
+
+
+def nl_defaults_path() -> Path:
+    return _settings_path("nl_defaults.json")
+
+
+def load_nl_defaults(path: Path | None = None) -> NlDefaults:
+    return _load(NlDefaults, path or nl_defaults_path())
+
+
+def save_nl_defaults(nl_defaults: NlDefaults, path: Path | None = None) -> None:
+    _save(nl_defaults, path or nl_defaults_path())

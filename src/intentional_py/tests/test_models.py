@@ -173,6 +173,14 @@ def test_project_layout_fields_can_be_overridden() -> None:
     assert layout.nl_config == "nl.cfg"
 
 
+def test_nl_defaults_default_matches_the_original_hardcoded_context() -> None:
+    assert models.NlDefaults().context == constants.DEFAULT_NL_CONTEXT
+
+
+def test_nl_defaults_context_can_be_overridden() -> None:
+    assert models.NlDefaults(context="MainContext").context == "MainContext"
+
+
 def test_action_with_a_path_separator_is_an_error() -> None:
     # unconditional: the action is used to find a phrase file
     row = models.ConfigRow.from_csv_row(

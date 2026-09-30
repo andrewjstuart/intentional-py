@@ -57,7 +57,7 @@ Each build lists what changed since the previous build in the intents folder.
 Builds natural language intents from the phrase files in Training Phrases\\<language>\\NL.
 
 • Vertical prefix: starts every intent name, e.g. RTL gives RTL.Billing.
-• Context: the context used by all NL intents (default GetIntent).
+• Context: the context used by all NL intents; prefilled from the Settings tab's NL defaults (GetIntent unless changed).
 • Reuse existing config: build from the current NL config instead of recreating it from the phrase files.
 • Lowercase actions: also writes a lowercase action for clients whose NL actions are lowercase.
 
@@ -129,6 +129,9 @@ Naming rules:
 Project layout:
 • Training phrases folder, Intents output folder, NL phrases subfolder: the folder names used under the project folder.
 • Directed dialog config file, Natural language config file: the default file names used when a config box is left blank.
+
+NL defaults:
+• Context prefilled for Build NL: the context used for every NL intent (see Build NL); prefills the Context box there, but a build still falls back to this if the box is cleared.
 
 Reset to defaults restores the original values in the form, but Save settings is what actually saves them.
 """,

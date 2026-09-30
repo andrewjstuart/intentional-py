@@ -30,7 +30,7 @@ from intentional_py.gui.widgets import (
     style_tables,
 )
 from intentional_py.gui.worker import GuiReporter, JobRunner
-from intentional_py.models import NamingRules, ProjectLayout
+from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
 from intentional_py.reporting import Level
 
 POLL_MS = 100
@@ -166,6 +166,8 @@ class App(ctk.CTk):
         self.editor: ConfigEditor | None = None
         self.confirmation_dialog = ConfirmationDialog(self)
         self.settings = settings.load()
+        self.project_layout_snapshot = user_settings.load_project_layout()
+        self.nl_defaults_snapshot = user_settings.load_nl_defaults()
         self.clean_var = tk.BooleanVar(self, value=bool(self.settings["clean"]))
         self.check_updates_var = tk.BooleanVar(
             self, value=bool(self.settings["check_updates"])
@@ -267,7 +269,7 @@ class App(ctk.CTk):
 
     def _build_dd_tab(self, tab: ctk.CTkFrame) -> None:
         self.dd_config = self._file_row(
-            tab, 0, "Config file", constants.DEFAULT_DD_CONFIG, CONFIG_TYPES
+            tab, 0, "Config file", self.project_layout_snapshot.dd_config, CONFIG_TYPES
         )
         self._hint(
             tab,
@@ -281,11 +283,12 @@ class App(ctk.CTk):
 
     def _build_nl_tab(self, tab: ctk.CTkFrame) -> None:
         self.nl_config = self._file_row(
-            tab, 0, "Config file", constants.DEFAULT_NL_CONFIG, CONFIG_TYPES
+            tab, 0, "Config file", self.project_layout_snapshot.nl_config, CONFIG_TYPES
         )
         self.nl_vertical = self._entry_row(tab, 1, "Vertical prefix", "e.g. RTL")
-        self.nl_context = self._entry_row(tab, 2, "Context", "")
-        self.nl_context.insert(0, constants.DEFAULT_NL_CONTEXT)
+        self.nl_context = self._entry_row(
+            tab, 2, "Context", self.nl_defaults_snapshot.context
+        )
 
         options = ctk.CTkFrame(tab, fg_color="transparent")
         options.grid(row=3, column=1, sticky="w")
@@ -361,7 +364,8 @@ class App(ctk.CTk):
             tab,
             2,
             "Config file",
-            "Blank uses intents.cfg (DD) or intents_nl.cfg (NL)",
+            f"Blank uses {self.project_layout_snapshot.dd_config} (DD) or "
+            f"{self.project_layout_snapshot.nl_config} (NL)",
             CONFIG_TYPES,
         )
         self._hint(
@@ -377,7 +381,11 @@ class App(ctk.CTk):
             tab, 1, "Sheet", "Blank uses the first sheet with an Intent header row"
         )
         self.design_config = self._file_row(
-            tab, 2, "Config to write", constants.DEFAULT_DD_CONFIG, CONFIG_TYPES
+            tab,
+            2,
+            "Config to write",
+            self.project_layout_snapshot.dd_config,
+            CONFIG_TYPES,
         )
         self._hint(
             tab,
@@ -439,6 +447,23 @@ class App(ctk.CTk):
         ).grid(row=row, column=1, sticky="w", padx=10, pady=(0, 10))
         row += 1
 
+        ctk.CTkLabel(frame, text="NL defaults", font=ctk.CTkFont(weight="bold")).grid(
+            row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0)
+        )
+        row += 1
+        self.settings_nl_context = self._entry_row(
+            frame, row, "Context prefilled for Build NL", ""
+        )
+        row += 1
+        ctk.CTkButton(
+            frame,
+            text="Reset to defaults",
+            width=140,
+            fg_color="gray",
+            command=self._reset_nl_defaults,
+        ).grid(row=row, column=1, sticky="w", padx=10, pady=(0, 10))
+        row += 1
+
         self._hint(
             frame,
             row,
@@ -458,12 +483,17 @@ class App(ctk.CTk):
         self.settings_context_chars.delete(0, "end")
         self.settings_context_chars.insert(0, rules.context_discouraged_chars)
         self._fill_project_layout_entries(user_settings.load_project_layout())
+        self._fill_nl_defaults_entry(user_settings.load_nl_defaults())
 
     def _fill_project_layout_entries(self, layout: ProjectLayout) -> None:
         for field, _label in PROJECT_LAYOUT_FIELDS:
             entry = self.settings_layout_entries[field]
             entry.delete(0, "end")
             entry.insert(0, getattr(layout, field))
+
+    def _fill_nl_defaults_entry(self, nl_defaults: NlDefaults) -> None:
+        self.settings_nl_context.delete(0, "end")
+        self.settings_nl_context.insert(0, nl_defaults.context)
 
     def _reset_naming_rules(self) -> None:
         defaults = NamingRules()
@@ -474,6 +504,9 @@ class App(ctk.CTk):
 
     def _reset_project_layout(self) -> None:
         self._fill_project_layout_entries(ProjectLayout())
+
+    def _reset_nl_defaults(self) -> None:
+        self._fill_nl_defaults_entry(NlDefaults())
 
     def _save_project_settings(self) -> None:
         rules = NamingRules(
@@ -486,9 +519,26 @@ class App(ctk.CTk):
                 for field, _label in PROJECT_LAYOUT_FIELDS
             }
         )
+        nl_defaults = NlDefaults(context=self.settings_nl_context.get())
         user_settings.save_naming_rules(rules)
         user_settings.save_project_layout(layout)
+        user_settings.save_nl_defaults(nl_defaults)
+        self.project_layout_snapshot = layout
+        self.nl_defaults_snapshot = nl_defaults
+        self._refresh_layout_placeholders()
         messagebox.showinfo("Intentional", "Settings saved.", parent=self)
+
+    def _refresh_layout_placeholders(self) -> None:
+        # the config/context fields only show these as placeholders (a blank field falls
+        # back to the saved value when a job runs), so update them here to match once saved
+        layout = self.project_layout_snapshot
+        self.dd_config.configure(placeholder_text=layout.dd_config)
+        self.nl_config.configure(placeholder_text=layout.nl_config)
+        self.design_config.configure(placeholder_text=layout.dd_config)
+        self.compare_config.configure(
+            placeholder_text=f"Blank uses {layout.dd_config} (DD) or {layout.nl_config} (NL)"
+        )
+        self.nl_context.configure(placeholder_text=self.nl_defaults_snapshot.context)
 
     def _build_results(self) -> None:
         frame = ctk.CTkFrame(self)
@@ -829,9 +879,10 @@ class App(ctk.CTk):
         clean = self.clean_var.get()
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
+        nl_defaults = user_settings.load_nl_defaults()
         self._start(
             "Build NL intents",
-            lambda r: actions.build_nl(*values, r, clean, rules, layout),
+            lambda r: actions.build_nl(*values, r, clean, rules, layout, nl_defaults),
         )
 
     def _run_extract(self) -> None:

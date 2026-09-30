@@ -16,7 +16,7 @@ from rich.text import Text
 from intentional_py import build_intents, constants, design_doc, exceptions
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
-from intentional_py.models import NamingRules, ProjectLayout
+from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
 from intentional_py.reporting import (
     BuildResult,
     CompareResult,
@@ -81,8 +81,10 @@ def build_nl(
     clean: bool = False,
     rules: NamingRules | None = None,
     layout: ProjectLayout | None = None,
+    nl_defaults: NlDefaults | None = None,
 ) -> BuildResult:
     layout = layout or ProjectLayout()
+    nl_defaults = nl_defaults or NlDefaults()
     config = resolve_config(project_dir(project_text), config_text, layout.nl_config)
     if not reuse or not config.exists():
         if not vertical.strip():
@@ -96,7 +98,7 @@ def build_nl(
         build_intents.nl_config(
             config,
             vertical.strip(),
-            context.strip() or constants.DEFAULT_NL_CONTEXT,
+            context.strip() or nl_defaults.context,
             lowercase,
             reporter,
             layout,
