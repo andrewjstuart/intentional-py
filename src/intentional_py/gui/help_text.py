@@ -123,7 +123,7 @@ CLI and the GUI, until changed again. They are not Dialogflow requirements, just
 project's own conventions, so a project with different standards can change them.
 
 Naming rules:
-• Forbidden in an intent name (error): the intent name becomes a file name, so '/' and '\\\\' can never be allowed here, but the default '-' can be changed or cleared.
+• Forbidden in an intent name (error): the intent name becomes a file name, so '/' and '\\' can never be allowed here, but the default '-' can be changed or cleared.
 • Discouraged in a context (warning): defaults to '.'.
 
 Project layout:
