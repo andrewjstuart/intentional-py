@@ -26,14 +26,20 @@ def read_config_rows(config: Path) -> list[list[str]]:
 
 
 def preflight_config(
-    config: Path, base_path: Path, mode: str | None
+    config: Path,
+    base_path: Path,
+    mode: str | None,
+    rules: models.NamingRules | None = None,
 ) -> tuple[list[list[str]], list[str], list[str]]:
     """Validate and normalize a config file's rows before a build starts; see check_rows."""
-    return check_rows(read_config_rows(config), base_path, mode)
+    return check_rows(read_config_rows(config), base_path, mode, rules)
 
 
 def check_rows(
-    rows: list[list[str]], base_path: Path, mode: str | None
+    rows: list[list[str]],
+    base_path: Path,
+    mode: str | None,
+    rules: models.NamingRules | None = None,
 ) -> tuple[list[list[str]], list[str], list[str]]:
     """Validate and normalize config rows.
 
@@ -42,6 +48,8 @@ def check_rows(
     problems found in the phrase files. A row that exactly matches an earlier
     row (an accidental copy-paste) is dropped before any other check runs.
     With mode None, phrase files may be in either the DD or the NL folder.
+    rules (NamingRules | None): intent/context naming rules; defaults to the
+        original hardcoded behavior when not given (see models.NamingRules).
     """
     fatal_errors: list[str] = []
     warnings: list[str] = []
@@ -67,7 +75,7 @@ def check_rows(
 
         # ConfigRow runs the per-row rules (required fields, language, DTMF, machine learning);
         # cross-row and filesystem checks below stay here, since they involve more than one row
-        parsed = models.ConfigRow.from_csv_row(row, row_number)
+        parsed = models.ConfigRow.from_csv_row(row, row_number, rules)
         language = parsed.language
         normalized_row[2] = parsed.language
         normalized_row[6] = parsed.machine_learning_text
@@ -269,13 +277,20 @@ def _duplicate_phrase_warnings(
     return warnings
 
 
-def validate(config: Path, base_dir: Path, reporter: Reporter) -> ValidateResult:
+def validate(
+    config: Path,
+    base_dir: Path,
+    reporter: Reporter,
+    rules: models.NamingRules | None = None,
+) -> ValidateResult:
     """Validates the directories and files for the project.
 
     Args:
         config (Path): config file to use for validation; the standard config files are used if it does not exist
         base_dir (Path): Project directory containing the training phrases and standard config files.
         reporter (Reporter): Receives messages.
+        rules (NamingRules | None): intent/context naming rules; defaults to the
+            original hardcoded behavior when not given.
     """
     result = ValidateResult()
     reporter.message("info", "[yellow]Validating directories and files[/yellow]\n")
@@ -318,7 +333,7 @@ def validate(config: Path, base_dir: Path, reporter: Reporter) -> ValidateResult
         result.config_files.append(Check(f"Checking for {file.name}", True))
 
         # the same checks a build runs, so validate reports exactly what a build would
-        rows, errors, warnings = preflight_config(file, base_dir, None)
+        rows, errors, warnings = preflight_config(file, base_dir, None, rules)
         if not rows and not errors:
             errors = ["The config file does not contain data."]
         details = [f"Error: {error}" for error in errors]

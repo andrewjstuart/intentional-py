@@ -15,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
-from intentional_py import __version__, constants, exceptions
+from intentional_py import __version__, constants, exceptions, user_settings
 from intentional_py import report as report_writer
 from intentional_py.gui import actions, help_text, settings, updates
 from intentional_py.gui.config_editor import ConfigEditor
@@ -30,6 +30,7 @@ from intentional_py.gui.widgets import (
     style_tables,
 )
 from intentional_py.gui.worker import GuiReporter, JobRunner
+from intentional_py.models import NamingRules
 from intentional_py.reporting import Level
 
 POLL_MS = 100
@@ -134,6 +135,93 @@ class ConfirmationDialog(ctk.CTkToplevel):
         on_answer(value)
 
 
+class NamingRulesDialog(ctk.CTkToplevel):
+    """Edits the user's saved intent/context naming rules; created once and reused.
+
+    These are not Dialogflow requirements, just this project's naming convention
+    (see models.NamingRules); a user can relax them for a project with different
+    standards. Saved to the user's profile (user_settings.py), so it applies to
+    every project until changed again, on both the CLI and the GUI.
+    """
+
+    def __init__(self, master: ctk.CTk) -> None:
+        super().__init__(master)
+        self.withdraw()
+        self.title("Naming rules")
+        self.resizable(False, False)
+        self.transient(master)
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(
+            self,
+            text="Characters forbidden in an intent name (error)",
+            anchor="w",
+        ).grid(row=0, column=0, columnspan=2, sticky="w", **PAD)
+        self.intent_chars = ctk.CTkEntry(self, width=200)
+        self.intent_chars.grid(row=1, column=0, columnspan=2, sticky="w", padx=10)
+        ctk.CTkLabel(
+            self,
+            text="Characters discouraged in a context (warning)",
+            anchor="w",
+        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        self.context_chars = ctk.CTkEntry(self, width=200)
+        self.context_chars.grid(row=3, column=0, columnspan=2, sticky="w", padx=10)
+        ctk.CTkLabel(
+            self,
+            text="Applies to every project, on the CLI and the GUI, until changed again.",
+            text_color="gray",
+        ).grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        buttons = ctk.CTkFrame(self, fg_color="transparent")
+        buttons.grid(row=5, column=0, columnspan=2, sticky="e", **PAD)
+        ctk.CTkButton(
+            buttons,
+            text="Reset to defaults",
+            width=120,
+            fg_color="gray",
+            command=self._reset,
+        ).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkButton(
+            buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel
+        ).grid(row=0, column=1, padx=(0, 8))
+        ctk.CTkButton(buttons, text="Save", width=90, command=self._save).grid(
+            row=0, column=2
+        )
+        self.bind("<Return>", lambda _event: self._save())
+        self.bind("<Escape>", lambda _event: self._cancel())
+
+    def show(self) -> None:
+        rules = user_settings.load_naming_rules()
+        self._fill(rules)
+        self.deiconify()
+        self.after(100, self.lift)
+        self.grab_set()
+        self.intent_chars.focus_set()
+
+    def _fill(self, rules: NamingRules) -> None:
+        self.intent_chars.delete(0, "end")
+        self.intent_chars.insert(0, rules.intent_forbidden_chars)
+        self.context_chars.delete(0, "end")
+        self.context_chars.insert(0, rules.context_discouraged_chars)
+
+    def _reset(self) -> None:
+        self._fill(NamingRules())
+
+    def _save(self) -> None:
+        rules = NamingRules(
+            intent_forbidden_chars=self.intent_chars.get(),
+            context_discouraged_chars=self.context_chars.get(),
+        )
+        user_settings.save_naming_rules(rules)
+        self._close()
+
+    def _cancel(self) -> None:
+        self._close()
+
+    def _close(self) -> None:
+        self.grab_release()
+        self.withdraw()
+
+
 class App(ctk.CTk):
     def __init__(self, project: Path | None = None) -> None:
         super().__init__()
@@ -155,6 +243,7 @@ class App(ctk.CTk):
         self.help_window: HelpWindow | None = None
         self.editor: ConfigEditor | None = None
         self.confirmation_dialog = ConfirmationDialog(self)
+        self.naming_rules_dialog = NamingRulesDialog(self)
         self.settings = settings.load()
         self.clean_var = tk.BooleanVar(self, value=bool(self.settings["clean"]))
         self.check_updates_var = tk.BooleanVar(
@@ -219,6 +308,9 @@ class App(ctk.CTk):
             command=self._save_settings,
         )
         self.help_menu.add_separator()
+        self.help_menu.add_command(
+            label="Naming rules…", command=self.naming_rules_dialog.show
+        )
         self.help_menu.add_command(label="About Intentional", command=self._show_about)
         help_button = ctk.CTkButton(
             frame,
@@ -692,8 +784,10 @@ class App(ctk.CTk):
             self.dd_config.get(),
             self.clean_var.get(),
         )
+        rules = user_settings.load_naming_rules()
         self._start(
-            "Build DD intents", lambda r: actions.build_dd(project, config, r, clean)
+            "Build DD intents",
+            lambda r: actions.build_dd(project, config, r, clean, rules),
         )
 
     def _run_nl(self) -> None:
@@ -706,7 +800,10 @@ class App(ctk.CTk):
             bool(self.nl_reuse.get()),
         )
         clean = self.clean_var.get()
-        self._start("Build NL intents", lambda r: actions.build_nl(*values, r, clean))
+        rules = user_settings.load_naming_rules()
+        self._start(
+            "Build NL intents", lambda r: actions.build_nl(*values, r, clean, rules)
+        )
 
     def _run_extract(self) -> None:
         values = (
@@ -719,7 +816,8 @@ class App(ctk.CTk):
 
     def _run_validate(self) -> None:
         project, config = self.project_entry.get(), self.val_config.get()
-        self._start("Validate", lambda r: actions.validate(project, config, r))
+        rules = user_settings.load_naming_rules()
+        self._start("Validate", lambda r: actions.validate(project, config, r, rules))
 
     def _run_compare(self) -> None:
         values = (
@@ -728,7 +826,8 @@ class App(ctk.CTk):
             self.compare_config.get(),
             self.export_entry.get(),
         )
-        self._start("Compare", lambda r: actions.compare(*values, r))
+        rules = user_settings.load_naming_rules()
+        self._start("Compare", lambda r: actions.compare(*values, r, rules))
 
     def _run_design(self) -> None:
         values = (
@@ -737,8 +836,10 @@ class App(ctk.CTk):
             self.design_sheet.get(),
             self.design_config.get(),
         )
+        rules = user_settings.load_naming_rules()
         self._start(
-            "Create config from design document", lambda r: actions.design(*values, r)
+            "Create config from design document",
+            lambda r: actions.design(*values, r, rules),
         )
 
     def _start(self, title: str, job: Callable[[GuiReporter], actions.Result]) -> None:

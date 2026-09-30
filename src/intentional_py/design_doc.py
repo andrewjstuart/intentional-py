@@ -16,7 +16,7 @@ import openpyxl
 import pyxlsb
 from openpyxl.utils.exceptions import InvalidFileException
 
-from intentional_py import constants, exceptions, utils
+from intentional_py import constants, exceptions, models, utils
 from intentional_py import validate as validating
 from intentional_py.reporting import DesignResult, Reporter
 
@@ -124,7 +124,11 @@ def read_design(xl_file: Path, sheet: str = "") -> tuple[str, list[list[str]]]:
 
 
 def config_from_design(
-    xl_file: Path, config: Path, reporter: Reporter, sheet: str = ""
+    xl_file: Path,
+    config: Path,
+    reporter: Reporter,
+    sheet: str = "",
+    rules: models.NamingRules | None = None,
 ) -> DesignResult:
     """Write the config file from the design document, backing up any existing config first."""
     sheet_used, rows = read_design(xl_file, sheet)
@@ -147,5 +151,7 @@ def config_from_design(
         config.open("w", encoding="utf-8", newline="") as file,
     ):
         csv.writer(file).writerows(rows)
-    _, result.errors, result.warnings = validating.check_rows(rows, config.parent, "DD")
+    _, result.errors, result.warnings = validating.check_rows(
+        rows, config.parent, "DD", rules
+    )
     return result

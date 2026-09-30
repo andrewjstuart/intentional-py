@@ -111,6 +111,31 @@ def test_context_with_a_dot_is_a_warning_not_an_error() -> None:
     assert row.warnings == ["Row 1: context 'Get.Intent' contains '.'."]
 
 
+def test_custom_naming_rules_can_relax_the_default_intent_and_context_checks() -> None:
+    rules = models.NamingRules(intent_forbidden_chars="", context_discouraged_chars="")
+    row = models.ConfigRow.from_csv_row(
+        ["A-Pay", "Get.Intent", "en", "pay", "", "", ""], row_number=1, rules=rules
+    )
+
+    assert row.ok
+    assert row.warnings == []
+
+
+def test_custom_naming_rules_can_add_a_different_forbidden_character() -> None:
+    rules = models.NamingRules(intent_forbidden_chars="_")
+    row = models.ConfigRow.from_csv_row(
+        ["A_Pay", "Ctx", "en", "pay", "", "", ""], row_number=1, rules=rules
+    )
+
+    assert row.errors == ["Row 1: intent name 'A_Pay' cannot contain '_'."]
+
+    # the original '-' rule no longer applies, since it was replaced rather than added to
+    allowed = models.ConfigRow.from_csv_row(
+        ["A-Pay", "Ctx", "en", "pay", "", "", ""], row_number=1, rules=rules
+    )
+    assert allowed.ok
+
+
 def test_dtmf_row_without_a_value_is_an_error() -> None:
     row = models.ConfigRow.from_csv_row(
         ["A.Menu", "Ctx", "dtmf", "menu", "", "", ""], row_number=1
@@ -119,16 +144,14 @@ def test_dtmf_row_without_a_value_is_an_error() -> None:
     assert row.errors == ["Row 1: DTMF rows require a DTMF value."]
 
 
-def test_invalid_dtmf_characters_are_a_warning_not_an_error() -> None:
+def test_invalid_dtmf_characters_are_an_error() -> None:
+    # DTMF is a hardware/platform constraint (0-9, '#', '*'), not this project's own
+    # convention, so unlike the intent/context naming rules it is not configurable
     row = models.ConfigRow.from_csv_row(
         ["A.Menu", "Ctx", "en", "menu", "", "1|x", ""], row_number=4
     )
 
-    assert row.ok
-    assert row.dtmf == ["1", "x"]
-    assert row.warnings == [
-        "Row 4: invalid DTMF values ['x'] will be retained for compatibility."
-    ]
+    assert row.errors == ["Row 4: invalid DTMF values ['x']; must be 0-9, '#' or '*'."]
 
 
 def test_invalid_language_is_a_warning_not_an_error() -> None:

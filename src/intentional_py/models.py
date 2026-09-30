@@ -47,6 +47,18 @@ class Entity(BaseModel):
         )
 
 
+class NamingRules(BaseModel):
+    """Intent/context naming rules, overridable per user; these defaults match the original
+    hardcoded behavior. Not Dialogflow requirements, just this project's naming convention,
+    so a user can relax them for a project with different standards (see user_settings.py).
+    """
+
+    intent_forbidden_chars: str = (
+        "-"  # any of these chars in an intent name is a fatal error
+    )
+    context_discouraged_chars: str = "."  # any of these chars in a context is a warning
+
+
 class ConfigRow(BaseModel):
     """One row of intents.cfg / intents_nl.cfg, and the problems found while reading it."""
 
@@ -70,12 +82,19 @@ class ConfigRow(BaseModel):
         return not self.errors
 
     @classmethod
-    def from_csv_row(cls, row: list[str], row_number: int) -> ConfigRow:
-        """Build from a raw 6- or 7-value config line, collecting problems instead of raising."""
+    def from_csv_row(
+        cls, row: list[str], row_number: int, rules: NamingRules | None = None
+    ) -> ConfigRow:
+        """Build from a raw 6- or 7-value config line, collecting problems instead of raising.
+
+        rules (NamingRules | None): intent/context naming rules; defaults to NamingRules()
+            (the original hardcoded behavior) when not given.
+        """
         if len(row) not in (6, 7):
             raise ValueError(
                 f"Row {row_number}: expected 6 or 7 values, found {len(row)}."
             )
+        rules = rules or NamingRules()
         cells = [cell.strip() for cell in row] + [""] * (7 - len(row))
         (
             intent_text,
@@ -92,15 +111,27 @@ class ConfigRow(BaseModel):
 
         if not intent_text:
             errors.append(f"Row {row_number}: intent name is required.")
-        elif "-" in intent_text:
-            errors.append(
-                f"Row {row_number}: intent name '{intent_text}' cannot contain '-'."
+        else:
+            found = sorted(
+                {c for c in rules.intent_forbidden_chars if c in intent_text}
             )
+            if found:
+                chars = "', '".join(found)
+                errors.append(
+                    f"Row {row_number}: intent name '{intent_text}' cannot contain '{chars}'."
+                )
 
         if not context_text:
             errors.append(f"Row {row_number}: context is required.")
-        elif "." in context_text:
-            warnings.append(f"Row {row_number}: context '{context_text}' contains '.'.")
+        else:
+            found = sorted(
+                {c for c in rules.context_discouraged_chars if c in context_text}
+            )
+            if found:
+                chars = "', '".join(found)
+                warnings.append(
+                    f"Row {row_number}: context '{context_text}' contains '{chars}'."
+                )
 
         if not action_text:
             errors.append(f"Row {row_number}: action is required.")
@@ -119,9 +150,9 @@ class ConfigRow(BaseModel):
         dtmf = [part for part in dtmf_text.split("|") if part]
         invalid_dtmf = set(dtmf) - constants.VALID_DTMF_VALUES
         if invalid_dtmf:
-            warnings.append(
-                f"Row {row_number}: invalid DTMF values {sorted(invalid_dtmf)} "
-                "will be retained for compatibility."
+            errors.append(
+                f"Row {row_number}: invalid DTMF values {sorted(invalid_dtmf)}; "
+                "must be 0-9, '#' or '*'."
             )
 
         if not ml_text:

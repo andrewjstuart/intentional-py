@@ -22,11 +22,19 @@ import typer.core
 from rich import print
 from rich.console import Console
 
-from intentional_py import __app_name__, __version__, constants, design_doc, exceptions
+from intentional_py import (
+    __app_name__,
+    __version__,
+    constants,
+    design_doc,
+    exceptions,
+    user_settings,
+)
 from intentional_py import build_intents as build
 from intentional_py import extract as extracting
 from intentional_py import report as report_writer
 from intentional_py import validate as validating
+from intentional_py.models import NamingRules
 from intentional_py.rich_reporter import RichReporter
 
 console = Console()
@@ -137,7 +145,14 @@ def main(
         # the config's folder holds the training phrases and receives the intents
         config = config.resolve()
         try:
-            result = build.intents("DD", config, config.parent, reporter, clean)
+            result = build.intents(
+                "DD",
+                config,
+                config.parent,
+                reporter,
+                clean,
+                user_settings.load_naming_rules(),
+            )
             reporter.show_build(result)
             _save_report(report, "Build DD intents", result, reporter)
         except exceptions.IntentionalException as e:
@@ -245,7 +260,14 @@ def natural_language(
                 vertical = use_vertical
             build.nl_config(config, vertical, context, lowercase, reporter)
 
-        result = build.intents("NL", config, config.parent, reporter, clean)
+        result = build.intents(
+            "NL",
+            config,
+            config.parent,
+            reporter,
+            clean,
+            user_settings.load_naming_rules(),
+        )
         reporter.show_build(result)
         _save_report(report, "Build NL intents", result, reporter)
     except exceptions.IntentionalException as e:
@@ -403,7 +425,9 @@ def validate(
         reporter = RichReporter(quiet=quiet, test=test)
         # without a valid config file, the standard files in the CWD are validated
         base_dir = config.resolve().parent if config.is_file() else Path.cwd()
-        result = validating.validate(config, base_dir, reporter)
+        result = validating.validate(
+            config, base_dir, reporter, user_settings.load_naming_rules()
+        )
         reporter.show_validate(result)
         _save_report(report, "Validate", result, reporter)
     except exceptions.IntentionalException as e:
@@ -502,7 +526,12 @@ def compare(
         )
         config = (config or Path(default)).resolve()
         result = build.compare_build(
-            mode, config, config.parent, export.resolve(), reporter
+            mode,
+            config,
+            config.parent,
+            export.resolve(),
+            reporter,
+            user_settings.load_naming_rules(),
         )
         reporter.show_compare(result)
         _save_report(report, "Compare intents", result, reporter)
@@ -554,10 +583,63 @@ def design(
                 f"{xl_file} does [red]NOT[/red] exist as a file."
             )
         result = design_doc.config_from_design(
-            xl_file.resolve(), config.resolve(), reporter, sheet
+            xl_file.resolve(),
+            config.resolve(),
+            reporter,
+            sheet,
+            user_settings.load_naming_rules(),
         )
         reporter.show_design(result)
         _save_report(report, "Create config from design document", result, reporter)
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
         raise typer.Exit(code=1)
+
+
+@app.command("naming-rules")
+def naming_rules(
+    set_intent_forbidden_chars: Annotated[
+        str | None,
+        typer.Option(
+            "--set-intent-forbidden-chars",
+            help="Characters that make an intent name invalid (a fatal error). [default: -]",
+        ),
+    ] = None,
+    set_context_discouraged_chars: Annotated[
+        str | None,
+        typer.Option(
+            "--set-context-discouraged-chars",
+            help="Characters that make a context print a warning. [default: .]",
+        ),
+    ] = None,
+    reset: Annotated[
+        bool,
+        typer.Option("--reset", help="Reset both back to their original defaults."),
+    ] = False,
+) -> None:
+    """
+    Show or change the saved intent/context naming rules.
+
+    These are not Dialogflow requirements, just this project's naming convention.
+    Saved to the user's profile, so a change applies to every project, on the CLI
+    and the GUI, until changed again.
+    """
+    rules = user_settings.load_naming_rules()
+    changed = reset
+    if reset:
+        rules = NamingRules()
+    if set_intent_forbidden_chars is not None:
+        rules.intent_forbidden_chars = set_intent_forbidden_chars
+        changed = True
+    if set_context_discouraged_chars is not None:
+        rules.context_discouraged_chars = set_context_discouraged_chars
+        changed = True
+    if changed:
+        user_settings.save_naming_rules(rules)
+        console.print(f"[green]Saved to {user_settings.naming_rules_path()}[/green]\n")
+    console.print(
+        f"Intent forbidden characters: [yellow]'{rules.intent_forbidden_chars}'[/yellow]"
+    )
+    console.print(
+        f"Context discouraged characters: [yellow]'{rules.context_discouraged_chars}'[/yellow]"
+    )
