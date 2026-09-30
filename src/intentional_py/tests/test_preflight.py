@@ -2,11 +2,7 @@ import csv
 from pathlib import Path
 
 from intentional_py import validate
-
-
-def write_config(path: Path, row: list[str]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as config_file:
-        csv.writer(config_file).writerow(row)
+from intentional_py.tests.conftest import write_config
 
 
 def test_preflight_normalizes_defaultable_values(tmp_path: Path) -> None:

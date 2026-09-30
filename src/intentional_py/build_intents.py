@@ -6,7 +6,6 @@ entity handling, priority mapping, and progress tracking.
 """
 
 import csv
-import datetime
 import json
 import uuid
 from pathlib import Path
@@ -62,9 +61,7 @@ def intents(
                 "warning", f"Could not compare with the previous build: {error}"
             )
     if clean and previous:
-        stamp = (
-            datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
-        )
+        stamp = utils.timestamp()
         result.backup = Path(base_dir, f"{constants.DEFAULT_INTENTS_DIR}_{stamp}.zip")
         with utils.file_errors(result.backup):
             utils.zip_directory(output_dir, result.backup, previous)

@@ -74,7 +74,7 @@ All the source is in `src/intentional_py`.
 | [reporting.py](../src/intentional_py/reporting.py) | The link between the core and the front ends. `Reporter` lists what the core may ask a front end to do (show a message or table, track progress, ask a yes/no question). The result classes (`BuildResult`, `ValidateResult`, …) are what each task returns. |
 | [report.py](../src/intentional_py/report.py) | Writes a completed result, its issues and detail tables as a Markdown or CSV report. Both front ends call the same formatter. |
 | [user_settings.py](../src/intentional_py/user_settings.py) | Loads and saves `NamingRules` in the user's profile (`naming_rules.json`), shared by the CLI and the GUI. Unlike `gui/settings.py` (GUI-only convenience preferences), this is read by core functions' callers on both front ends, so a saved override applies everywhere. |
-| [utils.py](../src/intentional_py/utils.py) | Small helpers used by several files: reading the priority from an intent name, splitting entity tags out of phrases, entity aliases, zipping folders, finding duplicate phrases, `safe_join()` (rejects a config-supplied name that would write or read outside the intended folder), and `file_errors()`, which turns file problems into readable errors. |
+| [utils.py](../src/intentional_py/utils.py) | Small helpers used by several files: reading the priority from an intent name, splitting entity tags out of phrases, entity aliases, zipping folders, finding duplicate phrases, `timestamp()` for backup file names, `safe_join()` (rejects a config-supplied name that would write or read outside the intended folder), and `file_errors()`, which turns file problems into readable errors. |
 
 ### Command line
 
@@ -107,7 +107,7 @@ The tests are in `src/intentional_py/tests` and run with `uv run pytest`. Each `
 
 | File | What it tests |
 |-|-|
-| [conftest.py](../src/intentional_py/tests/conftest.py) | Not tests: shared setup. `data_dir` copies `tests/data` to a temporary folder, and the older tests are run in a fixed order because the NL tests use the phrases extracted earlier. |
+| [conftest.py](../src/intentional_py/tests/conftest.py) | Not tests: shared setup. `data_dir` copies `tests/data` to a temporary folder, and the older tests are run in a fixed order because the NL tests use the phrases extracted earlier. Also has helpers shared by several test files instead of each defining its own: `FakeReporter`, `write_config()`, `dd_project()`, `make_nl_phrases()`, `warnings_for()`. |
 | [test_version.py](../src/intentional_py/tests/test_version.py) | `--version`, and that the version in `__init__.py` matches `pyproject.toml`. |
 | [test_validate.py](../src/intentional_py/tests/test_validate.py), [test_extract.py](../src/intentional_py/tests/test_extract.py), [test_dd.py](../src/intentional_py/tests/test_dd.py), [test_nl.py](../src/intentional_py/tests/test_nl.py) | The CLI commands end to end, using the sample project in `tests/data`. |
 | [test_preflight.py](../src/intentional_py/tests/test_preflight.py) | The config rules in `validate.py`: defaults, malformed rows, the optional ML column. |

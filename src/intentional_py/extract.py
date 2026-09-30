@@ -5,7 +5,6 @@ training phrases into organized text files by language and mode (DD or NL).
 Includes backup functionality for existing phrase directories.
 """
 
-import datetime
 import shutil
 import zipfile
 from pathlib import Path
@@ -30,7 +29,7 @@ def _backup_existing(phrase_dir: Path, mode: str) -> Path | None:
         old_files = sorted(phrase_dir.rglob("*"))
     if not old_files:
         return None
-    stamp = datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
+    stamp = utils.timestamp()
     zip_path = Path(phrase_dir.parent, f"{phrase_dir.name}_{stamp}.zip")
     with utils.file_errors(zip_path):
         utils.zip_directory(phrase_dir, zip_path, old_files)

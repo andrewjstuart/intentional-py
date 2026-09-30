@@ -1,8 +1,13 @@
+import re
 from pathlib import Path
 
 import pytest
 
 from intentional_py import exceptions, utils
+
+
+def test_timestamp_matches_the_backup_file_name_format() -> None:
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{6}", utils.timestamp())
 
 
 def test_safe_join_returns_the_joined_path_for_a_plain_name(tmp_path: Path) -> None:

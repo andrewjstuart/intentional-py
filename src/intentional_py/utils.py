@@ -9,6 +9,7 @@ Provides helper functions for:
 - Duplicate phrase detection
 """
 
+import datetime
 import re
 import zipfile
 from collections.abc import Iterable, Iterator
@@ -16,6 +17,11 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from intentional_py import constants, exceptions
+
+
+def timestamp() -> str:
+    """The current local time, formatted for a backup file name."""
+    return datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
 
 
 @contextmanager
