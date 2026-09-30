@@ -135,180 +135,13 @@ class ConfirmationDialog(ctk.CTkToplevel):
         on_answer(value)
 
 
-class NamingRulesDialog(ctk.CTkToplevel):
-    """Edits the user's saved intent/context naming rules; created once and reused.
-
-    These are not Dialogflow requirements, just this project's naming convention
-    (see models.NamingRules); a user can relax them for a project with different
-    standards. Saved to the user's profile (user_settings.py), so it applies to
-    every project until changed again, on both the CLI and the GUI.
-    """
-
-    def __init__(self, master: ctk.CTk) -> None:
-        super().__init__(master)
-        self.withdraw()
-        self.title("Naming rules")
-        self.resizable(False, False)
-        self.transient(master)
-        self.protocol("WM_DELETE_WINDOW", self._cancel)
-        self.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(
-            self,
-            text="Characters forbidden in an intent name (error)",
-            anchor="w",
-        ).grid(row=0, column=0, columnspan=2, sticky="w", **PAD)
-        self.intent_chars = ctk.CTkEntry(self, width=200)
-        self.intent_chars.grid(row=1, column=0, columnspan=2, sticky="w", padx=10)
-        ctk.CTkLabel(
-            self,
-            text="Characters discouraged in a context (warning)",
-            anchor="w",
-        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        self.context_chars = ctk.CTkEntry(self, width=200)
-        self.context_chars.grid(row=3, column=0, columnspan=2, sticky="w", padx=10)
-        ctk.CTkLabel(
-            self,
-            text="Applies to every project, on the CLI and the GUI, until changed again.",
-            text_color="gray",
-        ).grid(row=4, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        buttons = ctk.CTkFrame(self, fg_color="transparent")
-        buttons.grid(row=5, column=0, columnspan=2, sticky="e", **PAD)
-        ctk.CTkButton(
-            buttons,
-            text="Reset to defaults",
-            width=120,
-            fg_color="gray",
-            command=self._reset,
-        ).grid(row=0, column=0, padx=(0, 8))
-        ctk.CTkButton(
-            buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel
-        ).grid(row=0, column=1, padx=(0, 8))
-        ctk.CTkButton(buttons, text="Save", width=90, command=self._save).grid(
-            row=0, column=2
-        )
-        self.bind("<Return>", lambda _event: self._save())
-        self.bind("<Escape>", lambda _event: self._cancel())
-
-    def show(self) -> None:
-        rules = user_settings.load_naming_rules()
-        self._fill(rules)
-        self.deiconify()
-        self.after(100, self.lift)
-        self.grab_set()
-        self.intent_chars.focus_set()
-
-    def _fill(self, rules: NamingRules) -> None:
-        self.intent_chars.delete(0, "end")
-        self.intent_chars.insert(0, rules.intent_forbidden_chars)
-        self.context_chars.delete(0, "end")
-        self.context_chars.insert(0, rules.context_discouraged_chars)
-
-    def _reset(self) -> None:
-        self._fill(NamingRules())
-
-    def _save(self) -> None:
-        rules = NamingRules(
-            intent_forbidden_chars=self.intent_chars.get(),
-            context_discouraged_chars=self.context_chars.get(),
-        )
-        user_settings.save_naming_rules(rules)
-        self._close()
-
-    def _cancel(self) -> None:
-        self._close()
-
-    def _close(self) -> None:
-        self.grab_release()
-        self.withdraw()
-
-
-class ProjectLayoutDialog(ctk.CTkToplevel):
-    """Edits the user's saved project folder/file names; created once and reused.
-
-    These are not Dialogflow requirements, just this project's folder/file naming
-    convention (see models.ProjectLayout); a user can use their own organization
-    instead. Saved to the user's profile (user_settings.py), so it applies to
-    every project until changed again, on both the CLI and the GUI.
-    """
-
-    FIELDS = (
-        ("training_phrases_dir", "Training phrases folder"),
-        ("intents_dir", "Intents output folder"),
-        ("nl_subfolder", "NL phrases subfolder"),
-        ("dd_config", "Directed dialog config file"),
-        ("nl_config", "Natural language config file"),
-    )
-
-    def __init__(self, master: ctk.CTk) -> None:
-        super().__init__(master)
-        self.withdraw()
-        self.title("Project layout")
-        self.resizable(False, False)
-        self.transient(master)
-        self.protocol("WM_DELETE_WINDOW", self._cancel)
-        self.grid_columnconfigure(1, weight=1)
-        self.entries: dict[str, ctk.CTkEntry] = {}
-        for row, (field, label) in enumerate(self.FIELDS):
-            ctk.CTkLabel(self, text=label, anchor="w").grid(
-                row=row * 2, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0)
-            )
-            entry = ctk.CTkEntry(self, width=220)
-            entry.grid(row=row * 2 + 1, column=0, columnspan=2, sticky="w", padx=10)
-            self.entries[field] = entry
-        note_row = len(self.FIELDS) * 2
-        ctk.CTkLabel(
-            self,
-            text="Applies to every project, on the CLI and the GUI, until changed again.",
-            text_color="gray",
-        ).grid(row=note_row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
-        buttons = ctk.CTkFrame(self, fg_color="transparent")
-        buttons.grid(row=note_row + 1, column=0, columnspan=2, sticky="e", **PAD)
-        ctk.CTkButton(
-            buttons,
-            text="Reset to defaults",
-            width=120,
-            fg_color="gray",
-            command=self._reset,
-        ).grid(row=0, column=0, padx=(0, 8))
-        ctk.CTkButton(
-            buttons, text="Cancel", width=90, fg_color="gray", command=self._cancel
-        ).grid(row=0, column=1, padx=(0, 8))
-        ctk.CTkButton(buttons, text="Save", width=90, command=self._save).grid(
-            row=0, column=2
-        )
-        self.bind("<Return>", lambda _event: self._save())
-        self.bind("<Escape>", lambda _event: self._cancel())
-
-    def show(self) -> None:
-        layout = user_settings.load_project_layout()
-        self._fill(layout)
-        self.deiconify()
-        self.after(100, self.lift)
-        self.grab_set()
-        self.entries[self.FIELDS[0][0]].focus_set()
-
-    def _fill(self, layout: ProjectLayout) -> None:
-        for field, _label in self.FIELDS:
-            entry = self.entries[field]
-            entry.delete(0, "end")
-            entry.insert(0, getattr(layout, field))
-
-    def _reset(self) -> None:
-        self._fill(ProjectLayout())
-
-    def _save(self) -> None:
-        layout = ProjectLayout(
-            **{field: self.entries[field].get() for field, _label in self.FIELDS}
-        )
-        user_settings.save_project_layout(layout)
-        self._close()
-
-    def _cancel(self) -> None:
-        self._close()
-
-    def _close(self) -> None:
-        self.grab_release()
-        self.withdraw()
+PROJECT_LAYOUT_FIELDS = (
+    ("training_phrases_dir", "Training phrases folder"),
+    ("intents_dir", "Intents output folder"),
+    ("nl_subfolder", "NL phrases subfolder"),
+    ("dd_config", "Directed dialog config file"),
+    ("nl_config", "Natural language config file"),
+)
 
 
 class App(ctk.CTk):
@@ -332,8 +165,6 @@ class App(ctk.CTk):
         self.help_window: HelpWindow | None = None
         self.editor: ConfigEditor | None = None
         self.confirmation_dialog = ConfirmationDialog(self)
-        self.naming_rules_dialog = NamingRulesDialog(self)
-        self.project_layout_dialog = ProjectLayoutDialog(self)
         self.settings = settings.load()
         self.clean_var = tk.BooleanVar(self, value=bool(self.settings["clean"]))
         self.check_updates_var = tk.BooleanVar(
@@ -398,12 +229,6 @@ class App(ctk.CTk):
             command=self._save_settings,
         )
         self.help_menu.add_separator()
-        self.help_menu.add_command(
-            label="Naming rules…", command=self.naming_rules_dialog.show
-        )
-        self.help_menu.add_command(
-            label="Project layout…", command=self.project_layout_dialog.show
-        )
         self.help_menu.add_command(label="About Intentional", command=self._show_about)
         help_button = ctk.CTkButton(
             frame,
@@ -417,7 +242,7 @@ class App(ctk.CTk):
         help_button.grid(row=0, column=5, **PAD)
 
     def _build_tabs(self) -> None:
-        tabs = ctk.CTkTabview(self, height=210)
+        tabs = ctk.CTkTabview(self, height=210, command=self._on_mode_tab_changed)
         tabs.grid(row=1, column=0, sticky="ew", padx=10, pady=(6, 0))
         self.mode_tabs = tabs
         self._build_dd_tab(self._tab(tabs, "Build DD"))
@@ -426,6 +251,13 @@ class App(ctk.CTk):
         self._build_validate_tab(self._tab(tabs, "Validate"))
         self._build_compare_tab(self._tab(tabs, "Compare"))
         self._build_design_tab(self._tab(tabs, "Design doc"))
+        self._build_settings_tab(self._tab(tabs, "Settings"))
+
+    def _on_mode_tab_changed(self) -> None:
+        # the entries only edit the saved settings, so refresh them with whatever is
+        # currently saved (e.g. changed by the CLI) whenever this tab is opened
+        if self.mode_tabs.get() == "Settings":
+            self._load_settings_tab()
 
     @staticmethod
     def _tab(tabs: ctk.CTkTabview, name: str) -> ctk.CTkFrame:
@@ -556,6 +388,107 @@ class App(ctk.CTk):
         self._run_button(
             tab, 4, "Create config", self._run_design, edit=(self.design_config, "DD")
         )
+
+    def _build_settings_tab(self, tab: ctk.CTkFrame) -> None:
+        """Project-wide settings, not specific to any one task (see NamingRules and
+        ProjectLayout in models.py). Saved to the user's profile (user_settings.py),
+        so a change here applies to every project, on the CLI and the GUI, until
+        changed again.
+        """
+        tab.grid_rowconfigure(0, weight=1)
+        frame = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+        frame.grid(row=0, column=0, columnspan=3, sticky="nsew")
+        frame.grid_columnconfigure(1, weight=1)
+
+        row = 0
+        ctk.CTkLabel(frame, text="Naming rules", font=ctk.CTkFont(weight="bold")).grid(
+            row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0)
+        )
+        row += 1
+        self.settings_intent_chars = self._entry_row(
+            frame, row, "Forbidden in an intent name (error)", ""
+        )
+        row += 1
+        self.settings_context_chars = self._entry_row(
+            frame, row, "Discouraged in a context (warning)", ""
+        )
+        row += 1
+        ctk.CTkButton(
+            frame,
+            text="Reset to defaults",
+            width=140,
+            fg_color="gray",
+            command=self._reset_naming_rules,
+        ).grid(row=row, column=1, sticky="w", padx=10, pady=(0, 10))
+        row += 1
+
+        ctk.CTkLabel(
+            frame, text="Project layout", font=ctk.CTkFont(weight="bold")
+        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        row += 1
+        self.settings_layout_entries: dict[str, ctk.CTkEntry] = {}
+        for field, label in PROJECT_LAYOUT_FIELDS:
+            self.settings_layout_entries[field] = self._entry_row(frame, row, label, "")
+            row += 1
+        ctk.CTkButton(
+            frame,
+            text="Reset to defaults",
+            width=140,
+            fg_color="gray",
+            command=self._reset_project_layout,
+        ).grid(row=row, column=1, sticky="w", padx=10, pady=(0, 10))
+        row += 1
+
+        self._hint(
+            frame,
+            row,
+            "Applies to every project, on the CLI and the GUI, until changed again.",
+        )
+        row += 1
+        ctk.CTkButton(
+            frame, text="Save settings", command=self._save_project_settings
+        ).grid(row=row, column=1, sticky="w", padx=10, pady=(6, 10))
+
+        self._load_settings_tab()
+
+    def _load_settings_tab(self) -> None:
+        rules = user_settings.load_naming_rules()
+        self.settings_intent_chars.delete(0, "end")
+        self.settings_intent_chars.insert(0, rules.intent_forbidden_chars)
+        self.settings_context_chars.delete(0, "end")
+        self.settings_context_chars.insert(0, rules.context_discouraged_chars)
+        self._fill_project_layout_entries(user_settings.load_project_layout())
+
+    def _fill_project_layout_entries(self, layout: ProjectLayout) -> None:
+        for field, _label in PROJECT_LAYOUT_FIELDS:
+            entry = self.settings_layout_entries[field]
+            entry.delete(0, "end")
+            entry.insert(0, getattr(layout, field))
+
+    def _reset_naming_rules(self) -> None:
+        defaults = NamingRules()
+        self.settings_intent_chars.delete(0, "end")
+        self.settings_intent_chars.insert(0, defaults.intent_forbidden_chars)
+        self.settings_context_chars.delete(0, "end")
+        self.settings_context_chars.insert(0, defaults.context_discouraged_chars)
+
+    def _reset_project_layout(self) -> None:
+        self._fill_project_layout_entries(ProjectLayout())
+
+    def _save_project_settings(self) -> None:
+        rules = NamingRules(
+            intent_forbidden_chars=self.settings_intent_chars.get(),
+            context_discouraged_chars=self.settings_context_chars.get(),
+        )
+        layout = ProjectLayout(
+            **{
+                field: self.settings_layout_entries[field].get()
+                for field, _label in PROJECT_LAYOUT_FIELDS
+            }
+        )
+        user_settings.save_naming_rules(rules)
+        user_settings.save_project_layout(layout)
+        messagebox.showinfo("Intentional", "Settings saved.", parent=self)
 
     def _build_results(self) -> None:
         frame = ctk.CTkFrame(self)

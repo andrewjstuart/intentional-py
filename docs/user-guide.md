@@ -39,7 +39,7 @@ Intent Creation/
 
 In the GUI, choose this folder as the **Project folder**. On the CLI, either run the command from this folder or pass `--config` with the path of a config file in it: the config file's folder is used for `Training Phrases` and `intents`.
 
-These folder and file names are this project's own convention, not a Dialogflow requirement, and can be changed with the `project-layout` command (or the GUI's **? > Project layout…**) if a project needs different names; see [Commands and options](#commands-and-options). Once changed, the new names apply to every project, on the CLI and the GUI, until changed again.
+These folder and file names are this project's own convention, not a Dialogflow requirement, and can be changed with the `project-layout` command (or the GUI's **Settings** tab) if a project needs different names; see [Commands and options](#commands-and-options). Once changed, the new names apply to every project, on the CLI and the GUI, until changed again.
 
 ## Config files
 
@@ -59,7 +59,7 @@ MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
 
 - **Intent**: by convention, parts are separated by periods (`.`). A `-` is not allowed in the name.
 - **Context**: by convention, parts are separated by dashes (`-`).
-- These two naming rules are this project's own convention, not a Dialogflow requirement, and can be changed with the `naming-rules` command (or the GUI's **? > Naming rules…**) if a project needs different standards; see [Commands and options](#commands-and-options).
+- These two naming rules are this project's own convention, not a Dialogflow requirement, and can be changed with the `naming-rules` command (or the GUI's **Settings** tab) if a project needs different standards; see [Commands and options](#commands-and-options).
 - **Language**: `en`, `es` or `fr`, or `dtmf` to add only the DTMF values as phrases. When an intent has several language rows, its `en` row supplies the shared intent definition and every row supplies that language's phrases. If it has no `en` row, an English row is generated in memory from the first row: its context, action, entities, DTMF and machine-learning value are reused, and phrases are read from the matching `Training Phrases/en/<action>.txt`. The config file itself is not changed. Two rows can also share the same intent **and** language on purpose, to swap in a different set of phrases without duplicating the intent; see [Special values](#special-values).
 - **Action**: the value returned by the intent; the phrases are read from `<action>.txt`.
 - **Entities** and **DTMF** can be empty, but their commas are still needed so the columns line up.
@@ -233,9 +233,10 @@ intentional-cli.exe compare --export agent.zip --report billing-changes.md
 Start the GUI with `intentional.exe`, `uv run intentional`, or `uv run intentional-cli gui` (optionally with `--project <folder>`). The GUI doesn't take command-line options; if `intentional` or `intentional.exe` is started with any, it opens normally and shows a reminder to use `intentional-cli` instead.
 
 - **Project folder**: see [Project folder](#project-folder). The list offers recently used folders, and the last one opens at start-up. The version number is shown next to it.
-- **Tabs**: one per [task](#tasks). Leave a config box blank to use the standard file in the project folder.
+- **Tabs**: one per [task](#tasks), plus a **Settings** tab for the naming rules and project layout (see below); these apply to every project, not just the current one, so they are kept separate from the per-project tasks. Leave a config box blank to use the standard file in the project folder.
+- **Settings** tab: the saved naming rules and project layout, editable directly (mirrors the `naming-rules` and `project-layout` CLI commands). **Reset to defaults** only changes the form; **Save settings** is what actually saves both sections. Reopening the tab reloads the currently saved values, in case they were changed elsewhere (e.g. the CLI) since it was last open.
 - **Edit config…** (on the build and Design doc tabs) opens the config file as a table. Rows can be added, edited (double-click), duplicated, deleted and reordered. **Check** runs the same checks as a build and colours the rows with errors or warnings. **Save** writes the file and keeps the previous version as `<name>.bak`.
-- **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; **Naming rules…**, to change the intent/context naming convention; **Project layout…**, to change the project folder/file names (see [Commands and options](#commands-and-options)); and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
+- **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
 
 Below the tabs, the results of the last job are shown:
 
