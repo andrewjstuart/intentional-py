@@ -5,6 +5,7 @@ Ideas that have been discussed but not built yet, with the steps to build each o
 - [Upload intents directly to Dialogflow](#upload-intents-directly-to-dialogflow)
 - [Import zip merged into an agent export](#import-zip-merged-into-an-agent-export)
 - [Code-signed Windows executables](#code-signed-windows-executables)
+- [Author and validate entity types](#author-and-validate-entity-types)
 
 ---
 
@@ -78,3 +79,53 @@ Ideas that have been discussed but not built yet, with the steps to build each o
 1. Obtain a certificate, or use a cloud signing service such as Azure Trusted Signing.
 2. Add a signing step to `.github/workflows/release.yml` after the PyInstaller builds and before the checksums are written (for example with `signtool` or the signing service's GitHub action).
 3. Update the README's Download section to remove the SmartScreen instructions.
+
+---
+
+## Author and validate entity types
+
+**Status:** tabled. Needs a real Dialogflow ES agent export (zip) with at least one custom map entity and one regexp entity, to confirm the exact `entities/` file layout before generating anything (Google's public docs describe the REST API JSON and the CSV import/export format, but not the raw zip's file names or field casing).
+
+**What it would do:** two related pieces, matching this tool's original goal of doing as much as possible outside the slow Dialogflow ES web console:
+
+1. **Author entity types** (map, list and regexp) the same way intents are authored now: a new config file, one row per entity entry (`EntityType, Kind, Value, Synonyms`), generating the `entities/` files alongside the existing `intents/` output. Regexp entries are validated locally (a real regex compile check) before anything is written, catching a broken pattern immediately instead of after importing into Dialogflow.
+2. **Validate entity references already used in `intents.cfg`'s Entities column** against what's actually available, so a typo or a forgotten entity is caught before a build, not after importing into Dialogflow:
+   - `sys.*` references checked against the known list of Dialogflow ES system entities (see below), warning on anything not recognized.
+   - Custom entity references checked against either an existing agent export zip (if the user points the tool at one for comparison) or entities defined via this tool's own new entity config, warning if a referenced custom entity isn't found in either place.
+
+**Known system entities** (from the [System entities reference](https://cloud.google.com/dialogflow/es/docs/reference/system-entities), current as of this writing — re-check before implementing, since Google adds/deprecates these over time):
+
+```text
+Date and Time:     date-time, date, date-period, time, time-period
+Numbers:           number, cardinal, ordinal, number-integer, number-sequence, flight-number
+Amounts w/ Units:  unit-area, unit-currency, unit-length, unit-speed, unit-volume, unit-weight,
+                   unit-information, percentage, temperature, duration, age
+Unit Names:        currency-name, unit-area-name, unit-length-name, unit-speed-name,
+                   unit-volume-name, unit-weight-name, unit-information-name
+Geography:         address, zip-code, geo-capital, geo-country, geo-country-code, geo-city,
+                   geo-state, place-attraction, airport, location
+Contacts:          email, phone-number
+Names:             person
+Music:             music-artist, music-genre
+Other:             color, language
+Generic:           any, url
+```
+
+(Several more, like `street-address`, `given-name`, `last-name`, `geo-city-us`/`-gb`, are documented as deprecated in favor of the ones above; worth excluding from a fresh implementation rather than encouraging their use.)
+
+**Considerations**
+
+- The exact zip file layout (`entities/<name>.json` + `entities/<name>_entries_<lang>.json`, field names, whether regexp entries need a language-specific entries file at all) needs to be confirmed against a real export before writing any generation code, the same way the existing intent JSON was clearly built by matching a real export rather than guessing from the REST API schema.
+- Regexp entities have real limits worth validating locally too: max 50 per agent, max 2000 characters for the compound (all entries `|`-joined) pattern, and they can't be combined with fuzzy matching.
+- Custom-entity validation needs a way to point the tool at an existing agent export for comparison — `compare.py` already reads agent export zips for the intents comparison feature, so extending it to also read the `entities/` folder is likely the natural way to do this rather than building a second zip reader.
+- This is validation-only for `sys.*` entities (there's nothing to "author", they already exist in Dialogflow); only custom entities would actually get new files generated.
+
+**Implementation steps**
+
+1. Get a real agent export zip with a custom map entity and a regexp entity; inspect its `entities/` folder to confirm the exact file/field format.
+2. Add the system-entity list to `constants.py` (e.g. `VALID_SYSTEM_ENTITIES`), and a per-row check in `models.py` (or a new module) that warns when an Entities-column value starts with `sys.` but isn't in that list.
+3. Design the new entity config format (columns, one row per entry) and a `models.EntityDefinition`-style model with the same fatal-error/warning split as `ConfigRow`, including the regex compile check for `KIND_REGEXP` rows.
+4. Add generation of `entities/*.json` alongside `intents/*.json` in `build_intents.py`, using the confirmed real format from step 1.
+5. Extend `compare.py`'s export-loading to also read `entities/`, so custom entity references can be checked against an existing export, and expose this as part of `validate`/`check_rows` (warning, not error, since the entity might simply not exist yet).
+6. CLI: a new config file option alongside `--config`; GUI: a new tab or a section of the existing Design doc / config editor flow.
+7. Tests: a fixture agent export zip with known entities (map, list, regexp) to validate against; a broken regex to confirm it's caught before writing; a `sys.*` typo to confirm it warns.
