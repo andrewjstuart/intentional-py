@@ -40,8 +40,9 @@ Each config row has 7 comma-separated values; the last one is optional:
 • An action ending in ^ also turns machine learning off for that intent.
 • A priority can follow the intent name in braces, e.g. MYAC.Billing.Pay{high}.
 • Entities are separated by | ; a trailing * marks a required entity and [name] sets its alias.
+• DTMF values must each be a single digit 0-9, # or *; anything else is an error.
 
-Errors (missing intent, context or action, or '-' in an intent name) stop the build before any file is written.
+Errors (missing intent, context or action; invalid DTMF values; or a forbidden character in an intent name — see ? > Naming rules…) stop the build before any file is written.
 
 Edit config… opens the config file as a table: add, edit, reorder or delete rows, check them with the same rules as a build, and save (the previous file is kept as .bak).
 

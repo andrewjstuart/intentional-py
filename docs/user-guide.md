@@ -57,8 +57,7 @@ MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
 
 - **Intent**: by convention, parts are separated by periods (`.`). A `-` is not allowed in the name.
 - **Context**: by convention, parts are separated by dashes (`-`).
-
-These two rules are this project's naming convention, not a Dialogflow requirement, and can be changed with the `naming-rules` command (or the GUI's **? > Naming rules…**) if a project needs different standards; see [Commands and options](#commands-and-options).
+- These two naming rules are this project's own convention, not a Dialogflow requirement, and can be changed with the `naming-rules` command (or the GUI's **? > Naming rules…**) if a project needs different standards; see [Commands and options](#commands-and-options).
 - **Language**: `en`, `es` or `fr`, or `dtmf` to add only the DTMF values as phrases. When an intent has several language rows, its `en` row supplies the shared intent definition and every row supplies that language's phrases. If it has no `en` row, an English row is generated in memory from the first row: its context, action, entities, DTMF and machine-learning value are reused, and phrases are read from the matching `Training Phrases/en/<action>.txt`. The config file itself is not changed. Two rows can also share the same intent **and** language on purpose, to swap in a different set of phrases without duplicating the intent; see [Special values](#special-values).
 - **Action**: the value returned by the intent; the phrases are read from `<action>.txt`.
 - **Entities** and **DTMF** can be empty, but their commas are still needed so the columns line up.

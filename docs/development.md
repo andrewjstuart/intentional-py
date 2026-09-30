@@ -40,9 +40,9 @@ The tests are in `src/intentional_py/tests` (see the [code guide](code-guide.md#
 
 ```text
 > uv run pytest -q
-........................................................................ [ 85%]
-............                                                             [100%]
-84 passed
+........................................................................ [ 76%]
+......................                                                  [100%]
+94 passed
 ```
 
 ## Packaging the Windows executables
