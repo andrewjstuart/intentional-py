@@ -6,37 +6,7 @@ import openpyxl
 import pytest
 
 from intentional_py import build_intents, exceptions, extract
-
-
-class FakeReporter:
-    def __init__(self, answer: bool = True) -> None:
-        self.answer = answer
-        self.messages: list[tuple[str, str]] = []
-        self.tables: list[list[str]] = []
-        self.questions: list[str] = []
-        self.question_details: list[list[str]] = []
-
-    def message(self, level, text):
-        self.messages.append((level, text))
-
-    def table(self, columns, rows, level="info", title=""):
-        self.tables.append(columns)
-
-    def track(self, items, label):
-        yield from items
-
-    def confirm(self, question, details=None):
-        self.questions.append(question)
-        self.question_details.append(list(details or []))
-        return self.answer
-
-
-def make_nl_phrases(base: Path) -> Path:
-    nl_dir = base / "Training Phrases" / "en" / "NL"
-    nl_dir.mkdir(parents=True)
-    (nl_dir / "BILLING.txt").write_text("pay my bill\nhello\n", encoding="utf-8")
-    (nl_dir / "GREETING.txt").write_text("hello\n", encoding="utf-8")
-    return base / "intents_nl.cfg"
+from intentional_py.tests.conftest import FakeReporter, make_nl_phrases
 
 
 def test_nl_config_aborts_when_duplicates_declined(tmp_path: Path) -> None:

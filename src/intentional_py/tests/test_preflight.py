@@ -2,11 +2,7 @@ import csv
 from pathlib import Path
 
 from intentional_py import validate
-
-
-def write_config(path: Path, row: list[str]) -> None:
-    with path.open("w", newline="", encoding="utf-8") as config_file:
-        csv.writer(config_file).writerow(row)
+from intentional_py.tests.conftest import write_config
 
 
 def test_preflight_normalizes_defaultable_values(tmp_path: Path) -> None:
@@ -31,6 +27,19 @@ def test_preflight_rejects_malformed_rows_before_build(tmp_path: Path) -> None:
     assert rows == []
     assert warnings == []
     assert fatal_errors == ["Row 1: expected 6 or 7 values, found 3."]
+
+
+def test_preflight_rejects_a_path_traversal_intent_name(tmp_path: Path) -> None:
+    # the intent name becomes a file name; this is a safety rule, not a relaxable
+    # naming convention, so it's caught here before a build ever writes a file
+    config = tmp_path / "intents.cfg"
+    write_config(config, ["../../evil", "GetIntent", "en", "welcome", "", "", ""])
+
+    _, fatal_errors, _ = validate.preflight_config(config, tmp_path, "DD")
+
+    assert fatal_errors == [
+        "Row 1: intent name '../../evil' cannot contain '/' or '\\'."
+    ]
 
 
 def test_machine_learning_column_is_optional(tmp_path: Path) -> None:

@@ -7,38 +7,7 @@ import openpyxl
 import pytest
 
 from intentional_py import build_intents, compare, design_doc, exceptions, validate
-
-
-class QuietReporter:
-    def __init__(self) -> None:
-        self.messages: list[tuple[str, str]] = []
-
-    def message(self, level, text):
-        self.messages.append((level, text))
-
-    def table(self, columns, rows, level="info"):
-        pass
-
-    def track(self, items, label):
-        yield from items
-
-    def confirm(self, question, details=None):
-        return True
-
-
-def dd_project(base: Path, rows: list[str], phrases: dict[str, str]) -> Path:
-    phrase_dir = base / "Training Phrases" / "en"
-    phrase_dir.mkdir(parents=True, exist_ok=True)
-    for name, text in phrases.items():
-        (phrase_dir / f"{name}.txt").write_text(text, encoding="utf-8")
-    config = base / "intents.cfg"
-    config.write_text("".join(f"{row}\n" for row in rows), encoding="utf-8")
-    return config
-
-
-def warnings_for(config: Path) -> list[str]:
-    return validate.preflight_config(config, config.parent, "DD")[2]
-
+from intentional_py.tests.conftest import FakeReporter, dd_project, warnings_for
 
 # ----- phrase checks -----
 
@@ -103,7 +72,7 @@ def test_intent_without_english_row_is_complete(tmp_path: Path) -> None:
     config.write_text("A.Pay,Ctx,es,pagar,,,\n", encoding="utf-8")
 
     rows, errors, warnings = validate.preflight_config(config, tmp_path, "DD")
-    result = build_intents.intents("DD", config, tmp_path, QuietReporter())
+    result = build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     assert errors == []
     assert len(rows) == 2
@@ -148,7 +117,7 @@ def test_english_row_owns_multilingual_intent_definition(tmp_path: Path) -> None
         "A.Pay,Context-es,es,pagar,,,\nA.Pay,Context-en,en,pay,,,\n", encoding="utf-8"
     )
 
-    build_intents.intents("DD", config, tmp_path, QuietReporter())
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     intent = json.loads(
         (tmp_path / "intents" / "A.Pay.json").read_text(encoding="utf-8")
@@ -172,7 +141,7 @@ def test_duplicate_row_for_same_intent_and_language_does_not_duplicate_phrases(
 
     assert warnings == ["Row 2: identical to row 1; the duplicate was dropped."]
 
-    build_intents.intents("DD", config, tmp_path, QuietReporter())
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
     usersays = json.loads(
         (tmp_path / "intents" / "A.Pay_usersays_en.json").read_text(encoding="utf-8")
     )
@@ -195,7 +164,7 @@ def test_exact_duplicate_row_is_dropped_before_other_checks(tmp_path: Path) -> N
     assert warnings == ["Row 2: identical to row 1; the duplicate was dropped."]
     assert len(rows) == 1
 
-    result = build_intents.intents("DD", config, tmp_path, QuietReporter())
+    result = build_intents.intents("DD", config, tmp_path, FakeReporter())
     assert result.intents == 1
     assert result.phrases == 2
 
@@ -214,7 +183,7 @@ def test_duplicate_row_with_a_different_action_swaps_only_the_phrases(
         },
     )
 
-    build_intents.intents("DD", config, tmp_path, QuietReporter())
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     intent = json.loads(
         (tmp_path / "intents" / "A.Home.json").read_text(encoding="utf-8")
@@ -238,10 +207,10 @@ def test_clean_backs_up_and_removes_old_intents(tmp_path: Path) -> None:
         ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,"],
         {"one": "one\n", "two": "two\n"},
     )
-    build_intents.intents("DD", config, tmp_path, QuietReporter())
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
     config.write_text("A.One,Ctx,en,one,,,\n", encoding="utf-8")
 
-    result = build_intents.intents("DD", config, tmp_path, QuietReporter(), clean=True)
+    result = build_intents.intents("DD", config, tmp_path, FakeReporter(), clean=True)
 
     assert result.changes.removed == ["A.Two"]
     assert sorted(p.name for p in (tmp_path / "intents").iterdir()) == [
@@ -258,13 +227,13 @@ def test_rebuild_without_clean_keeps_old_intents(tmp_path: Path) -> None:
         ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,"],
         {"one": "one\n", "two": "two\n"},
     )
-    build_intents.intents("DD", config, tmp_path, QuietReporter())
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
     (tmp_path / "Training Phrases" / "en" / "one.txt").write_text(
         "one\nuno\n", encoding="utf-8"
     )
     config.write_text("A.One,Ctx,en,one,,,\n", encoding="utf-8")
 
-    result = build_intents.intents("DD", config, tmp_path, QuietReporter())
+    result = build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     assert result.backup is None
     assert result.changes.removed == ["A.Two"]
@@ -283,7 +252,7 @@ def test_compare_with_export_zip_ignores_ids(tmp_path: Path) -> None:
         ["A.One,Ctx,en,one,,,", "A.Two,Ctx,en,two,,,FALSE"],
         {"one": "one\n", "two": "two\n"},
     )
-    build_intents.intents("DD", config, tmp_path, QuietReporter())
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
     export = tmp_path / "agent.zip"
     with zipfile.ZipFile(export, "w") as archive:
         archive.writestr("agent.json", "{}")
@@ -301,9 +270,7 @@ def test_compare_with_export_zip_ignores_ids(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    result = build_intents.compare_build(
-        "DD", config, tmp_path, export, QuietReporter()
-    )
+    result = build_intents.compare_build("DD", config, tmp_path, export, FakeReporter())
 
     assert result.added == ["A.Three"]
     assert [(c.name, c.details) for c in result.changed] == [
@@ -365,7 +332,7 @@ def test_design_document_becomes_config(tmp_path: Path) -> None:
     config = tmp_path / "intents.cfg"
     config.write_text("OLD.Row,Ctx,en,old,,,\n", encoding="utf-8")
 
-    result = design_doc.config_from_design(xl_file, config, QuietReporter())
+    result = design_doc.config_from_design(xl_file, config, FakeReporter())
 
     with config.open(encoding="utf-8", newline="") as file:
         rows = list(csv.reader(file))
@@ -392,7 +359,7 @@ def test_design_document_without_headers(tmp_path: Path) -> None:
     workbook.save(tmp_path / "bad.xlsx")
     with pytest.raises(exceptions.ConfigurationError, match="No header row"):
         design_doc.config_from_design(
-            tmp_path / "bad.xlsx", tmp_path / "intents.cfg", QuietReporter()
+            tmp_path / "bad.xlsx", tmp_path / "intents.cfg", FakeReporter()
         )
 
 

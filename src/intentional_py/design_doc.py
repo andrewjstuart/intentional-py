@@ -7,7 +7,6 @@ machine learning on and FALSE turns it off.
 """
 
 import csv
-import datetime
 import shutil
 import zipfile
 from pathlib import Path
@@ -139,9 +138,7 @@ def config_from_design(
     result = DesignResult(config=config, sheet=sheet_used, rows=len(rows))
     reporter.message("info", f"Reading sheet '{sheet_used}' of {xl_file.name}")
     if config.exists():
-        stamp = (
-            datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
-        )
+        stamp = utils.timestamp()
         result.backup = config.with_name(f"{config.stem}_{stamp}{config.suffix}")
         with utils.file_errors(result.backup):
             shutil.copy2(config, result.backup)

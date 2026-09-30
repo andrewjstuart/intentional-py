@@ -6,7 +6,6 @@ entity handling, priority mapping, and progress tracking.
 """
 
 import csv
-import datetime
 import json
 import uuid
 from pathlib import Path
@@ -62,9 +61,7 @@ def intents(
                 "warning", f"Could not compare with the previous build: {error}"
             )
     if clean and previous:
-        stamp = (
-            datetime.datetime.now(datetime.UTC).astimezone().strftime("%Y-%m-%d_%H%M%S")
-        )
+        stamp = utils.timestamp()
         result.backup = Path(base_dir, f"{constants.DEFAULT_INTENTS_DIR}_{stamp}.zip")
         with utils.file_errors(result.backup):
             utils.zip_directory(output_dir, result.backup, previous)
@@ -263,10 +260,12 @@ def create_json(
     # set output file paths; the folder is created when the files are written
     output_file_path: Path = Path(default_path, constants.DEFAULT_INTENTS_DIR)
 
-    output_file: Path = Path(f"{df_intent}.json")
-    output_file = Path(output_file_path, output_file)
-    output_phrase_file: Path = Path(f"{df_intent}_usersays_{language}.json")
-    output_phrase_file = Path(output_file_path, output_phrase_file)
+    # safe_join rejects an intent name that would write outside output_file_path (e.g. '../');
+    # models.ConfigRow already rejects a '/' or '\' in the name before this ever runs
+    output_file = utils.safe_join(output_file_path, f"{df_intent}.json")
+    output_phrase_file = utils.safe_join(
+        output_file_path, f"{df_intent}_usersays_{language}.json"
+    )
 
     # create intent JSON
     intent_json = """
