@@ -101,7 +101,7 @@ Rerun both commands after changing any core Python code, so the wheel the browse
 
 The page follows the browser's light/dark mode preference (`prefers-color-scheme`) by default; the toggle button overrides this and remembers the choice in the browser's `localStorage`, the web equivalent of `gui/settings.py`.
 
-Only **Validate** is implemented so far (`src/intentional_py/web/actions.py`, covered by `test_web_actions.py` like any other core-facing code — no browser needed to test it). Extending it to the other tasks follows the same shape as `gui/actions.py`: one function per task, zip in, JSON (and eventually a result zip) out.
+All six tasks are implemented (`src/intentional_py/web/actions.py`, covered by `test_web_actions.py` like any other core-facing code — no browser needed to test it): Validate and Compare return a JSON summary; Build DD/NL, Extract, and Design doc also return a base64-encoded zip of what changed, which `app.js` turns into a downloadable file.
 
 ## Releases and automated builds
 

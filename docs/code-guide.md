@@ -107,11 +107,11 @@ The GUI is built with [CustomTkinter](https://customtkinter.tomschimansky.com/),
 
 ### Browser prototype (web folder)
 
-An experimental third front end: the same core running in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly), with no server beyond serving the static page itself (see [development](development.md#running-the-web-prototype)). Only Validate is implemented so far.
+An experimental third front end: the same core running in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly), with no server beyond serving the static page itself (see [development](development.md#running-the-web-prototype)). All six tasks are implemented.
 
 | File | What it does |
 |-|-|
-| [web/actions.py](../src/intentional_py/web/actions.py) | **What the page's Validate button does.** `validate_project()` unzips an uploaded project zip to a temp folder, calls the unmodified `validate.py`, and returns the result as a JSON string. Has no Pyodide-specific calls, so it's tested with plain `pytest` like any other code (`test_web_actions.py`). |
+| [web/actions.py](../src/intentional_py/web/actions.py) | **What each task's Run button does.** One function per task (`validate_project()`, `build_dd_project()`, `build_nl_project()`, `extract_project()`, `design_project()`, `compare_project()`), mirroring `gui/actions.py`'s functions: unzip the upload(s) to a temp folder, call the unmodified core, and return a JSON string — for the tasks that produce files, also a base64-encoded zip of just what changed, which `app.js` turns into a download link. Has no Pyodide-specific calls, so it's tested with plain `pytest` like any other code (`test_web_actions.py`). |
 | [web/reporter.py](../src/intentional_py/web/reporter.py) | `WebReporter`, a third `Reporter` implementation alongside `RichReporter` and `GuiReporter`: collects messages and tables in memory instead of printing or streaming them, since the browser prototype shows a result once the job finishes rather than live progress. |
 | [web/\_\_init\_\_.py](../src/intentional_py/web/__init__.py) | Marks the folder as a Python package, so it ships inside the wheel the browser installs. |
 

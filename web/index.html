@@ -59,31 +59,107 @@
   .ok { color: var(--ok); }
   .fail { color: var(--fail); }
   a { color: var(--accent); }
+  #downloadLink { display: none; margin-left: 0.5rem; }
+  select { background: var(--bg); color: var(--fg); border: 1px solid var(--border); padding: 0.3rem; }
+  input[type="checkbox"] { width: auto; margin-right: 0.4rem; }
 </style>
 </head>
 <body>
   <header>
-    <h1>Intentional — Web prototype (Validate)</h1>
+    <h1>Intentional — Web prototype</h1>
     <button id="themeToggle" type="button" aria-label="Toggle light/dark mode"></button>
   </header>
   <p>
-    Upload a zipped project folder (the config file(s) and the <code>Training Phrases</code> tree,
-    same layout as the CLI/GUI project folder) to validate it. This runs the real
-    <code>validate.py</code> core, compiled to WebAssembly via
+    Upload the same project folder (zipped) or Excel file you'd use with the CLI/GUI.
+    This runs the real core, compiled to WebAssembly via
     <a href="https://pyodide.org/" target="_blank" rel="noopener">Pyodide</a> — nothing is
     uploaded anywhere; it all runs in this tab.
   </p>
   <p id="status">Loading Python runtime…</p>
   <fieldset>
     <label>
-      Project zip
-      <input type="file" id="zipInput" accept=".zip" disabled />
+      Task
+      <select id="task">
+        <option value="validate">Validate</option>
+        <option value="buildDd">Build DD intents</option>
+        <option value="buildNl">Build NL intents</option>
+        <option value="extract">Extract phrases from Excel</option>
+        <option value="design">Create config from design document</option>
+        <option value="compare">Compare with an agent export</option>
+      </select>
     </label>
-    <label>
-      Config file name (optional; blank checks the standard files)
-      <input type="text" id="configName" placeholder="intents.cfg" />
-    </label>
-    <button id="runButton" disabled>Validate</button>
+    <div id="field-projectZip">
+      <label>
+        Project zip
+        <input type="file" id="zipInput" accept=".zip" disabled />
+      </label>
+    </div>
+    <div id="field-excelFile">
+      <label>
+        Excel file
+        <input type="file" id="excelInput" accept=".xlsb,.xlsm,.xlsx" disabled />
+      </label>
+    </div>
+    <div id="field-exportZip">
+      <label>
+        Agent export (zip)
+        <input type="file" id="exportInput" accept=".zip" disabled />
+      </label>
+    </div>
+    <div id="field-configName">
+      <label>
+        Config file name (optional; blank uses the standard name)
+        <input type="text" id="configName" placeholder="intents.cfg" />
+      </label>
+    </div>
+    <div id="field-mode">
+      <label>
+        Mode
+        <select id="mode">
+          <option value="DD">DD</option>
+          <option value="NL">NL</option>
+        </select>
+      </label>
+    </div>
+    <div id="field-language">
+      <label>
+        Language
+        <select id="language">
+          <option value="en">en</option>
+          <option value="es">es</option>
+          <option value="fr">fr</option>
+        </select>
+      </label>
+    </div>
+    <div id="field-sheet">
+      <label>
+        Sheet name (optional; blank finds the first sheet with a header row)
+        <input type="text" id="sheet" />
+      </label>
+    </div>
+    <div id="field-vertical">
+      <label>
+        Vertical prefix
+        <input type="text" id="vertical" placeholder="FIN" />
+      </label>
+    </div>
+    <div id="field-context">
+      <label>
+        Context (optional; blank uses GetIntent)
+        <input type="text" id="context" />
+      </label>
+    </div>
+    <div id="field-lowercase">
+      <label><input type="checkbox" id="lowercase" />Lowercase actions</label>
+    </div>
+    <div id="field-reuse">
+      <label><input type="checkbox" id="reuse" />Reuse the existing NL config</label>
+    </div>
+    <div id="field-clean">
+      <label><input type="checkbox" id="clean" />Clear the intents folder first (old files are zipped)</label>
+    </div>
+    <button id="runButton" disabled>Run</button>
+    <a id="downloadLink" download="result.zip">Download result.zip</a>
   </fieldset>
   <div id="result"></div>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>

@@ -78,7 +78,7 @@ From source, use `uv run intentional` for the GUI and `uv run intentional-cli` f
 
 A third front end, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — no server, no install, nothing leaves the browser tab. It reuses the same core as the CLI and GUI, so a project's config and phrase files validate identically everywhere.
 
-Today it only covers **Validate**, uploaded as a project zip; the other tasks follow the same pattern and are future work. It isn't part of a release yet — run it from source:
+Today it covers every task — Validate, Build DD/NL, Extract, Compare, and Design doc — the same as the CLI/GUI, uploaded as a project zip or Excel file depending on the task. It isn't part of a release yet — run it from source:
 
 ```bash
 uv build --wheel && cp dist/*.whl web/
