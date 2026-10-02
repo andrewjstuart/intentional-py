@@ -181,6 +181,49 @@ def test_nl_defaults_context_can_be_overridden() -> None:
     assert models.NlDefaults(context="MainContext").context == "MainContext"
 
 
+def test_language_settings_defaults_match_the_original_hardcoded_set() -> None:
+    languages = models.LanguageSettings()
+
+    assert languages.languages == constants.LANGUAGE_NAMES
+    assert languages.default_language == constants.DEFAULT_LANGUAGE
+    assert languages.codes == constants.VALID_LANGUAGES
+
+
+def test_language_settings_can_be_overridden() -> None:
+    languages = models.LanguageSettings(
+        languages={"en": "English", "de": "German"}, default_language="de"
+    )
+
+    assert languages.codes == {"en", "de"}
+    assert languages.default_language == "de"
+
+
+def test_config_row_accepts_a_custom_language_set() -> None:
+    languages = models.LanguageSettings(
+        languages={"en": "English", "de": "German"}, default_language="de"
+    )
+
+    row = models.ConfigRow.from_csv_row(
+        ["A.Pay", "Ctx", "de", "pay", "", "", ""], row_number=1, languages=languages
+    )
+
+    assert row.ok
+    assert row.language == "de"
+
+
+def test_config_row_rejects_a_language_outside_the_custom_set() -> None:
+    languages = models.LanguageSettings(
+        languages={"en": "English", "de": "German"}, default_language="de"
+    )
+
+    row = models.ConfigRow.from_csv_row(
+        ["A.Pay", "Ctx", "fr", "pay", "", "", ""], row_number=1, languages=languages
+    )
+
+    assert row.language == "de"
+    assert row.warnings == ["Row 1: language 'fr' will default to 'de'."]
+
+
 def test_action_with_a_path_separator_is_an_error() -> None:
     # unconditional: the action is used to find a phrase file
     row = models.ConfigRow.from_csv_row(

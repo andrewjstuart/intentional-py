@@ -8,7 +8,7 @@ import csv
 import re
 from pathlib import Path
 
-from intentional_py import constants, models, utils
+from intentional_py import models, utils
 from intentional_py.reporting import Check, Reporter, ValidateResult
 
 MAX_LINES_LISTED = 5
@@ -31,9 +31,12 @@ def preflight_config(
     mode: str | None,
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
 ) -> tuple[list[list[str]], list[str], list[str]]:
     """Validate and normalize a config file's rows before a build starts; see check_rows."""
-    return check_rows(read_config_rows(config), base_path, mode, rules, layout)
+    return check_rows(
+        read_config_rows(config), base_path, mode, rules, layout, languages
+    )
 
 
 def check_rows(
@@ -42,6 +45,7 @@ def check_rows(
     mode: str | None,
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
 ) -> tuple[list[list[str]], list[str], list[str]]:
     """Validate and normalize config rows.
 
@@ -54,8 +58,11 @@ def check_rows(
         original hardcoded behavior when not given (see models.NamingRules).
     layout (ProjectLayout | None): project folder/file names; defaults to the
         original hardcoded layout when not given.
+    languages (LanguageSettings | None): supported language codes/names; defaults to
+        every Dialogflow ES language when not given (see models.LanguageSettings).
     """
     layout = layout or models.ProjectLayout()
+    languages = languages or models.LanguageSettings()
     fatal_errors: list[str] = []
     warnings: list[str] = []
     normalized_rows: list[list[str]] = []
@@ -80,7 +87,7 @@ def check_rows(
 
         # ConfigRow runs the per-row rules (required fields, language, DTMF, machine learning);
         # cross-row and filesystem checks below stay here, since they involve more than one row
-        parsed = models.ConfigRow.from_csv_row(row, row_number, rules)
+        parsed = models.ConfigRow.from_csv_row(row, row_number, rules, languages)
         language = parsed.language
         normalized_row[2] = parsed.language
         normalized_row[6] = parsed.machine_learning_text
@@ -157,21 +164,28 @@ def check_rows(
                     "context, action, priority, entities and machine learning are kept."
                 )
         if not any(
-            language == constants.DEFAULT_LANGUAGE for _, language in language_rows
+            language == languages.default_language for _, language in language_rows
         ):
             row_number, source_row = first_intent_rows[intent]
             language = source_row[2]
             english_row = source_row.copy()
-            english_row[2] = constants.DEFAULT_LANGUAGE
+            english_row[2] = languages.default_language
             normalized_rows.append(english_row)
+            # "English" and "an" when the default is still 'en', same wording as before
+            # this was configurable; generalizes to whatever default_language is now
+            name = languages.languages.get(
+                languages.default_language, languages.default_language
+            )
+            article = "an" if name[:1].lower() in "aeiou" else "a"
             warnings.append(
-                f"Row {row_number}: intent '{intent}' has no English ('en') row; "
-                f"an English row will be synthesized from this row ('{language}')."
+                f"Row {row_number}: intent '{intent}' has no {name} "
+                f"('{languages.default_language}') row; {article} {name} row will be "
+                f"synthesized from this row ('{language}')."
             )
             action = english_row[3]
             if action and action != "nomatch":
                 phrase_path = (
-                    base_path / layout.training_phrases_dir / constants.DEFAULT_LANGUAGE
+                    base_path / layout.training_phrases_dir / languages.default_language
                 )
                 phrase_dirs = {
                     "DD": [phrase_path],
@@ -183,14 +197,14 @@ def check_rows(
                 found = [path for path in phrase_files if path.exists()]
                 if not found:
                     warnings.append(
-                        f"Row {row_number}: synthesized English row for '{intent}': phrase file "
-                        f"'{phrase_files[0]}' was not found; the English intent "
+                        f"Row {row_number}: synthesized {name} row for '{intent}': phrase file "
+                        f"'{phrase_files[0]}' was not found; the {name} intent "
                         "will be generated without those phrases."
                     )
                 else:
                     phrases = _read_phrases(found[0])
                     warnings.extend(
-                        f"Row {row_number}: synthesized English row for '{intent}': {problem}"
+                        f"Row {row_number}: synthesized {name} row for '{intent}': {problem}"
                         for problem in _phrase_problems(
                             found[0], phrases, english_row[4]
                         )
@@ -288,6 +302,7 @@ def validate(
     reporter: Reporter,
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
 ) -> ValidateResult:
     """Validates the directories and files for the project.
 
@@ -299,29 +314,13 @@ def validate(
             original hardcoded behavior when not given.
         layout (ProjectLayout | None): project folder/file names; defaults to the
             original hardcoded layout when not given.
+        languages (LanguageSettings | None): supported language codes/names; defaults to
+            the original hardcoded set (en/es/fr) when not given.
     """
     layout = layout or models.ProjectLayout()
+    languages = languages or models.LanguageSettings()
     result = ValidateResult()
     reporter.message("info", "[yellow]Validating directories and files[/yellow]\n")
-
-    # check for directory structure
-    phrase_path = Path(base_dir, layout.training_phrases_dir)
-    phrases_exist = phrase_path.exists()
-    result.directories.append(
-        Check(f"{layout.training_phrases_dir} path", phrases_exist)
-    )
-    if phrases_exist:
-        for code, name in constants.LANGUAGE_NAMES.items():
-            lang_path = Path(phrase_path, code)
-            lang_exists = lang_path.exists()
-            result.directories.append(Check(f"{name} path", lang_exists))
-            if lang_exists:
-                result.directories.append(
-                    Check(
-                        f"{name} {layout.nl_subfolder} path",
-                        Path(lang_path, layout.nl_subfolder).exists(),
-                    )
-                )
 
     config_list: list = []
     if not config.is_file():
@@ -337,19 +336,51 @@ def validate(
         # check for this config file
         config_list.append(config)
 
-    # check if config files exist
+    # check each config file now (not just whether it exists), so the directory check
+    # below knows which languages are actually used - a supported language that isn't
+    # in the config doesn't need a folder yet, it's only required once it's used
+    used_languages: set[str] = set()
+    # (file name, exists, ok, details)
+    config_checks: list[tuple[str, bool, bool, list[str]]] = []
     for file in config_list:
         if not file.is_file():
-            result.config_files.append(Check(f"Checking for {file.name}", False))
+            config_checks.append((file.name, False, False, []))
             continue
-        result.config_files.append(Check(f"Checking for {file.name}", True))
-
         # the same checks a build runs, so validate reports exactly what a build would
-        rows, errors, warnings = preflight_config(file, base_dir, None, rules, layout)
+        rows, errors, warnings = preflight_config(
+            file, base_dir, None, rules, layout, languages
+        )
+        used_languages.update(row[2] for row in rows if row[2] != "dtmf")
         if not rows and not errors:
             errors = ["The config file does not contain data."]
         details = [f"Error: {error}" for error in errors]
         details += [f"Warning: {warning}" for warning in warnings]
-        result.configs.append(Check(f"Validating {file.name}", not errors, details))
+        config_checks.append((file.name, True, not errors, details))
+
+    # check for directory structure - only for languages actually used in the config(s)
+    # above, not every supported language, since an unused one doesn't need a folder yet
+    phrase_path = Path(base_dir, layout.training_phrases_dir)
+    phrases_exist = phrase_path.exists()
+    result.directories.append(
+        Check(f"{layout.training_phrases_dir} path", phrases_exist)
+    )
+    if phrases_exist:
+        for code in sorted(used_languages, key=lambda c: languages.languages.get(c, c)):
+            name = languages.languages.get(code, code)
+            lang_path = Path(phrase_path, code)
+            lang_exists = lang_path.exists()
+            result.directories.append(Check(f"{name} path", lang_exists))
+            if lang_exists:
+                result.directories.append(
+                    Check(
+                        f"{name} {layout.nl_subfolder} path",
+                        Path(lang_path, layout.nl_subfolder).exists(),
+                    )
+                )
+
+    for file_name, exists, ok, details in config_checks:
+        result.config_files.append(Check(f"Checking for {file_name}", exists))
+        if exists:
+            result.configs.append(Check(f"Validating {file_name}", ok, details))
 
     return result

@@ -6,7 +6,6 @@ Ideas that have been discussed but not built yet, with the steps to build each o
 - [Import zip merged into an agent export](#import-zip-merged-into-an-agent-export)
 - [Code-signed Windows executables](#code-signed-windows-executables)
 - [Author and validate entity types](#author-and-validate-entity-types)
-- [Configurable supported language set](#configurable-supported-language-set)
 
 ---
 
@@ -130,26 +129,3 @@ Generic:           any, url
 5. Extend `compare.py`'s export-loading to also read `entities/`, so custom entity references can be checked against an existing export, and expose this as part of `validate`/`check_rows` (warning, not error, since the entity might simply not exist yet).
 6. CLI: a new config file option alongside `--config`; GUI: a new tab or a section of the existing Design doc / config editor flow.
 7. Tests: a fixture agent export zip with known entities (map, list, regexp) to validate against; a broken regex to confirm it's caught before writing; a `sys.*` typo to confirm it warns.
-
----
-
-## Configurable supported language set
-
-**Status:** tabled. Noted during a review of hardcoded values alongside the configurable naming-rules/project-layout/NL-defaults settings, but out of scope for that change since it touches more of the codebase than a simple persisted default.
-
-**What it would do:** let a user change the supported language set (`constants.VALID_LANGUAGES` / `LANGUAGE_NAMES` / `DEFAULT_LANGUAGE`, currently `en`/`es`/`fr`) the same way as `NamingRules`, `ProjectLayout` and `NlDefaults`, so a project that needs a different set (e.g. add `de`, drop `fr`) doesn't have to fork the tool.
-
-**Considerations**
-
-- Bigger than the other configurable settings: `VALID_LANGUAGES` and `LANGUAGE_NAMES` are read directly (not through an optional parameter) in several places — `models.ConfigRow`'s per-row language check, `validate.py`'s per-language folder checks, `extract`'s language option validation, and the GUI's language dropdowns (`gui/app.py`, `gui/config_editor.py`) — so this would need the same optional-parameter threading done for `ProjectLayout`, but across more files.
-- `DEFAULT_LANGUAGE` ('en') is also used as the language a synthesized English row is generated in (see `check_rows()`); a configurable language set would need to decide what "the English row" becomes when English isn't necessarily in the set.
-- A `LanguageSettings` model would need both the valid codes and their display names (for the GUI dropdowns), e.g. `{"en": "English", "de": "German"}`, not just a list of codes.
-
-**Implementation steps**
-
-1. Add a `LanguageSettings` Pydantic model to `models.py` (a dict of code → display name, plus which one is the default/English-equivalent), defaulting to the current hardcoded `en`/`es`/`fr`.
-2. Add `language_settings_path()` / `load_language_settings()` / `save_language_settings()` to `user_settings.py`, mirroring the existing settings.
-3. Thread an optional `languages: LanguageSettings | None = None` parameter through `models.ConfigRow.from_csv_row()`, `validate.py`'s per-language checks, and `extract`'s language validation, each defaulting to `None` → the current hardcoded set.
-4. Add a `language-settings` CLI command and a matching section on the GUI's Settings tab; update `xl_language` / `compare`'s language dropdowns to read from the saved settings instead of `constants.LANGUAGE_NAMES` directly.
-5. Tests: model defaults/overrides, `user_settings` round trip, a CLI test, and a build/validate test using a non-default language set (e.g. only `en`/`de`).
-6. Document the change in the user guide and code guide, following the same pattern as the other configurable settings.

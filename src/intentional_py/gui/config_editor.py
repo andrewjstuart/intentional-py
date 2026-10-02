@@ -7,7 +7,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from intentional_py import constants, exceptions, models, user_settings, utils
+from intentional_py import exceptions, models, user_settings, utils
 from intentional_py import validate as validating
 from intentional_py.gui import actions
 from intentional_py.gui.widgets import LEVEL_NAMES, PAD, fit_columns, make_table
@@ -147,8 +147,9 @@ class RowDialog(ctk.CTkToplevel):
                 row=grid_row, column=0, sticky="w", **PAD
             )
             if name == "Language":
+                languages = user_settings.load_language_settings()
                 widget = ctk.CTkComboBox(
-                    self, values=[*constants.LANGUAGE_NAMES, "dtmf"], width=360
+                    self, values=[*languages.languages, "dtmf"], width=360
                 )
             elif name == "Machine learning":
                 widget = ctk.CTkOptionMenu(self, values=list(ML_CHOICES), width=360)
@@ -419,7 +420,17 @@ class ConfigEditor(ctk.CTkToplevel):
             self._changed(position)
 
         self.dialog.show(
-            "Add row", ["", "", constants.DEFAULT_LANGUAGE, "", "", "", ""], insert
+            "Add row",
+            [
+                "",
+                "",
+                user_settings.load_language_settings().default_language,
+                "",
+                "",
+                "",
+                "",
+            ],
+            insert,
         )
 
     def _edit(self) -> None:

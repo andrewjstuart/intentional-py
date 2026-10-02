@@ -24,7 +24,12 @@ from intentional_py import (
 )
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
-from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
+from intentional_py.models import (
+    LanguageSettings,
+    NamingRules,
+    NlDefaults,
+    ProjectLayout,
+)
 from intentional_py.reporting import (
     BuildResult,
     CompareResult,
@@ -67,11 +72,12 @@ def build_dd(
     clean: bool = False,
     rules: NamingRules | None = None,
     layout: ProjectLayout | None = None,
+    languages: LanguageSettings | None = None,
 ) -> BuildResult:
     layout = layout or ProjectLayout()
     config = resolve_config(project_dir(project_text), config_text, layout.dd_config)
     return build_intents.intents(
-        "DD", config, config.parent, reporter, clean, rules, layout
+        "DD", config, config.parent, reporter, clean, rules, layout, languages
     )
 
 
@@ -87,6 +93,7 @@ def build_nl(
     rules: NamingRules | None = None,
     layout: ProjectLayout | None = None,
     nl_defaults: NlDefaults | None = None,
+    languages: LanguageSettings | None = None,
 ) -> BuildResult:
     layout = layout or ProjectLayout()
     nl_defaults = nl_defaults or NlDefaults()
@@ -109,7 +116,7 @@ def build_nl(
             layout,
         )
     return build_intents.intents(
-        "NL", config, config.parent, reporter, clean, rules, layout
+        "NL", config, config.parent, reporter, clean, rules, layout, languages
     )
 
 
@@ -121,6 +128,7 @@ def compare(
     reporter: Reporter,
     rules: NamingRules | None = None,
     layout: ProjectLayout | None = None,
+    languages: LanguageSettings | None = None,
 ) -> CompareResult:
     layout = layout or ProjectLayout()
     project = project_dir(project_text)
@@ -134,7 +142,7 @@ def compare(
     export = Path(export_text.strip()).expanduser()
     export = (export if export.is_absolute() else project / export).resolve()
     return build_intents.compare_build(
-        mode, config, config.parent, export, reporter, rules, layout
+        mode, config, config.parent, export, reporter, rules, layout, languages
     )
 
 
@@ -168,7 +176,9 @@ def extract(
     language: str,
     reporter: Reporter,
     layout: ProjectLayout | None = None,
+    languages: LanguageSettings | None = None,
 ) -> ExtractResult:
+    languages = languages or LanguageSettings()
     project = project_dir(project_text)
     if not xl_text.strip():
         raise exceptions.ConfigurationError("Choose an Excel file to extract.")
@@ -181,7 +191,7 @@ def extract(
     if mode not in constants.VALID_MODES:
         raise exceptions.ConfigurationError(f"Invalid mode: {mode}")
     language = language.lower()
-    if language not in constants.VALID_LANGUAGES:
+    if language not in languages.codes:
         raise exceptions.ConfigurationError(f"Invalid language: {language}")
     return extracting.excel_data(xl_file, mode, language, project, reporter, layout)
 
@@ -192,14 +202,17 @@ def validate(
     reporter: Reporter,
     rules: NamingRules | None = None,
     layout: ProjectLayout | None = None,
+    languages: LanguageSettings | None = None,
 ) -> ValidateResult:
     project = project_dir(project_text)
     if not config_text.strip():
-        return validating.validate(Path(), project, reporter, rules, layout)
+        return validating.validate(Path(), project, reporter, rules, layout, languages)
     config = resolve_config(project, config_text, "")
     if not config.is_file():
         raise exceptions.FileSystemError(f"Config file does not exist: {config}")
-    return validating.validate(config, config.parent, reporter, rules, layout)
+    return validating.validate(
+        config, config.parent, reporter, rules, layout, languages
+    )
 
 
 def issue(level: Level, text: str) -> Issue:

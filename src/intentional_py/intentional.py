@@ -34,7 +34,12 @@ from intentional_py import build_intents as build
 from intentional_py import extract as extracting
 from intentional_py import report as report_writer
 from intentional_py import validate as validating
-from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
+from intentional_py.models import (
+    LanguageSettings,
+    NamingRules,
+    NlDefaults,
+    ProjectLayout,
+)
 from intentional_py.rich_reporter import RichReporter
 
 console = Console()
@@ -154,6 +159,7 @@ def main(
                 clean,
                 user_settings.load_naming_rules(),
                 layout,
+                user_settings.load_language_settings(),
             )
             reporter.show_build(result)
             _save_report(report, "Build DD intents", result, reporter)
@@ -272,6 +278,7 @@ def natural_language(
             clean,
             user_settings.load_naming_rules(),
             layout,
+            user_settings.load_language_settings(),
         )
         reporter.show_build(result)
         _save_report(report, "Build NL intents", result, reporter)
@@ -306,7 +313,7 @@ def extract(
             "--language",
             "--lang",
             "-l",
-            help="Language abbreviation to use: [green]'en', 'es', 'fr'[/green]",
+            help="Language abbreviation to use: [green]'en', 'es', 'fr'[/green] by default (see 'language-settings')",
             rich_help_panel="Extract File Options",
         ),
     ] = "en",
@@ -341,7 +348,7 @@ def extract(
     """
     try:
         # check options
-        valid_langs: list = ["en", "es", "fr"]
+        valid_langs: list = sorted(user_settings.load_language_settings().codes)
         valid_modes: list = ["dd", "nl"]
         # we'll always have a language and mode because of defaults
         if language.lower() not in valid_langs:
@@ -441,6 +448,7 @@ def validate(
             reporter,
             user_settings.load_naming_rules(),
             user_settings.load_project_layout(),
+            user_settings.load_language_settings(),
         )
         reporter.show_validate(result)
         _save_report(report, "Validate", result, reporter)
@@ -546,6 +554,7 @@ def compare(
             reporter,
             user_settings.load_naming_rules(),
             layout,
+            user_settings.load_language_settings(),
         )
         reporter.show_compare(result)
         _save_report(report, "Compare intents", result, reporter)
@@ -780,3 +789,93 @@ def nl_defaults(
         user_settings.save_nl_defaults(defaults)
         console.print(f"[green]Saved to {user_settings.nl_defaults_path()}[/green]\n")
     console.print(f"Default NL context: [yellow]'{defaults.context}'[/yellow]")
+
+
+@app.command("language-settings")
+def language_settings(
+    add: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--add",
+            help="Add or update a language, as CODE=Name (e.g. --add de=German) or just "
+            "CODE to look its name up in the full Dialogflow ES catalog. Repeatable.",
+        ),
+    ] = None,
+    remove: Annotated[
+        list[str] | None,
+        typer.Option("--remove", help="Remove a language by its code. Repeatable."),
+    ] = None,
+    set_default: Annotated[
+        str | None,
+        typer.Option(
+            "--set-default",
+            help="Language every intent needs a row for, synthesized from another "
+            "row's phrases when missing. (default: en)",
+        ),
+    ] = None,
+    reset: Annotated[
+        bool,
+        typer.Option(
+            "--reset", help="Reset back to the original supported languages (en/es/fr)."
+        ),
+    ] = False,
+) -> None:
+    """
+    Show or change the saved supported language set.
+
+    Not a Dialogflow requirement to support every one of these - this is just which
+    languages this tool checks for and accepts in a config file's Language column.
+    Saved to the user's profile, so a change applies to every project, on the CLI and
+    the GUI, until changed again.
+    """
+    try:
+        settings = user_settings.load_language_settings()
+        changed = reset
+        if reset:
+            settings = LanguageSettings()
+        for item in add or []:
+            code, has_name, name = item.strip().partition("=")
+            code = code.strip().lower()
+            name = name.strip()
+            if not code:
+                raise exceptions.ConfigurationError(f"Invalid --add value: '{item}'.")
+            if not has_name:
+                name = constants.ALL_DIALOGFLOW_LANGUAGES.get(code, "")
+                if not name:
+                    raise exceptions.ConfigurationError(
+                        f"'{code}' is not in the Dialogflow ES catalog; "
+                        "use --add CODE=Name to give it a name."
+                    )
+            settings.languages[code] = name
+            changed = True
+        for item in remove or []:
+            code = item.strip().lower()
+            if code == settings.default_language:
+                raise exceptions.ConfigurationError(
+                    f"Cannot remove '{code}': it is the default language "
+                    "(change --set-default first)."
+                )
+            settings.languages.pop(code, None)
+            changed = True
+        if set_default is not None:
+            code = set_default.strip().lower()
+            if code not in settings.languages:
+                raise exceptions.ConfigurationError(
+                    f"'{code}' is not in the supported language set; add it first."
+                )
+            settings.default_language = code
+            changed = True
+        if changed:
+            user_settings.save_language_settings(settings)
+            console.print(
+                f"[green]Saved to {user_settings.language_settings_path()}[/green]\n"
+            )
+        console.print(
+            f"Default language: [yellow]'{settings.default_language}'[/yellow]"
+        )
+        console.print("Supported languages:")
+        for code, name in sorted(settings.languages.items()):
+            console.print(f"  [yellow]{code}[/yellow]: {name}")
+    except exceptions.IntentionalException as e:
+        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
+        raise typer.Exit(code=1)

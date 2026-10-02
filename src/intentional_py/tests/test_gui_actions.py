@@ -7,6 +7,7 @@ import pytest
 from intentional_py import exceptions
 from intentional_py.gui import actions
 from intentional_py.gui.worker import GuiReporter, JobRunner
+from intentional_py.models import LanguageSettings
 from intentional_py.reporting import BuildResult, Check, ExtractResult, ValidateResult
 
 
@@ -173,6 +174,16 @@ def test_extract_rejects_missing_file(tmp_path: Path) -> None:
     reporter = GuiReporter(queue.Queue())
     with pytest.raises(exceptions.FileSystemError):
         actions.extract(str(tmp_path), "nope.xlsx", "NL", "en", reporter)
+
+
+def test_extract_rejects_a_language_outside_the_custom_set(tmp_path: Path) -> None:
+    (tmp_path / "phrases.xlsx").touch()
+    languages = LanguageSettings(languages={"en": "English", "de": "German"})
+    reporter = GuiReporter(queue.Queue())
+    with pytest.raises(exceptions.ConfigurationError):
+        actions.extract(
+            str(tmp_path), "phrases.xlsx", "NL", "fr", reporter, languages=languages
+        )
 
 
 def test_runner_builds_nl_and_reports_progress(tmp_path: Path) -> None:

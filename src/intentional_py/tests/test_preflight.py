@@ -125,3 +125,18 @@ def test_validate_reports_empty_and_missing_configs(tmp_path: Path) -> None:
     assert result.configs[0].details == [
         "Error: The config file does not contain data."
     ]
+
+
+def test_validate_only_checks_languages_used_in_the_config(tmp_path: Path) -> None:
+    # Spanish and French are supported (the default set), but this config only uses
+    # English, so there's nothing to check for the other two yet
+    (tmp_path / "Training Phrases" / "en").mkdir(parents=True)
+    config = tmp_path / "intents.cfg"
+    write_config(config, ["A.Pay", "Ctx", "en", "pay", "", "", "TRUE"])
+
+    result = validate.validate(config, tmp_path, NullReporter())
+
+    labels = [c.label for c in result.directories]
+    assert "English path" in labels
+    assert "Spanish path" not in labels
+    assert "French path" not in labels
