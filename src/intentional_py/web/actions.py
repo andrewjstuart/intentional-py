@@ -50,8 +50,10 @@ def _zip_dir(directory: Path) -> bytes:
 
 def _project_status() -> str:
     workspace = _require_workspace()
+    # always forward slashes, regardless of host OS - this JSON is consumed by the
+    # browser UI and should look the same whether built/tested on Windows or Linux
     files = sorted(
-        str(path.relative_to(workspace))
+        path.relative_to(workspace).as_posix()
         for path in workspace.rglob("*")
         if path.is_file()
     )
