@@ -3,82 +3,252 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Intentional — Web prototype</title>
+<title>Intentional — Web (Experimental)</title>
 <link rel="icon" href="favicon.ico" sizes="any" />
 <link rel="icon" href="icon.png" type="image/png" />
 <style>
   :root {
-    --bg: #ffffff;
+    --bg: #f6f8fa;
+    --surface: #ffffff;
     --fg: #1b1f23;
     --muted: #57606a;
-    --border: #d0d7de;
+    --border: #d8dee4;
     --ok: #1a7f37;
     --fail: #cf222e;
     --accent: #1f6aa5;
+    --accent-hover: #185480;
     --accent-fg: #ffffff;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(27, 31, 35, 0.06), 0 8px 24px rgba(27, 31, 35, 0.06);
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #0d1117;
+      --surface: #161b22;
       --fg: #e6edf3;
       --muted: #8b949e;
       --border: #30363d;
       --ok: #3fb950;
       --fail: #f85149;
       --accent: #4098d7;
+      --accent-hover: #5babe6;
       --accent-fg: #0d1117;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
     }
   }
   :root[data-theme="light"] {
-    --bg: #ffffff; --fg: #1b1f23; --muted: #57606a; --border: #d0d7de;
-    --ok: #1a7f37; --fail: #cf222e; --accent: #1f6aa5; --accent-fg: #ffffff;
+    --bg: #f6f8fa; --surface: #ffffff; --fg: #1b1f23; --muted: #57606a; --border: #d8dee4;
+    --ok: #1a7f37; --fail: #cf222e; --accent: #1f6aa5; --accent-hover: #185480; --accent-fg: #ffffff;
+    --shadow: 0 1px 2px rgba(27, 31, 35, 0.06), 0 8px 24px rgba(27, 31, 35, 0.06);
   }
   :root[data-theme="dark"] {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --border: #30363d;
-    --ok: #3fb950; --fail: #f85149; --accent: #4098d7; --accent-fg: #0d1117;
+    --bg: #0d1117; --surface: #161b22; --fg: #e6edf3; --muted: #8b949e; --border: #30363d;
+    --ok: #3fb950; --fail: #f85149; --accent: #4098d7; --accent-hover: #5babe6; --accent-fg: #0d1117;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
   }
+  * { box-sizing: border-box; }
   body {
-    font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto;
-    padding: 0 1rem; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+    max-width: 820px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    background: var(--bg); color: var(--fg);
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
-  header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-  h1 { font-size: 1.4rem; margin: 0; }
-  #status { color: var(--muted); }
-  fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 1rem 0; }
-  label { display: block; margin: 0.5rem 0; }
-  input[type="text"] { background: var(--bg); color: var(--fg); border: 1px solid var(--border); }
-  button {
-    margin-top: 0.5rem; padding: 0.4rem 1rem; border-radius: 6px; border: 1px solid var(--border);
-    background: var(--accent); color: var(--accent-fg); cursor: pointer;
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem; }
+  header img { width: 36px; height: 36px; border-radius: 9px; }
+  header h1 { font-size: 1.3rem; margin: 0; flex: 1; letter-spacing: -0.01em; }
+  #themeToggle {
+    background: var(--surface); color: var(--fg); border: 1px solid var(--border);
+    padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.85rem;
   }
-  #themeToggle { background: transparent; color: var(--fg); padding: 0.3rem 0.7rem; }
+  .intro { color: var(--muted); font-size: 0.92rem; line-height: 1.5; margin: 0.5rem 0 1.5rem; }
+  .intro a { color: var(--accent); }
+
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;
+    color: var(--muted); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 999px; padding: 0.35rem 0.9rem 0.35rem 0.6rem; margin-bottom: 1.25rem;
+  }
+  .status-dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0;
+  }
+  .status-badge[data-state="loading"] .status-dot {
+    background: var(--accent); animation: pulse 1.1s ease-in-out infinite;
+  }
+  .status-badge[data-state="ready"] {
+    color: var(--ok); border-color: var(--ok); font-weight: 600;
+  }
+  .status-badge[data-state="ready"] .status-dot { background: var(--ok); }
+  .status-badge[data-state="error"] {
+    color: var(--fail); border-color: var(--fail); font-weight: 600;
+  }
+  .status-badge[data-state="error"] .status-dot { background: var(--fail); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.75); }
+  }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 1.25rem 1.5rem 1.5rem; margin-bottom: 1.25rem;
+  }
+  .card > label:first-child { margin-top: 0; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem 1rem; }
+  .field { grid-column: 1 / -1; margin: 0; }
+  .field.field-half { grid-column: span 1; }
+  @media (max-width: 560px) {
+    .field-grid { grid-template-columns: 1fr; }
+    .field.field-half { grid-column: 1 / -1; }
+  }
+  .field label, label.field-label {
+    display: block; font-size: 0.85rem; font-weight: 600; color: var(--muted);
+    margin-bottom: 0.35rem;
+  }
+  select, input[type="text"] {
+    width: 100%; background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.5rem 0.65rem; font-size: 0.92rem; font-family: inherit;
+  }
+  select:focus, input[type="text"]:focus {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  .checkbox-field label {
+    display: flex; align-items: center; gap: 0.5rem; font-weight: 500; color: var(--fg);
+    font-size: 0.92rem;
+  }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+
+  .file-field input[type="file"] {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  }
+  .file-button-row { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+  .file-button {
+    display: inline-block; background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.45rem 0.9rem; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+  }
+  .file-button:hover { border-color: var(--accent); }
+  .file-name { color: var(--muted); font-size: 0.88rem; }
+
+  .actions { display: flex; align-items: center; gap: 0.9rem; margin-top: 1.4rem; }
+  button#runButton, button#openProjectButton {
+    background: var(--accent); color: var(--accent-fg); border: none; border-radius: 8px;
+    padding: 0.6rem 1.4rem; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+    transition: background-color 0.12s ease;
+  }
+  button#runButton:hover:not(:disabled), button#openProjectButton:hover:not(:disabled) { background: var(--accent-hover); }
+  button#runButton:disabled, button#openProjectButton:disabled,
+  button#newProjectButton:disabled, button#downloadProjectButton:disabled {
+    opacity: 0.55; cursor: not-allowed;
+  }
+  button#newProjectButton, button#downloadProjectButton {
+    background: var(--surface); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.6rem 1.2rem; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  }
+  button#newProjectButton:hover:not(:disabled), button#downloadProjectButton:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+
+  .project-status {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--border);
+    font-size: 0.9rem; color: var(--muted);
+  }
+  .project-status[data-open="true"] #projectStatusText { color: var(--ok); font-weight: 600; }
+  #projectFilesDetails { margin-top: 0.6rem; font-size: 0.85rem; color: var(--muted); }
+  #projectFilesDetails summary { cursor: pointer; }
+  #projectFilesList {
+    margin-top: 0.5rem; max-height: 180px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.82rem; line-height: 1.6; white-space: pre-wrap;
+  }
+
+  #helpButton {
+    background: var(--surface); color: var(--fg); border: 1px solid var(--border);
+    padding: 0.4rem 0.8rem; border-radius: 999px; font-size: 0.85rem; cursor: pointer;
+  }
+  dialog#helpDialog {
+    width: min(680px, 92vw); max-height: 82vh; border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 0; color: var(--fg);
+    background: var(--surface);
+  }
+  dialog#helpDialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+  .help-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  }
+  .help-header h2 { margin: 0; font-size: 1.05rem; }
+  .help-header button {
+    background: transparent; border: none; color: var(--muted); font-size: 1.1rem; cursor: pointer;
+  }
+  .help-nav {
+    display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.9rem 1.25rem 0; border-bottom: 1px solid var(--border);
+  }
+  .help-nav button {
+    background: transparent; border: 1px solid transparent; color: var(--muted);
+    padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.82rem; cursor: pointer; margin-bottom: 0.9rem;
+  }
+  .help-nav button.active { background: var(--accent); color: var(--accent-fg); }
+  .help-content { padding: 1.1rem 1.25rem 1.4rem; overflow-y: auto; max-height: 56vh; }
+  .help-content h3 { margin-top: 0; font-size: 1rem; }
+  .help-content p { line-height: 1.55; font-size: 0.92rem; }
+  .help-content ul { padding-left: 1.2rem; line-height: 1.55; font-size: 0.92rem; }
+  .help-content code {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.05rem 0.3rem;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85em;
+  }
+  .help-section { display: none; }
+  .help-section.active { display: block; }
+
   #result {
-    white-space: pre-wrap; border: 1px solid var(--border); border-radius: 6px;
-    padding: 1rem; margin-top: 1rem; min-height: 2rem;
+    white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.86rem; line-height: 1.6; min-height: 1.5rem;
   }
+  #result:empty::before { content: "Results appear here after you run a task."; color: var(--muted); font-style: italic; }
   .ok { color: var(--ok); }
   .fail { color: var(--fail); }
-  a { color: var(--accent); }
-  #downloadLink { display: none; margin-left: 0.5rem; }
-  select { background: var(--bg); color: var(--fg); border: 1px solid var(--border); padding: 0.3rem; }
-  input[type="checkbox"] { width: auto; margin-right: 0.4rem; }
 </style>
 </head>
 <body>
   <header>
-    <h1>Intentional — Web prototype</h1>
+    <img src="icon.png" alt="" />
+    <h1>Intentional — Web (Experimental)</h1>
+    <button id="helpButton" type="button">? Help</button>
     <button id="themeToggle" type="button" aria-label="Toggle light/dark mode"></button>
   </header>
-  <p>
-    Upload the same project folder (zipped) or Excel file you'd use with the CLI/GUI.
-    This runs the real core, compiled to WebAssembly via
+  <p class="intro">
+    Start a project below, then run as many tasks against it as you like — each one's
+    output is immediately available to the next, so Extract then Build NL (for
+    example) needs no downloading or re-uploading in between. This runs the real
+    core, compiled to WebAssembly via
     <a href="https://pyodide.org/" target="_blank" rel="noopener">Pyodide</a> — nothing is
     uploaded anywhere; it all runs in this tab.
   </p>
-  <p id="status">Loading Python runtime…</p>
-  <fieldset>
-    <label>
-      Task
+  <div class="status-badge" id="status" data-state="loading">
+    <span class="status-dot"></span>
+    <span id="statusText">Status: Loading Python runtime…</span>
+  </div>
+  <div class="card">
+    <div class="field field-half file-field" id="field-projectSource">
+      <label for="zipInput">Project zip (optional)</label>
+      <div class="file-button-row">
+        <label class="file-button" for="zipInput">Choose file…</label>
+        <span class="file-name" id="zipInputName">No file chosen</span>
+      </div>
+      <input type="file" id="zipInput" accept=".zip" disabled />
+    </div>
+    <div class="actions">
+      <button id="openProjectButton" disabled>Open project</button>
+      <button id="newProjectButton" disabled type="button">Start empty project</button>
+    </div>
+    <div class="project-status" id="projectStatus" data-open="false">
+      <span id="projectStatusText">No project open yet.</span>
+      <button id="downloadProjectButton" type="button" disabled>Download project</button>
+    </div>
+    <details id="projectFilesDetails" style="display: none;">
+      <summary>Files in this project</summary>
+      <div id="projectFilesList"></div>
+    </details>
+  </div>
+  <div class="card">
+    <div class="field field-half">
+      <label for="task">Task</label>
       <select id="task">
         <option value="validate">Validate</option>
         <option value="buildDd">Build DD intents</option>
@@ -87,81 +257,182 @@
         <option value="design">Create config from design document</option>
         <option value="compare">Compare with an agent export</option>
       </select>
-    </label>
-    <div id="field-projectZip">
-      <label>
-        Project zip
-        <input type="file" id="zipInput" accept=".zip" disabled />
-      </label>
     </div>
-    <div id="field-excelFile">
-      <label>
-        Excel file
+    <div class="field-grid" style="margin-top: 0.9rem;">
+      <div class="field file-field" id="field-excelFile">
+        <label class="field-label" for="excelInput">Excel file</label>
+        <div class="file-button-row">
+          <label class="file-button" for="excelInput">Choose file…</label>
+          <span class="file-name" id="excelInputName">No file chosen</span>
+        </div>
         <input type="file" id="excelInput" accept=".xlsb,.xlsm,.xlsx" disabled />
-      </label>
-    </div>
-    <div id="field-exportZip">
-      <label>
-        Agent export (zip)
+      </div>
+      <div class="field file-field" id="field-exportZip">
+        <label class="field-label" for="exportInput">Agent export (zip)</label>
+        <div class="file-button-row">
+          <label class="file-button" for="exportInput">Choose file…</label>
+          <span class="file-name" id="exportInputName">No file chosen</span>
+        </div>
         <input type="file" id="exportInput" accept=".zip" disabled />
-      </label>
-    </div>
-    <div id="field-configName">
-      <label>
-        Config file name (optional; blank uses the standard name)
-        <input type="text" id="configName" placeholder="intents.cfg" />
-      </label>
-    </div>
-    <div id="field-mode">
-      <label>
-        Mode
+      </div>
+      <div class="field field-half" id="field-configName">
+        <label for="configName">Config file name (optional)</label>
+        <input type="text" id="configName" placeholder="blank uses the standard name" />
+      </div>
+      <div class="field field-half" id="field-mode">
+        <label for="mode">Mode</label>
         <select id="mode">
           <option value="DD">DD</option>
           <option value="NL">NL</option>
         </select>
-      </label>
-    </div>
-    <div id="field-language">
-      <label>
-        Language
+      </div>
+      <div class="field field-half" id="field-language">
+        <label for="language">Language</label>
         <select id="language">
           <option value="en">en</option>
           <option value="es">es</option>
           <option value="fr">fr</option>
         </select>
-      </label>
-    </div>
-    <div id="field-sheet">
-      <label>
-        Sheet name (optional; blank finds the first sheet with a header row)
-        <input type="text" id="sheet" />
-      </label>
-    </div>
-    <div id="field-vertical">
-      <label>
-        Vertical prefix
+      </div>
+      <div class="field field-half" id="field-sheet">
+        <label for="sheet">Sheet name (optional)</label>
+        <input type="text" id="sheet" placeholder="blank finds the header row" />
+      </div>
+      <div class="field field-half" id="field-vertical">
+        <label for="vertical">Vertical prefix</label>
         <input type="text" id="vertical" placeholder="FIN" />
-      </label>
+      </div>
+      <div class="field field-half" id="field-context">
+        <label for="context">Context (optional)</label>
+        <input type="text" id="context" placeholder="blank uses GetIntent" />
+      </div>
+      <div class="field checkbox-field" id="field-lowercase">
+        <label><input type="checkbox" id="lowercase" />Lowercase actions</label>
+      </div>
+      <div class="field checkbox-field" id="field-reuse">
+        <label><input type="checkbox" id="reuse" />Reuse the existing NL config</label>
+      </div>
+      <div class="field checkbox-field" id="field-clean">
+        <label><input type="checkbox" id="clean" />Clear the intents folder first (old files are zipped)</label>
+      </div>
     </div>
-    <div id="field-context">
-      <label>
-        Context (optional; blank uses GetIntent)
-        <input type="text" id="context" />
-      </label>
+    <div class="actions">
+      <button id="runButton" disabled>Run</button>
     </div>
-    <div id="field-lowercase">
-      <label><input type="checkbox" id="lowercase" />Lowercase actions</label>
+  </div>
+  <div class="card">
+    <div id="result"></div>
+  </div>
+
+  <dialog id="helpDialog">
+    <div class="help-header">
+      <h2>Help</h2>
+      <button id="closeHelp" type="button" aria-label="Close">✕</button>
     </div>
-    <div id="field-reuse">
-      <label><input type="checkbox" id="reuse" />Reuse the existing NL config</label>
+    <nav class="help-nav">
+      <button type="button" class="active" data-section="start">Getting started</button>
+      <button type="button" data-section="validate">Validate</button>
+      <button type="button" data-section="buildDd">Build DD</button>
+      <button type="button" data-section="buildNl">Build NL</button>
+      <button type="button" data-section="extract">Extract</button>
+      <button type="button" data-section="design">Design doc</button>
+      <button type="button" data-section="compare">Compare</button>
+    </nav>
+    <div class="help-content">
+      <section id="help-start" class="help-section active">
+        <h3>Getting started</h3>
+        <p>
+          This runs the same core as the CLI and GUI, entirely in your browser via
+          <a href="https://pyodide.org/" target="_blank" rel="noopener">Pyodide</a> — nothing is uploaded anywhere.
+        </p>
+        <ul>
+          <li><strong>Open project</strong> from a zipped project folder, or <strong>Start empty project</strong> to begin with nothing.</li>
+          <li>Pick a task from the dropdown; the fields below change to match what it needs.</li>
+          <li>Press the button (its label matches the task) and wait for the result.</li>
+          <li>Run as many tasks as you like against the same open project — Extract's phrases are immediately there for Build NL, Design doc's config is immediately there for Build DD, and so on, with no downloading or re-uploading in between.</li>
+          <li><strong>Download project</strong> (next to the file count) at any point to get the current state as a zip — the config, phrases, and any built <code>intents</code> folder.</li>
+        </ul>
+        <p>Project folder layout (zipped at its root, same convention as the CLI/GUI):</p>
+        <ul>
+          <li><code>Training Phrases/en/</code> — DD phrase files (en, es, fr)</li>
+          <li><code>Training Phrases/en/NL/</code> — NL phrase files</li>
+          <li><code>intents.cfg</code> — DD config</li>
+          <li><code>intents_nl.cfg</code> — NL config (created by Build NL)</li>
+        </ul>
+        <p>
+          Differences from the CLI/GUI: this always uses the standard naming rules and folder
+          names (no Settings tab yet), and a Build NL duplicate-phrase prompt is answered "yes"
+          automatically instead of asking you.
+        </p>
+      </section>
+      <section id="help-validate" class="help-section">
+        <h3>Validate</h3>
+        <p>Checks a project zip before building, without creating any files.</p>
+        <ul>
+          <li>Config file name: leave blank to check the standard <code>intents.cfg</code> and <code>intents_nl.cfg</code> in the zip, or name a different one.</li>
+          <li>Checks that the Training Phrases folders exist for each language.</li>
+          <li>Runs the same config checks as a build: errors would stop a build, warnings are listed but a build would continue.</li>
+          <li>Entity tags must look like <code>&lt;entity|text&gt;</code>; a missing <code>&lt;</code>, <code>&gt;</code> or <code>|</code> is reported with its line numbers.</li>
+          <li>DD intents that share a phrase are reported only when they also share a language and a context.</li>
+        </ul>
+      </section>
+      <section id="help-buildDd" class="help-section">
+        <h3>Build DD intents</h3>
+        <p>Builds directed dialog intents from a config file in the uploaded zip.</p>
+        <ul>
+          <li>Config file name: leave blank for <code>intents.cfg</code> at the zip's root.</li>
+          <li>Each config row has 7 comma-separated values; the last one is optional: Intent, Context, Language, Action, Entities, DTMF, Machine learning.</li>
+          <li>Phrases are read from <code>Training Phrases/&lt;language&gt;/&lt;action&gt;.txt</code>.</li>
+          <li>The English row supplies the shared intent definition; with no English row, one is generated from the first row.</li>
+          <li>A priority can follow the intent name in braces, e.g. <code>MYAC.Billing.Pay{high}</code>.</li>
+          <li><strong>Clear the intents folder first</strong> zips everything in the intents folder and removes it before building.</li>
+        </ul>
+      </section>
+      <section id="help-buildNl" class="help-section">
+        <h3>Build NL intents</h3>
+        <p>Builds natural language intents from the phrase files in <code>Training Phrases/&lt;language&gt;/NL</code>.</p>
+        <ul>
+          <li><strong>Vertical prefix</strong>: starts every intent name, e.g. <code>RTL</code> gives <code>RTL.Billing</code>.</li>
+          <li><strong>Context</strong>: the context used by all NL intents; blank uses <code>GetIntent</code>.</li>
+          <li><strong>Reuse the existing NL config</strong>: builds from the uploaded <code>intents_nl.cfg</code> instead of recreating it from the phrase files.</li>
+          <li>A file name ending in <code>^</code> turns machine learning off; ending in <code>-NM</code> returns the action <code>nomatch</code>.</li>
+          <li>Phrases can mark entities as <code>&lt;entity|text&gt;</code>, e.g. <code>pay &lt;sys.unit-currency|$20&gt;</code>.</li>
+        </ul>
+      </section>
+      <section id="help-extract" class="help-section">
+        <h3>Extract phrases from Excel</h3>
+        <p>Saves the phrases from an uploaded Excel workbook (.xlsb, .xlsm or .xlsx) as text files.</p>
+        <ul>
+          <li>Each sheet becomes one text file named after the sheet, with the phrases in the first column.</li>
+          <li>NL mode writes as if under <code>Training Phrases/&lt;language&gt;/NL</code>; DD mode writes as if under <code>Training Phrases/&lt;language&gt;</code>.</li>
+          <li>The whole workbook is read before anything is written, so a file that can't be read produces no output.</li>
+          <li>A sheet with no phrases creates an empty file and a warning.</li>
+        </ul>
+      </section>
+      <section id="help-design" class="help-section">
+        <h3>Create config from design document</h3>
+        <p>Creates a config file from an uploaded Excel design document.</p>
+        <ul>
+          <li>The workbook needs one sheet with a header row and one intent per row below it.</li>
+          <li>Header names are found automatically, anywhere in the first rows: Intent, Context, Language, Action, Entities, DTMF, Machine Learning.</li>
+          <li>Sheet name: leave blank to use the first sheet with an Intent/Context/Language/Action header.</li>
+          <li>Blank rows are skipped. The new rows are checked with the same rules as a build.</li>
+          <li>Download the result, fix anything the checks flagged, then use Build DD directly — no re-upload needed, it's the same open project.</li>
+        </ul>
+      </section>
+      <section id="help-compare" class="help-section">
+        <h3>Compare with an agent export</h3>
+        <p>Shows what a build would change in the Dialogflow agent, without writing any files.</p>
+        <ul>
+          <li>Export the agent from the Dialogflow ES console (Settings &gt; Export and Import &gt; Export as ZIP).</li>
+          <li>Upload that export zip alongside your project zip, choose the mode and config file name, then run.</li>
+          <li>Results list intents that would be added, changed (contexts, action, priority, machine learning, entities, phrases), and intents only in the export.</li>
+          <li>Intents only in the export aren't built by this config — they may belong to other modules, or need deleting from the agent by hand.</li>
+        </ul>
+      </section>
     </div>
-    <div id="field-clean">
-      <label><input type="checkbox" id="clean" />Clear the intents folder first (old files are zipped)</label>
-    </div>
-    <button id="runButton" disabled>Run</button>
-    <a id="downloadLink" download="result.zip">Download result.zip</a>
-  </fieldset>
-  <div id="result"></div>
+  </dialog>
+
   <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
   <script src="app.js"></script>
 </body>

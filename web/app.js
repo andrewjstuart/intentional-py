@@ -1,10 +1,11 @@
-// Web prototype glue: loads Pyodide, installs the intentional_py wheel, and
+// Web front end glue: loads Pyodide, installs the intentional_py wheel, and
 // calls into the unmodified core via src/intentional_py/web/actions.py.
-// This file is the only piece of this prototype that's Pyodide-specific; the
-// Python side (web/actions.py, web/reporter.py) is plain CPython and has its
-// own pytest coverage.
+// This file is the only piece of this experimental front end that's
+// Pyodide-specific; the Python side (web/actions.py, web/reporter.py) is
+// plain CPython and has its own pytest coverage.
 
 const statusEl = document.getElementById("status");
+const statusTextEl = document.getElementById("statusText");
 const taskSelect = document.getElementById("task");
 const zipInput = document.getElementById("zipInput");
 const excelInput = document.getElementById("excelInput");
@@ -19,27 +20,50 @@ const lowercaseInput = document.getElementById("lowercase");
 const reuseInput = document.getElementById("reuse");
 const cleanInput = document.getElementById("clean");
 const runButton = document.getElementById("runButton");
-const downloadLink = document.getElementById("downloadLink");
+const openProjectButton = document.getElementById("openProjectButton");
+const newProjectButton = document.getElementById("newProjectButton");
+const downloadProjectButton = document.getElementById("downloadProjectButton");
+const projectStatusEl = document.getElementById("projectStatus");
+const projectStatusTextEl = document.getElementById("projectStatusText");
+const projectFilesDetails = document.getElementById("projectFilesDetails");
+const projectFilesList = document.getElementById("projectFilesList");
 const resultEl = document.getElementById("result");
 const themeToggle = document.getElementById("themeToggle");
 
-const WHEEL_FILE = "./intentional_py-1.3.0-py3-none-any.whl";
 const THEME_KEY = "intentional-web-theme";
 
-// Each task's visible fields and which Python function it calls.
+// state: "loading" | "ready" | "error"; drives the badge's colour/dot via CSS.
+function setStatus(state, text) {
+  statusEl.dataset.state = state;
+  statusTextEl.textContent = `Status: ${text}`;
+}
+
+// Shows the chosen file's name next to its "Choose file…" button.
+function wireFileName(input, nameId) {
+  const nameEl = document.getElementById(nameId);
+  input.addEventListener("change", () => {
+    nameEl.textContent = input.files[0]?.name || "No file chosen";
+  });
+}
+wireFileName(zipInput, "zipInputName");
+wireFileName(excelInput, "excelInputName");
+wireFileName(exportInput, "exportInputName");
+
+// Each task's visible fields (beyond the always-open project) and which
+// Python function it calls.
 const TASKS = {
-  validate: { label: "Validate", fields: ["projectZip", "configName"] },
-  buildDd: { label: "Build DD intents", fields: ["projectZip", "configName", "clean"] },
+  validate: { label: "Validate", fields: ["configName"] },
+  buildDd: { label: "Build DD intents", fields: ["configName", "clean"] },
   buildNl: {
     label: "Build NL intents",
-    fields: ["projectZip", "configName", "vertical", "context", "lowercase", "reuse", "clean"],
+    fields: ["configName", "vertical", "context", "lowercase", "reuse", "clean"],
   },
   extract: { label: "Extract phrases", fields: ["excelFile", "mode", "language"] },
   design: { label: "Create config from design doc", fields: ["excelFile", "sheet", "configName"] },
-  compare: { label: "Compare with export", fields: ["projectZip", "configName", "mode", "exportZip"] },
+  compare: { label: "Compare with export", fields: ["configName", "mode", "exportZip"] },
 };
 const ALL_FIELDS = [
-  "projectZip", "excelFile", "exportZip", "configName", "mode",
+  "excelFile", "exportZip", "configName", "mode",
   "language", "sheet", "vertical", "context", "lowercase", "reuse", "clean",
 ];
 
@@ -53,6 +77,32 @@ function updateVisibleFields() {
 
 taskSelect.addEventListener("change", updateVisibleFields);
 updateVisibleFields();
+
+// Help dialog: a native <dialog> (backdrop, ESC to close, focus trapping for free).
+const helpDialog = document.getElementById("helpDialog");
+const helpButton = document.getElementById("helpButton");
+const closeHelp = document.getElementById("closeHelp");
+
+function showHelpSection(name) {
+  for (const button of document.querySelectorAll(".help-nav button")) {
+    button.classList.toggle("active", button.dataset.section === name);
+  }
+  for (const section of document.querySelectorAll(".help-section")) {
+    section.classList.toggle("active", section.id === `help-${name}`);
+  }
+}
+
+helpButton.addEventListener("click", () => {
+  helpDialog.showModal();
+  showHelpSection(taskSelect.value); // opens on the section for the current task
+});
+closeHelp.addEventListener("click", () => helpDialog.close());
+helpDialog.addEventListener("click", (event) => {
+  if (event.target === helpDialog) helpDialog.close(); // click on the backdrop
+});
+for (const button of document.querySelectorAll(".help-nav button")) {
+  button.addEventListener("click", () => showHelpSection(button.dataset.section));
+}
 
 // Applied before Pyodide starts loading, so there's no flash of the wrong theme.
 function systemPrefersDark() {
@@ -82,24 +132,32 @@ themeToggle.addEventListener("click", () => {
 
 let pyodideInstance = null;
 let pyFunctions = {};
+let projectOpen = false;
 
 async function setup() {
-  statusEl.textContent = "Loading Pyodide…";
+  setStatus("loading", "Loading Pyodide…");
   const pyodide = await loadPyodide();
   pyodideInstance = pyodide;
   window.pyodide = pyodide;
 
-  statusEl.textContent = "Installing intentional_py (this only happens once per page load)…";
+  setStatus("loading", "Installing intentional_py (this only happens once per page load)…");
+  // written by web/serve.py, so this file never hardcodes a version
+  const wheelFile = (await (await fetch("wheel-filename.txt")).text()).trim();
   await pyodide.loadPackage("micropip");
   const micropip = pyodide.pyimport("micropip");
-  await micropip.install(WHEEL_FILE);
+  await micropip.install(`./${wheelFile}`);
 
-  statusEl.textContent = "Starting intentional_py…";
+  setStatus("loading", "Starting intentional_py…");
   await pyodide.runPythonAsync(
-    "from intentional_py.web.actions import (validate_project, build_dd_project, " +
+    "from intentional_py.web.actions import (new_project, open_project, " +
+    "project_files, download_project, validate_project, build_dd_project, " +
     "build_nl_project, extract_project, design_project, compare_project)"
   );
   pyFunctions = {
+    newProject: pyodide.globals.get("new_project"),
+    openProject: pyodide.globals.get("open_project"),
+    projectFiles: pyodide.globals.get("project_files"),
+    downloadProject: pyodide.globals.get("download_project"),
     validate: pyodide.globals.get("validate_project"),
     buildDd: pyodide.globals.get("build_dd_project"),
     buildNl: pyodide.globals.get("build_nl_project"),
@@ -107,17 +165,17 @@ async function setup() {
     design: pyodide.globals.get("design_project"),
     compare: pyodide.globals.get("compare_project"),
   };
-  // exposed for console/debugging use, e.g. window.intentional.validate(bytes, "")
+  // exposed for console/debugging use, e.g. window.intentional.validate()
   window.intentional = pyFunctions;
 
-  statusEl.textContent = "Ready.";
-  for (const input of [zipInput, excelInput, exportInput, runButton]) {
-    input.disabled = false;
-  }
+  setStatus("ready", "Ready.");
+  openProjectButton.disabled = false;
+  newProjectButton.disabled = false;
+  zipInput.disabled = false;
 }
 
 const ready = setup().catch((error) => {
-  statusEl.textContent = `Failed to load: ${error}`;
+  setStatus("error", `Failed to load: ${error}`);
   throw error;
 });
 
@@ -131,34 +189,77 @@ async function fileBytesPy(input, label) {
   return { name: file.name, bytesPy: pyodideInstance.toPy(bytes) };
 }
 
+function setProjectOpen(open) {
+  projectOpen = open;
+  projectStatusEl.dataset.open = String(open);
+  downloadProjectButton.disabled = !open;
+  excelInput.disabled = !open;
+  exportInput.disabled = !open;
+  runButton.disabled = !open;
+}
+
+function showProjectFiles(filesJson) {
+  const { files } = JSON.parse(filesJson);
+  projectStatusTextEl.textContent = `Project open — ${files.length} file${files.length === 1 ? "" : "s"}`;
+  projectFilesList.textContent = files.length ? files.join("\n") : "(empty)";
+  projectFilesDetails.style.display = files.length ? "" : "none";
+}
+
+async function refreshProjectFiles() {
+  showProjectFiles(pyFunctions.projectFiles());
+}
+
+openProjectButton.addEventListener("click", async () => {
+  await ready;
+  try {
+    const file = zipInput.files[0];
+    let filesJson;
+    if (file) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const bytesPy = pyodideInstance.toPy(bytes);
+      try {
+        filesJson = pyFunctions.openProject(bytesPy);
+      } finally {
+        bytesPy.destroy();
+      }
+    } else {
+      filesJson = pyFunctions.newProject();
+    }
+    showProjectFiles(filesJson);
+    setProjectOpen(true);
+    resultEl.textContent = "";
+  } catch (error) {
+    resultEl.textContent = `Error: ${error}`;
+  }
+});
+
+newProjectButton.addEventListener("click", async () => {
+  await ready;
+  showProjectFiles(pyFunctions.newProject());
+  setProjectOpen(true);
+  resultEl.textContent = "";
+});
+
+downloadProjectButton.addEventListener("click", () => {
+  const bytes = pyFunctions.downloadProject().toJs();
+  const blob = new Blob([bytes], { type: "application/zip" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "project.zip";
+  link.click();
+  URL.revokeObjectURL(url);
+});
+
 async function runTask(task) {
   const configName = configNameInput.value.trim();
-  if (task === "validate") {
-    const { bytesPy } = await fileBytesPy(zipInput, "a project zip");
-    try {
-      return pyFunctions.validate(bytesPy, configName);
-    } finally {
-      bytesPy.destroy();
-    }
-  }
-  if (task === "buildDd") {
-    const { bytesPy } = await fileBytesPy(zipInput, "a project zip");
-    try {
-      return pyFunctions.buildDd(bytesPy, configName, cleanInput.checked);
-    } finally {
-      bytesPy.destroy();
-    }
-  }
+  if (task === "validate") return pyFunctions.validate(configName);
+  if (task === "buildDd") return pyFunctions.buildDd(configName, cleanInput.checked);
   if (task === "buildNl") {
-    const { bytesPy } = await fileBytesPy(zipInput, "a project zip");
-    try {
-      return pyFunctions.buildNl(
-        bytesPy, configName, verticalInput.value.trim(), contextInput.value.trim(),
-        lowercaseInput.checked, reuseInput.checked, cleanInput.checked
-      );
-    } finally {
-      bytesPy.destroy();
-    }
+    return pyFunctions.buildNl(
+      configName, verticalInput.value.trim(), contextInput.value.trim(),
+      lowercaseInput.checked, reuseInput.checked, cleanInput.checked
+    );
   }
   if (task === "extract") {
     const { name, bytesPy } = await fileBytesPy(excelInput, "an Excel file");
@@ -177,15 +278,11 @@ async function runTask(task) {
     }
   }
   if (task === "compare") {
-    const project = await fileBytesPy(zipInput, "a project zip");
-    const exportFile = await fileBytesPy(exportInput, "an agent export zip");
+    const { name, bytesPy } = await fileBytesPy(exportInput, "an agent export zip");
     try {
-      return pyFunctions.compare(
-        project.bytesPy, exportFile.bytesPy, exportFile.name, modeSelect.value, configName
-      );
+      return pyFunctions.compare(bytesPy, name, modeSelect.value, configName);
     } finally {
-      project.bytesPy.destroy();
-      exportFile.bytesPy.destroy();
+      bytesPy.destroy();
     }
   }
   throw new Error(`Unknown task: ${task}`);
@@ -193,12 +290,16 @@ async function runTask(task) {
 
 runButton.addEventListener("click", async () => {
   await ready;
+  if (!projectOpen) {
+    resultEl.textContent = "Open or start a project first.";
+    return;
+  }
   runButton.disabled = true;
-  downloadLink.style.display = "none";
   resultEl.textContent = "Running…";
   try {
     const resultJson = await runTask(taskSelect.value);
     render(JSON.parse(resultJson));
+    await refreshProjectFiles();
   } catch (error) {
     resultEl.textContent = `Error: ${error}`;
   } finally {
@@ -276,12 +377,6 @@ function render(result) {
   for (const line of lines) {
     resultEl.appendChild(line);
     resultEl.appendChild(document.createElement("br"));
-  }
-  if (result.output_zip_base64) {
-    const bytes = Uint8Array.from(atob(result.output_zip_base64), (c) => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: "application/zip" });
-    downloadLink.href = URL.createObjectURL(blob);
-    downloadLink.style.display = "inline";
   }
 }
 

@@ -6,7 +6,7 @@
 
 Intentional creates Dialogflow ES intents from a config file and training phrase files, ready to import into an agent. It was first written in Perl and converted to Python for easier use and maintenance.
 
-It has a graphical interface (GUI) and a command line (CLI), with the same features. Both run on Windows or Linux from source, or as standalone Windows executables that don't need Python: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI). An experimental browser-based prototype is also in progress (see [Web prototype](#web-prototype-experimental)).
+It has a graphical interface (GUI) and a command line (CLI), with the same features. Both run on Windows or Linux from source, or as standalone Windows executables that don't need Python: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI). An experimental browser-based version is also available (see [Web (experimental)](#web-experimental)).
 
 ## Documentation
 
@@ -74,15 +74,14 @@ intentional-cli.exe --help            list every command
 
 From source, use `uv run intentional` for the GUI and `uv run intentional-cli` for the CLI, after `uv sync --extra gui` (see [Development](docs/development.md#running-from-source)).
 
-## Web prototype (experimental)
+## Web (experimental)
 
 A third front end, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — no server, no install, nothing leaves the browser tab. It reuses the same core as the CLI and GUI, so a project's config and phrase files validate identically everywhere.
 
-Today it covers every task — Validate, Build DD/NL, Extract, Compare, and Design doc — the same as the CLI/GUI, uploaded as a project zip or Excel file depending on the task. It isn't part of a release yet — run it from source:
+Open a project (a zip, or start empty) and run as many tasks against it as you like — Validate, Build DD/NL, Extract, Compare, and Design doc, the same as the CLI/GUI — with each task's output immediately available to the next, and a **Download project** button whenever you want the result. It isn't part of a release yet — run it from source: double-click `web/run.bat` (Windows) or `web/run.sh` (Linux/macOS), or from a terminal:
 
 ```bash
-uv build --wheel && cp dist/*.whl web/
 python web/serve.py
 ```
 
-This opens a local page (no internet needed once the one-time Pyodide/package download finishes); see [Development](docs/development.md#running-the-web-prototype) for details. The page follows your system's light/dark mode automatically, with a toggle to override it.
+That one command builds the project wheel if needed, then opens a local page (no internet needed once the one-time Pyodide/package download finishes); see [Development](docs/development.md#running-the-web-version) for details. The page follows your system's light/dark mode automatically, with a toggle to override it.

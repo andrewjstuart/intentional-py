@@ -6,7 +6,7 @@ How to run Intentional from source, test it, build the Windows executables and p
 - [Testing](#testing)
 - [The app icon](#the-app-icon)
 - [Packaging the Windows executables](#packaging-the-windows-executables)
-- [Running the web prototype](#running-the-web-prototype)
+- [Running the web version](#running-the-web-version)
 - [Releases and automated builds](#releases-and-automated-builds)
   - [Publishing a release](#publishing-a-release)
   - [Test builds without a release](#test-builds-without-a-release)
@@ -62,7 +62,7 @@ python assets/generate_icon.py
 | `assets/icon.ico` | `icon=` in both PyInstaller spec files (the `.exe` file icon) |
 | `assets/icon.png` | The source PNG; not shipped anywhere by itself |
 | `src/intentional_py/gui/icon.png` | The GUI's window/taskbar icon at runtime (loaded via `importlib.resources`, so it works from source, frozen, or pip-installed) |
-| `web/icon.png`, `web/favicon.ico` | The web prototype's favicon |
+| `web/icon.png`, `web/favicon.ico` | The web version's favicon |
 
 To change the icon, edit the drawing logic in `assets/generate_icon.py` (it's plain coordinate math, no image editor needed) and rerun it; commit the regenerated files alongside the script.
 
@@ -87,21 +87,23 @@ The executables are created in the `dist` folder. The version is shown in the GU
 
 `intentional-cli.exe` is meant to be run from a terminal (for example `intentional-cli.exe nl -v FIN`). Double-clicking it runs the default DD build using `intents.cfg` in the executable's folder, then the console closes immediately. The GUI isn't included in `intentional-cli.exe`, so `intentional-cli.exe gui` points to `intentional.exe` instead.
 
-## Running the web prototype
+## Running the web version
 
-An experimental third front end (see [code guide](code-guide.md#browser-prototype-web-folder)) that runs the core in the browser via [Pyodide](https://pyodide.org/), with no server beyond a static file server for the page itself. It isn't part of a release yet, so it's only run from source:
+An experimental third front end (see [code guide](code-guide.md#browser-front-end-web-folder)) that runs the core in the browser via [Pyodide](https://pyodide.org/), with no server beyond a static file server for the page itself. It isn't part of a release yet, so it's only run from source:
 
 ```bash
-uv build --wheel            # produces dist/intentional_py-<version>-py3-none-any.whl
-cp dist/*.whl web/          # the page installs this wheel into Pyodide via micropip
-python web/serve.py         # serves web/ on localhost and opens it
+python web/serve.py
 ```
 
-Rerun both commands after changing any core Python code, so the wheel the browser loads matches the source. `web/app.js` pins a specific Pyodide version (via the `jsdelivr` CDN in `web/index.html`); bump that version there if you want a newer Pyodide.
+Or double-click `web/run.bat` (Windows) / `web/run.sh` (Linux/macOS) — the same command, for anyone who'd rather not open a terminal; both just call `serve.py` and pause on error so the window doesn't vanish if something fails.
+
+That's the one command needed: it builds the project wheel into `web/` if it's missing or older than the source (comparing file modification times, so no need to remember to rebuild after a code change), requiring `uv` on `PATH` to do so, writes `web/wheel-filename.txt` so `app.js` never hardcodes a version, then serves `web/` on `localhost` and opens it. `web/app.js` pins a specific Pyodide version (via the `jsdelivr` CDN in `web/index.html`); bump that version there if you want a newer Pyodide.
+
+The page's **? Help** button opens the same per-task explanations as the GUI's Help window, defined directly in `web/index.html`. Open or start a project once (a zip upload, or empty), then run as many tasks against it as needed — each task's output is immediately available to the next, and **Download project** zips the current state at any point.
 
 The page follows the browser's light/dark mode preference (`prefers-color-scheme`) by default; the toggle button overrides this and remembers the choice in the browser's `localStorage`, the web equivalent of `gui/settings.py`.
 
-All six tasks are implemented (`src/intentional_py/web/actions.py`, covered by `test_web_actions.py` like any other core-facing code — no browser needed to test it): Validate and Compare return a JSON summary; Build DD/NL, Extract, and Design doc also return a base64-encoded zip of what changed, which `app.js` turns into a downloadable file.
+All six tasks are implemented (`src/intentional_py/web/actions.py`, covered by `test_web_actions.py` like any other core-facing code — no browser needed to test it). They all operate on a single session workspace (a directory in Pyodide's virtual filesystem, created by `new_project`/`open_project` and held in a module-level global for as long as the page stays open), so later tasks see earlier tasks' output with no re-upload. Every task returns a JSON summary; `download_project` separately zips the workspace's current state on demand.
 
 ## Releases and automated builds
 

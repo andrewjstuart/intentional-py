@@ -1,6 +1,6 @@
 # User Guide
 
-How to use Intentional from the graphical interface (GUI) or the command line (CLI). For downloading and a quick start, see the [README](../README.md).
+How to use Intentional from the graphical interface (GUI), the command line (CLI), or the experimental web version. For downloading and a quick start, see the [README](../README.md).
 
 - [Project folder](#project-folder)
 - [Config files](#config-files)
@@ -19,6 +19,7 @@ How to use Intentional from the graphical interface (GUI) or the command line (C
 - [The CLI](#the-cli)
   - [Commands and options](#commands-and-options)
   - [Examples](#examples)
+- [Web (experimental)](#web-experimental)
 - [Files and errors](#files-and-errors)
 
 ## Project folder
@@ -236,7 +237,7 @@ Start the GUI with `intentional.exe`, `uv run intentional`, or `uv run intention
 - **Tabs**: one per [task](#tasks), plus a **Settings** tab for the naming rules, project layout and NL defaults (see below); these apply to every project, not just the current one, so they are kept separate from the per-project tasks. Leave a config box blank to use the standard file in the project folder.
 - **Settings** tab: the saved naming rules, project layout and NL defaults, editable directly (mirrors the `naming-rules`, `project-layout` and `nl-defaults` CLI commands). **Reset to defaults** only changes the form; **Save settings** is what actually saves all three sections. Reopening the tab reloads the currently saved values, in case they were changed elsewhere (e.g. the CLI) since it was last open.
 - **Edit config…** (on the build and Design doc tabs) opens the config file as a table. Rows can be added, edited (double-click), duplicated, deleted and reordered. **Check** runs the same checks as a build and colours the rows with errors or warnings. **Save** writes the file and keeps the previous version as `<name>.bak`.
-- **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
+- **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; **Appearance** (**Match system**, **Light**, or **Dark** — remembered for next time); and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
 
 Below the tabs, the results of the last job are shown:
 
@@ -290,6 +291,25 @@ uv run intentional-cli design --file "Billing design.xlsx"
 uv run intentional-cli design --file "Billing design.xlsx" --sheet Intents --config billing.cfg
 uv run intentional-cli gui --project "C:\Projects\Billing"
 ```
+
+## Web (experimental)
+
+A third, experimental way to use Intentional, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — the same core as the CLI/GUI, with nothing uploaded anywhere. See [Development](development.md#running-the-web-version) for how it's built; the short version:
+
+```bash
+python web/serve.py
+```
+
+This builds the project wheel automatically if it's missing or out of date, serves the `web` folder on `localhost`, and opens it in your browser.
+
+- **Open project** from a zipped project folder (the same layout as the GUI/CLI: config file(s) and `Training Phrases`), or **Start empty project** to begin with nothing.
+- **Task**: choose one from the dropdown; the fields below change to match what it needs. Extract and Design doc also need a single Excel file; Compare also needs an agent export zip.
+- Run as many tasks as you like against the same open project — Extract's phrases are immediately there for Build NL, Design doc's config is immediately there for Build DD, with no downloading or re-uploading in between.
+- **Download project**, next to the open project's file count, zips the current state at any point — the config, phrases, and any built `intents` folder.
+- **? Help** (top-right): the same per-task explanations as the GUI's Help window, opening on the section for the currently selected task.
+- The page follows the browser's light/dark mode by default; the button next to **? Help** overrides and remembers the choice.
+
+Differences from the GUI/CLI: the web version always uses the standard naming rules and folder names (no Settings tab yet), and a Build NL duplicate-phrase prompt is answered "yes" automatically instead of asking.
 
 ## Files and errors
 
