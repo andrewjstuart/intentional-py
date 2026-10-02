@@ -158,7 +158,7 @@ These are in the repository's top folder.
 | `intentional-gui.spec`, `intentional-cli.spec` | Instructions for [PyInstaller](https://pyinstaller.org/) to build `intentional.exe` and `intentional-cli.exe`, including the app icon (`icon=`). |
 | `assets/generate_icon.py`, `assets/icon.png`, `assets/icon.ico` | Generates the app icon (see [development](development.md#the-app-icon)) and the source files it's built from; copies land in `src/intentional_py/gui/` (GUI window icon) and `web/` (favicon). |
 | `version_info.py` | Creates the version details shown in the executables' Windows file properties. |
-| `.github/workflows/` | The GitHub Actions workflows that test every change and build releases (see [development](development.md#releases-and-automated-builds)). |
+| `.github/workflows/` | The GitHub Actions workflows that test every change, build releases, and deploy the web version to GitHub Pages (see [development](development.md#releases-and-automated-builds) and [development](development.md#running-the-web-version)). |
 | `.github/dependabot.yml` | Tells Dependabot to suggest dependency updates weekly. |
 | `.github/instructions/commit-style.md` | The commit message format (Conventional Commits + gitmoji), wired into VS Code's Generate Commit Message via `.vscode/settings.json`. |
 | `README.md`, `docs/` | The project overview, user guide, code guide, development guide, and future plans. Published version history is kept in GitHub Releases. |

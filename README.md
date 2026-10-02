@@ -78,7 +78,9 @@ From source, use `uv run intentional` for the GUI and `uv run intentional-cli` f
 
 A third front end, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — no install, nothing uploaded anywhere; it all runs in the tab. It reuses the same core as the CLI and GUI, so a project's config and phrase files validate identically everywhere.
 
-Open a project (a zip, or start empty) and run as many tasks against it as you like — Validate, Build DD/NL, Extract, Compare, and Design doc, the same as the CLI/GUI — with each task's output immediately available to the next, and a **Download project** button whenever you want the result. It isn't part of a release yet — run it from source: double-click `web/run.bat` (Windows) or `web/run.sh` (Linux/macOS), or from a terminal:
+Open a project (a zip, or start empty) and run as many tasks against it as you like — Validate, Build DD/NL, Extract, Compare, and Design doc, the same as the CLI/GUI — with each task's output immediately available to the next, and a **Download project** button whenever you want the result.
+
+Try it hosted, with nothing to install or run: **[andrewjstuart.github.io/intentional-py](https://andrewjstuart.github.io/intentional-py/)**. Or run it from source — double-click `web/run.bat` (Windows) or `web/run.sh` (Linux/macOS), or from a terminal:
 
 ```bash
 python web/serve.py

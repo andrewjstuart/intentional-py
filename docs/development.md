@@ -89,7 +89,7 @@ The executables are created in the `dist` folder. The version is shown in the GU
 
 ## Running the web version
 
-An experimental third front end (see [code guide](code-guide.md#browser-front-end-web-folder)) that runs the core in the browser via [Pyodide](https://pyodide.org/), with no server beyond a static file server for the page itself. It isn't part of a release yet, so it's only run from source:
+An experimental third front end (see [code guide](code-guide.md#browser-front-end-web-folder)) that runs the core in the browser via [Pyodide](https://pyodide.org/), with no server beyond a static file server for the page itself. It isn't part of a release yet; try the hosted copy below, or run it from source:
 
 ```bash
 python web/serve.py
@@ -101,20 +101,23 @@ That's the one command needed: it builds the project wheel into `web/` if it's m
 
 The page's **? Help** button opens the same per-task explanations as the GUI's Help window, defined directly in `web/index.html`. Open or start a project once (a zip upload, or empty), then run as many tasks against it as needed — each task's output is immediately available to the next, and **Download project** zips the current state at any point.
 
+A hosted copy also runs on [GitHub Pages](https://andrewjstuart.github.io/intentional-py/), kept up to date by `.github/workflows/pages.yml` on every push to `main` (the same build-the-wheel-and-serve-`web/`-folder idea as `serve.py`, just run once in CI instead of locally). This is the option for a machine where even opening a terminal isn't possible — nothing but a browser is needed. The one-time setup on GitHub is **Settings > Pages > Source: GitHub Actions**; after that the workflow deploys on its own.
+
 The page follows the browser's light/dark mode preference (`prefers-color-scheme`) by default; the toggle button overrides this and remembers the choice in the browser's `localStorage`, the web equivalent of `gui/settings.py`.
 
 All six tasks are implemented (`src/intentional_py/web/actions.py`, covered by `test_web_actions.py` like any other core-facing code — no browser needed to test it). They all operate on a single session workspace (a directory in Pyodide's virtual filesystem, created by `new_project`/`open_project` and held in a module-level global for as long as the page stays open), so later tasks see earlier tasks' output with no re-upload. Every task returns a JSON summary; `download_project` separately zips the workspace's current state on demand.
 
 ## Releases and automated builds
 
-[GitHub Actions](https://docs.github.com/actions) runs two workflows from the `.github/workflows` folder on GitHub's own machines, so no local Windows machine is needed to build a release. Their runs, logs and results are listed on the repository's **Actions** tab.
+[GitHub Actions](https://docs.github.com/actions) runs three workflows from the `.github/workflows` folder on GitHub's own machines, so no local Windows machine is needed to build a release. Their runs, logs and results are listed on the repository's **Actions** tab.
 
 | Workflow | File | Runs when | What it does |
 |-|-|-|-|
 | Tests | `tests.yml` | A push to `main`, any pull request, or **Run workflow** | Runs the tests on Windows and Linux. A failure is shown on the pull request and on the badge at the top of the README. |
 | Release | `release.yml` | A tag starting with `v` is pushed, a release is published on GitHub (which creates the tag itself, without a push), or **Run workflow** | On Windows: runs the tests, builds both executables and `SHA256SUMS.txt`, and for a tag or a release publishes them to it. |
+| Pages | `pages.yml` | A push to `main`, or **Run workflow** | Builds the wheel and deploys the `web/` folder to GitHub Pages (see [Running the web version](#running-the-web-version)). |
 
-Both workflows install with `uv sync --locked`, so they fail if `uv.lock` doesn't match `pyproject.toml`. Run `uv lock` and commit `uv.lock` to fix that.
+The Tests and Release workflows install with `uv sync --locked`, so they fail if `uv.lock` doesn't match `pyproject.toml`. Run `uv lock` and commit `uv.lock` to fix that.
 
 [Dependabot](https://docs.github.com/code-security/dependabot) (`.github/dependabot.yml`) checks weekly for new versions of the Python dependencies and of the actions used by the workflows, and opens a pull request for each group of updates. The Tests workflow runs on each of those pull requests, so an update can be merged once its tests pass.
 
