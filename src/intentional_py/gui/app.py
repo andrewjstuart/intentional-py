@@ -10,6 +10,7 @@ import threading
 import tkinter as tk
 import webbrowser
 from collections.abc import Callable
+from importlib.resources import as_file, files
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
@@ -37,6 +38,15 @@ POLL_MS = 100
 EXCEL_TYPES = [("Excel files", "*.xlsb *.xlsm *.xlsx"), ("All files", "*.*")]
 CONFIG_TYPES = [("Config files", "*.cfg"), ("All files", "*.*")]
 ZIP_TYPES = [("Agent export", "*.zip"), ("All files", "*.*")]
+
+
+def _window_icon() -> tk.PhotoImage | None:
+    """The taskbar/title-bar icon; None if it can't be found, so the window still opens."""
+    try:
+        with as_file(files("intentional_py.gui") / "icon.png") as icon_path:
+            return tk.PhotoImage(file=str(icon_path))
+    except (FileNotFoundError, tk.TclError):
+        return None
 
 
 class HelpWindow(ctk.CTkToplevel):
@@ -150,6 +160,10 @@ class App(ctk.CTk):
         self.title(f"Intentional {__version__}")
         self.geometry("960x820")
         self.minsize(760, 660)
+        # kept as an attribute: Tk drops a PhotoImage once nothing references it
+        self._window_icon = _window_icon()
+        if self._window_icon is not None:
+            self.iconphoto(True, self._window_icon)
 
         self.runner = JobRunner()
         self.running = False

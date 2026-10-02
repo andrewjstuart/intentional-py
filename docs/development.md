@@ -4,7 +4,9 @@ How to run Intentional from source, test it, build the Windows executables and p
 
 - [Running from source](#running-from-source)
 - [Testing](#testing)
+- [The app icon](#the-app-icon)
 - [Packaging the Windows executables](#packaging-the-windows-executables)
+- [Running the web prototype](#running-the-web-prototype)
 - [Releases and automated builds](#releases-and-automated-builds)
   - [Publishing a release](#publishing-a-release)
   - [Test builds without a release](#test-builds-without-a-release)
@@ -40,12 +42,29 @@ The tests are in `src/intentional_py/tests` (see the [code guide](code-guide.md#
 
 ```text
 > uv run pytest -q
-........................................................................ [ 56%]
-.......................................................
+........................................................................ [ 55%]
+..........................................................
 
                                  [100%]
-127 passed
+130 passed
 ```
+
+## The app icon
+
+The same simple checkmark icon (matching the ✔ already used throughout the CLI/GUI output) is used for the GUI window, both `.exe` files, and the web favicon. It's generated, not hand-edited: `assets/generate_icon.py` draws it with the standard library only (no imaging package dependency) and writes every copy the project needs:
+
+```bash
+python assets/generate_icon.py
+```
+
+| File | Used by |
+|-|-|
+| `assets/icon.ico` | `icon=` in both PyInstaller spec files (the `.exe` file icon) |
+| `assets/icon.png` | The source PNG; not shipped anywhere by itself |
+| `src/intentional_py/gui/icon.png` | The GUI's window/taskbar icon at runtime (loaded via `importlib.resources`, so it works from source, frozen, or pip-installed) |
+| `web/icon.png`, `web/favicon.ico` | The web prototype's favicon |
+
+To change the icon, edit the drawing logic in `assets/generate_icon.py` (it's plain coordinate math, no image editor needed) and rerun it; commit the regenerated files alongside the script.
 
 ## Packaging the Windows executables
 
@@ -67,6 +86,22 @@ uv run pyinstaller --noconfirm intentional-cli.spec
 The executables are created in the `dist` folder. The version is shown in the GUI's title bar and next to the project folder, by `intentional-cli.exe --version`, and in each executable's file properties (Explorer > Properties > Details). The file properties are generated from the version in `pyproject.toml` by `version_info.py`. Both spec files only build on Windows; on Linux the CLI is run with `uv run intentional-cli`.
 
 `intentional-cli.exe` is meant to be run from a terminal (for example `intentional-cli.exe nl -v FIN`). Double-clicking it runs the default DD build using `intents.cfg` in the executable's folder, then the console closes immediately. The GUI isn't included in `intentional-cli.exe`, so `intentional-cli.exe gui` points to `intentional.exe` instead.
+
+## Running the web prototype
+
+An experimental third front end (see [code guide](code-guide.md#browser-prototype-web-folder)) that runs the core in the browser via [Pyodide](https://pyodide.org/), with no server beyond a static file server for the page itself. It isn't part of a release yet, so it's only run from source:
+
+```bash
+uv build --wheel            # produces dist/intentional_py-<version>-py3-none-any.whl
+cp dist/*.whl web/          # the page installs this wheel into Pyodide via micropip
+python web/serve.py         # serves web/ on localhost and opens it
+```
+
+Rerun both commands after changing any core Python code, so the wheel the browser loads matches the source. `web/app.js` pins a specific Pyodide version (via the `jsdelivr` CDN in `web/index.html`); bump that version there if you want a newer Pyodide.
+
+The page follows the browser's light/dark mode preference (`prefers-color-scheme`) by default; the toggle button overrides this and remembers the choice in the browser's `localStorage`, the web equivalent of `gui/settings.py`.
+
+Only **Validate** is implemented so far (`src/intentional_py/web/actions.py`, covered by `test_web_actions.py` like any other core-facing code — no browser needed to test it). Extending it to the other tasks follows the same shape as `gui/actions.py`: one function per task, zip in, JSON (and eventually a result zip) out.
 
 ## Releases and automated builds
 

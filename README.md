@@ -6,7 +6,7 @@
 
 Intentional creates Dialogflow ES intents from a config file and training phrase files, ready to import into an agent. It was first written in Perl and converted to Python for easier use and maintenance.
 
-It has a graphical interface (GUI) and a command line (CLI), with the same features. Both run on Windows or Linux from source, or as standalone Windows executables that don't need Python: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI).
+It has a graphical interface (GUI) and a command line (CLI), with the same features. Both run on Windows or Linux from source, or as standalone Windows executables that don't need Python: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI). An experimental browser-based prototype is also in progress (see [Web prototype](#web-prototype-experimental)).
 
 ## Documentation
 
@@ -73,3 +73,16 @@ intentional-cli.exe --help            list every command
 ```
 
 From source, use `uv run intentional` for the GUI and `uv run intentional-cli` for the CLI, after `uv sync --extra gui` (see [Development](docs/development.md#running-from-source)).
+
+## Web prototype (experimental)
+
+A third front end, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — no server, no install, nothing leaves the browser tab. It reuses the same core as the CLI and GUI, so a project's config and phrase files validate identically everywhere.
+
+Today it only covers **Validate**, uploaded as a project zip; the other tasks follow the same pattern and are future work. It isn't part of a release yet — run it from source:
+
+```bash
+uv build --wheel && cp dist/*.whl web/
+python web/serve.py
+```
+
+This opens a local page (no internet needed once the one-time Pyodide/package download finishes); see [Development](docs/development.md#running-the-web-prototype) for details. The page follows your system's light/dark mode automatically, with a toggle to override it.

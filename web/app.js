@@ -9,8 +9,36 @@ const zipInput = document.getElementById("zipInput");
 const configNameInput = document.getElementById("configName");
 const runButton = document.getElementById("runButton");
 const resultEl = document.getElementById("result");
+const themeToggle = document.getElementById("themeToggle");
 
 const WHEEL_FILE = "./intentional_py-1.3.0-py3-none-any.whl";
+const THEME_KEY = "intentional-web-theme";
+
+// Applied before Pyodide starts loading, so there's no flash of the wrong theme.
+function systemPrefersDark() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function currentTheme() {
+  return document.documentElement.dataset.theme || (systemPrefersDark() ? "dark" : "light");
+}
+
+function applyTheme(theme) {
+  if (theme) {
+    document.documentElement.dataset.theme = theme;
+  } else {
+    delete document.documentElement.dataset.theme;
+  }
+  // label shows the mode a click switches *to*
+  themeToggle.textContent = currentTheme() === "dark" ? "☀️ Light" : "🌙 Dark";
+}
+
+applyTheme(localStorage.getItem(THEME_KEY));
+themeToggle.addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+});
 
 let pyodideInstance = null;
 let validateProject = null;

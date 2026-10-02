@@ -9,6 +9,7 @@ A map of the source code: what each file does, how the files work together, and 
   - [Shared definitions](#shared-definitions)
   - [Command line](#command-line)
   - [Graphical interface (gui folder)](#graphical-interface-gui-folder)
+  - [Browser prototype (web folder)](#browser-prototype-web-folder)
   - [Tests](#tests)
   - [Project files](#project-files)
 - [Following one build through the code](#following-one-build-through-the-code)
@@ -17,15 +18,17 @@ A map of the source code: what each file does, how the files work together, and 
 
 ## The big picture
 
-The code has three layers. The **core** does the work (reads configs and phrases, writes the intent JSON) and never prints anything or opens a window. The two **front ends**, the CLI and the GUI, collect the user's choices, call the core, and show the results in their own way.
+The code has three layers. The **core** does the work (reads configs and phrases, writes the intent JSON) and never prints anything or opens a window. The **front ends** — the CLI, the GUI, and an experimental browser prototype — collect the user's choices, call the core, and show the results in their own way.
 
 ```mermaid
 flowchart TD
     CLI["CLI<br/>intentional.py"] --> RR["rich_reporter.py<br/>prints to the terminal"]
     GUI["GUI<br/>gui/app.py"] --> ACT["gui/actions.py<br/>form values to core calls"]
     ACT --> WRK["gui/worker.py<br/>runs jobs in the background"]
+    WEB["Web (prototype)<br/>web/index.html"] --> WACT["web/actions.py<br/>zip in, JSON out"]
     CLI --> CORE
     ACT --> CORE
+    WACT --> CORE
     subgraph CORE["Core (no printing, no windows)"]
         BUILD["build_intents.py"]
         VAL["validate.py"]
@@ -102,6 +105,25 @@ The GUI is built with [CustomTkinter](https://customtkinter.tomschimansky.com/),
 | [gui/updates.py](../src/intentional_py/gui/updates.py) | Asks GitHub for the latest release and compares its version with this one. |
 | [gui/\_\_main\_\_.py](../src/intentional_py/gui/__main__.py) | Lets `python -m intentional_py.gui` open the GUI. |
 
+### Browser prototype (web folder)
+
+An experimental third front end: the same core running in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly), with no server beyond serving the static page itself (see [development](development.md#running-the-web-prototype)). Only Validate is implemented so far.
+
+| File | What it does |
+|-|-|
+| [web/actions.py](../src/intentional_py/web/actions.py) | **What the page's Validate button does.** `validate_project()` unzips an uploaded project zip to a temp folder, calls the unmodified `validate.py`, and returns the result as a JSON string. Has no Pyodide-specific calls, so it's tested with plain `pytest` like any other code (`test_web_actions.py`). |
+| [web/reporter.py](../src/intentional_py/web/reporter.py) | `WebReporter`, a third `Reporter` implementation alongside `RichReporter` and `GuiReporter`: collects messages and tables in memory instead of printing or streaming them, since the browser prototype shows a result once the job finishes rather than live progress. |
+| [web/\_\_init\_\_.py](../src/intentional_py/web/__init__.py) | Marks the folder as a Python package, so it ships inside the wheel the browser installs. |
+
+The static browser bundle itself lives in the repository's top-level `web/` folder, not under `src/`, since it isn't part of the installed Python package (same idea as the PyInstaller `.spec` files living at the repo root rather than inside `src/`):
+
+| File | What it does |
+|-|-|
+| `web/index.html`, `web/app.js` | The page: loads Pyodide, installs the project wheel via `micropip`, and calls `validate_project()`. `app.js` is the only Pyodide-specific code in this front end — everything it calls into is plain, independently-tested Python. Also applies the light/dark theme (`prefers-color-scheme` by default, overridable and remembered via `localStorage`). |
+| `web/serve.py` | A tiny localhost static file server. Pyodide needs its assets served over `http(s)`, not opened as a bare `file://` URL, so this is the smallest thing that satisfies that without running any real server. |
+| `web/intentional_py-*.whl` | A built copy of the project wheel, installed into Pyodide at page load. Rebuilt and copied in manually (see [development](development.md#running-the-web-prototype)) — not generated automatically yet. |
+| `web/icon.png`, `web/favicon.ico` | The page's favicon, from `assets/generate_icon.py`. |
+
 ### Tests
 
 The tests are in `src/intentional_py/tests` and run with `uv run pytest`. Each `test_…` function sets up a small project, runs one feature and checks the result.
@@ -119,6 +141,7 @@ The tests are in `src/intentional_py/tests` and run with `uv run pytest`. Each `
 | [test_features.py](../src/intentional_py/tests/test_features.py) | The 1.1 features: phrase checks, clean, compare, the design document, synthesized English rows, settings and updates. |
 | [test_report.py](../src/intentional_py/tests/test_report.py) | Markdown and CSV formatting, invalid extensions, and a complete CLI build report. |
 | [test_gui_actions.py](../src/intentional_py/tests/test_gui_actions.py) | The GUI's `actions.py` and `worker.py`, without opening a window. |
+| [test_web_actions.py](../src/intentional_py/tests/test_web_actions.py) | The web prototype's `web/actions.py` directly, zipping a project in memory and checking the returned JSON — no browser or Pyodide involved. |
 | `data/` | A sample project: config files and Excel phrase workbooks. |
 
 ### Project files
@@ -130,7 +153,8 @@ These are in the repository's top folder.
 | `pyproject.toml` | The project's description: name, version, dependencies, and the `intentional` and `intentional-cli` commands. |
 | `.python-version` | The Python version uv and compatible version managers select for local development. The package's supported range remains in `pyproject.toml`. |
 | `uv.lock` | The exact version of every dependency, written by `uv lock`, so every install is the same. |
-| `intentional-gui.spec`, `intentional-cli.spec` | Instructions for [PyInstaller](https://pyinstaller.org/) to build `intentional.exe` and `intentional-cli.exe`. |
+| `intentional-gui.spec`, `intentional-cli.spec` | Instructions for [PyInstaller](https://pyinstaller.org/) to build `intentional.exe` and `intentional-cli.exe`, including the app icon (`icon=`). |
+| `assets/generate_icon.py`, `assets/icon.png`, `assets/icon.ico` | Generates the app icon (see [development](development.md#the-app-icon)) and the source files it's built from; copies land in `src/intentional_py/gui/` (GUI window icon) and `web/` (favicon). |
 | `version_info.py` | Creates the version details shown in the executables' Windows file properties. |
 | `.github/workflows/` | The GitHub Actions workflows that test every change and build releases (see [development](development.md#releases-and-automated-builds)). |
 | `.github/dependabot.yml` | Tells Dependabot to suggest dependency updates weekly. |
@@ -195,5 +219,7 @@ In the GUI, the same `intents()` function runs. The only differences are who cal
 | Add a language | `VALID_LANGUAGES` and `LANGUAGE_NAMES` in [constants.py](../src/intentional_py/constants.py) |
 | Add a CLI option or command | [intentional.py](../src/intentional_py/intentional.py) |
 | Add a GUI tab | a `_build_…_tab` and `_run_…` method in [gui/app.py](../src/intentional_py/gui/app.py), a function in [gui/actions.py](../src/intentional_py/gui/actions.py), and a section in [gui/help_text.py](../src/intentional_py/gui/help_text.py) |
+| Add a task to the web prototype | a function in [web/actions.py](../src/intentional_py/web/actions.py) (mirrors the matching `gui/actions.py` function; zip in, JSON out), and a form/button in [web/index.html](../web/index.html) + [web/app.js](../web/app.js) |
 | Change how a result is shown | `show_…` in [rich_reporter.py](../src/intentional_py/rich_reporter.py) for the CLI; [result_views.py](../src/intentional_py/result_views.py) for logic shared with the report, or `tiles()`, `result_issues()` and `detail_tables()` in [gui/actions.py](../src/intentional_py/gui/actions.py) for GUI-only wording/order |
+| Change the app icon | edit and rerun [assets/generate_icon.py](../assets/generate_icon.py) (see [development](development.md#the-app-icon)) |
 | Change the Help text | [gui/help_text.py](../src/intentional_py/gui/help_text.py) |

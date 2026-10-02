@@ -43,5 +43,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/icon.ico',
     version=version_resource('intentional-cli', 'Intentional CLI - Dialogflow ES intent builder'),
 )
