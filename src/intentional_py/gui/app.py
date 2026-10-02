@@ -49,6 +49,23 @@ def _window_icon() -> tk.PhotoImage | None:
         return None
 
 
+def _apply_theme() -> None:
+    """The card-styled color theme (rounded, bordered frames); falls back to the
+    CustomTkinter default blue theme if the file can't be found."""
+    try:
+        with as_file(files("intentional_py.gui") / "theme.json") as theme_path:
+            ctk.set_default_color_theme(str(theme_path))
+    except FileNotFoundError:
+        pass
+
+
+def _card_fg_color() -> tuple:
+    """A card's own background: labels inside a CTkScrollableFrame need this given
+    explicitly rather than "transparent", which does not track an appearance mode
+    switch there (a CustomTkinter limitation)."""
+    return tuple(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
+
+
 class HelpWindow(ctk.CTkToplevel):
     """Explains the modes; hidden rather than destroyed when closed, and reused."""
 
@@ -186,6 +203,9 @@ class App(ctk.CTk):
         self.check_updates_var = tk.BooleanVar(
             self, value=bool(self.settings["check_updates"])
         )
+        self.appearance_var = tk.StringVar(
+            self, value=self.settings.get("appearance_mode", "system")
+        )
         self.update_url = updates.RELEASES_URL
 
         self.grid_columnconfigure(0, weight=1)
@@ -206,7 +226,7 @@ class App(ctk.CTk):
 
     def _build_project_row(self, project: Path) -> None:
         frame = ctk.CTkFrame(self)
-        frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
+        frame.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 0))
         frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(frame, text="Project folder").grid(
             row=0, column=0, sticky="w", **PAD
@@ -245,6 +265,20 @@ class App(ctk.CTk):
             command=self._save_settings,
         )
         self.help_menu.add_separator()
+        appearance_menu = tk.Menu(self.help_menu, tearoff=0)
+        for label, mode in (
+            ("Match system", "system"),
+            ("Light", "light"),
+            ("Dark", "dark"),
+        ):
+            appearance_menu.add_radiobutton(
+                label=label,
+                variable=self.appearance_var,
+                value=mode,
+                command=lambda mode=mode: self._set_appearance_mode(mode),
+            )
+        self.help_menu.add_cascade(label="Appearance", menu=appearance_menu)
+        self.help_menu.add_separator()
         self.help_menu.add_command(label="About Intentional", command=self._show_about)
         help_button = ctk.CTkButton(
             frame,
@@ -259,7 +293,7 @@ class App(ctk.CTk):
 
     def _build_tabs(self) -> None:
         tabs = ctk.CTkTabview(self, height=210, command=self._on_mode_tab_changed)
-        tabs.grid(row=1, column=0, sticky="ew", padx=10, pady=(6, 0))
+        tabs.grid(row=1, column=0, sticky="ew", padx=12, pady=(12, 0))
         self.mode_tabs = tabs
         self._build_dd_tab(self._tab(tabs, "Build DD"))
         self._build_nl_tab(self._tab(tabs, "Build NL"))
@@ -418,21 +452,24 @@ class App(ctk.CTk):
         changed again.
         """
         tab.grid_rowconfigure(0, weight=1)
-        frame = ctk.CTkScrollableFrame(tab, fg_color="transparent")
+        # an explicit fg_color, not "transparent": CTkScrollableFrame children don't
+        # otherwise pick up an appearance mode switch after the Settings tab is built
+        card = _card_fg_color()
+        frame = ctk.CTkScrollableFrame(tab, fg_color=card)
         frame.grid(row=0, column=0, columnspan=3, sticky="nsew")
         frame.grid_columnconfigure(1, weight=1)
 
         row = 0
-        ctk.CTkLabel(frame, text="Naming rules", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0)
-        )
+        ctk.CTkLabel(
+            frame, text="Naming rules", font=ctk.CTkFont(weight="bold"), fg_color=card
+        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
         row += 1
         self.settings_intent_chars = self._entry_row(
-            frame, row, "Forbidden in an intent name (error)", ""
+            frame, row, "Forbidden in an intent name (error)", "", fg_color=card
         )
         row += 1
         self.settings_context_chars = self._entry_row(
-            frame, row, "Discouraged in a context (warning)", ""
+            frame, row, "Discouraged in a context (warning)", "", fg_color=card
         )
         row += 1
         ctk.CTkButton(
@@ -445,12 +482,14 @@ class App(ctk.CTk):
         row += 1
 
         ctk.CTkLabel(
-            frame, text="Project layout", font=ctk.CTkFont(weight="bold")
+            frame, text="Project layout", font=ctk.CTkFont(weight="bold"), fg_color=card
         ).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
         row += 1
         self.settings_layout_entries: dict[str, ctk.CTkEntry] = {}
         for field, label in PROJECT_LAYOUT_FIELDS:
-            self.settings_layout_entries[field] = self._entry_row(frame, row, label, "")
+            self.settings_layout_entries[field] = self._entry_row(
+                frame, row, label, "", fg_color=card
+            )
             row += 1
         ctk.CTkButton(
             frame,
@@ -461,12 +500,12 @@ class App(ctk.CTk):
         ).grid(row=row, column=1, sticky="w", padx=10, pady=(0, 10))
         row += 1
 
-        ctk.CTkLabel(frame, text="NL defaults", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0)
-        )
+        ctk.CTkLabel(
+            frame, text="NL defaults", font=ctk.CTkFont(weight="bold"), fg_color=card
+        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
         row += 1
         self.settings_nl_context = self._entry_row(
-            frame, row, "Context prefilled for Build NL", ""
+            frame, row, "Context prefilled for Build NL", "", fg_color=card
         )
         row += 1
         ctk.CTkButton(
@@ -482,6 +521,7 @@ class App(ctk.CTk):
             frame,
             row,
             "Applies to every project, on the CLI and the GUI, until changed again.",
+            fg_color=card,
         )
         row += 1
         ctk.CTkButton(
@@ -556,7 +596,7 @@ class App(ctk.CTk):
 
     def _build_results(self) -> None:
         frame = ctk.CTkFrame(self)
-        frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
+        frame.grid(row=2, column=0, sticky="nsew", padx=12, pady=12)
         frame.grid_columnconfigure(0, weight=1)
         frame.grid_rowconfigure(3, weight=1)
 
@@ -666,6 +706,13 @@ class App(ctk.CTk):
             parent=self,
         )
 
+    def _set_appearance_mode(self, mode: str) -> None:
+        ctk.set_appearance_mode(mode)
+        self.settings["appearance_mode"] = mode
+        settings.save(self.settings)
+        # ttk isn't themed by CustomTkinter, so the result tables need restyling by hand
+        self._style_tables()
+
     def _show_help(self) -> None:
         # the first time starts with the overview; after that, the section for the current tab
         if self.help_window is None:
@@ -687,9 +734,16 @@ class App(ctk.CTk):
     # ----- widget helpers -----
 
     def _entry_row(
-        self, tab: ctk.CTkFrame, row: int, label: str, placeholder: str
+        self,
+        tab: ctk.CTkFrame,
+        row: int,
+        label: str,
+        placeholder: str,
+        fg_color: str | tuple = "transparent",
     ) -> ctk.CTkEntry:
-        ctk.CTkLabel(tab, text=label).grid(row=row, column=0, sticky="w", **PAD)
+        ctk.CTkLabel(tab, text=label, fg_color=fg_color).grid(
+            row=row, column=0, sticky="w", **PAD
+        )
         entry = ctk.CTkEntry(tab, placeholder_text=placeholder)
         entry.grid(row=row, column=1, sticky="ew", **PAD)
         return entry
@@ -707,9 +761,16 @@ class App(ctk.CTk):
         return entry
 
     @staticmethod
-    def _hint(tab: ctk.CTkFrame, row: int, text: str) -> None:
+    def _hint(
+        tab: ctk.CTkFrame, row: int, text: str, fg_color: str | tuple = "transparent"
+    ) -> None:
         ctk.CTkLabel(
-            tab, text=text, text_color="gray", anchor="w", wraplength=620
+            tab,
+            text=text,
+            text_color="gray",
+            anchor="w",
+            wraplength=620,
+            fg_color=fg_color,
         ).grid(row=row, column=1, columnspan=2, sticky="w", padx=10)
 
     def _run_button(
@@ -1208,13 +1269,15 @@ class App(ctk.CTk):
 
 
 def main(project: Path | None = None) -> None:
-    ctk.set_appearance_mode("system")
+    _apply_theme()
+    ctk.set_appearance_mode(settings.load().get("appearance_mode", "system"))
     App(project).mainloop()
 
 
 def launch() -> None:
     """Entry point for the ``intentional`` command and ``intentional.exe``."""
-    ctk.set_appearance_mode("system")
+    _apply_theme()
+    ctk.set_appearance_mode(settings.load().get("appearance_mode", "system"))
     app = App()
     if len(sys.argv) > 1:
         app.after(200, lambda: app.show_cli_notice(sys.argv[1:]))

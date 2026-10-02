@@ -13,7 +13,10 @@ a = Analysis(
     ['src/intentional_py/gui/__main__.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('src/intentional_py/gui/icon.png', 'intentional_py/gui')],
+    datas=[
+        ('src/intentional_py/gui/icon.png', 'intentional_py/gui'),
+        ('src/intentional_py/gui/theme.json', 'intentional_py/gui'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
