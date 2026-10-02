@@ -260,3 +260,26 @@ def test_gui_command_rejects_missing_project(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, ["gui", "-p", str(tmp_path / "missing")])
     assert result.exit_code == 1
     assert "Project folder does not exist" in result.stdout
+
+
+def test_gui_command_reports_no_display_cleanly(monkeypatch) -> None:
+    """A TclError (e.g. no $DISPLAY on a headless machine) shouldn't be a raw traceback."""
+    pytest.importorskip("customtkinter")
+    import tkinter
+
+    from typer.testing import CliRunner
+
+    from intentional_py.gui import app as gui_app
+    from intentional_py.intentional import app
+
+    def fail(project=None) -> None:
+        raise tkinter.TclError("no display name and no $DISPLAY environment variable")
+
+    monkeypatch.setattr(gui_app, "main", fail)
+
+    result = CliRunner().invoke(app, ["gui"])
+
+    assert result.exit_code == 1
+    assert not isinstance(result.exception, tkinter.TclError)  # caught, not raw
+    assert "Could not open the GUI" in result.stdout
+    assert "no display" in result.stdout.lower()

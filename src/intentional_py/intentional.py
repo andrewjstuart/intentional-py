@@ -478,6 +478,8 @@ def gui(
         raise typer.Exit(code=1)
     try:
         # imported here so the CLI works without the optional GUI packages
+        import tkinter
+
         from intentional_py.gui import app as gui_app
     except ImportError as e:
         if getattr(sys, "frozen", False):
@@ -492,7 +494,16 @@ def gui(
             f"\n[bold][red]✗ Error:[/red][/bold] The GUI is not available ({e}).\n{hint}\n"
         )
         raise typer.Exit(code=1)
-    gui_app.main(project.resolve() if project else None)
+    try:
+        gui_app.main(project.resolve() if project else None)
+    except tkinter.TclError as e:
+        console.print(
+            f"\n[bold][red]✗ Error:[/red][/bold] Could not open the GUI ({e}).\n"
+            "This usually means no display is available (e.g. a headless server or "
+            "a container/SSH session without X11 forwarding). Use intentional-cli's "
+            "other commands instead, or connect with a display available.\n"
+        )
+        raise typer.Exit(code=1)
 
 
 @app.command("compare")
