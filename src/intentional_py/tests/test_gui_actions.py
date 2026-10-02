@@ -246,10 +246,13 @@ def test_gui_command_opens_project(tmp_path: Path, monkeypatch) -> None:
 
     opened = []
     monkeypatch.setattr(gui_app, "main", lambda project=None: opened.append(project))
+    monkeypatch.chdir(tmp_path)
 
     assert CliRunner().invoke(app, ["gui", "--project", str(tmp_path)]).exit_code == 0
     assert CliRunner().invoke(app, ["gui"]).exit_code == 0
-    assert opened == [tmp_path.resolve(), None]
+    # with no --project, it's the current directory, not whatever the GUI last
+    # had open - the user can still change it from inside the GUI
+    assert opened == [tmp_path.resolve(), tmp_path.resolve()]
 
 
 def test_gui_command_rejects_missing_project(tmp_path: Path) -> None:
@@ -260,3 +263,26 @@ def test_gui_command_rejects_missing_project(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, ["gui", "-p", str(tmp_path / "missing")])
     assert result.exit_code == 1
     assert "Project folder does not exist" in result.stdout
+
+
+def test_gui_command_reports_no_display_cleanly(monkeypatch) -> None:
+    """A TclError (e.g. no $DISPLAY on a headless machine) shouldn't be a raw traceback."""
+    pytest.importorskip("customtkinter")
+    import tkinter
+
+    from typer.testing import CliRunner
+
+    from intentional_py.gui import app as gui_app
+    from intentional_py.intentional import app
+
+    def fail(project=None) -> None:
+        raise tkinter.TclError("no display name and no $DISPLAY environment variable")
+
+    monkeypatch.setattr(gui_app, "main", fail)
+
+    result = CliRunner().invoke(app, ["gui"])
+
+    assert result.exit_code == 1
+    assert not isinstance(result.exception, tkinter.TclError)  # caught, not raw
+    assert "Could not open the GUI" in result.stdout
+    assert "no display" in result.stdout.lower()
