@@ -77,12 +77,13 @@ Saves the phrases from an Excel workbook (.xlsb, .xlsm or .xlsx) as text files.
 • The phrases being replaced are saved to a timestamped zip file first. DD mode keeps the NL folder.
 • The whole workbook is read before anything changes, so a file that cannot be read changes nothing.
 • A sheet with no phrases creates an empty file and a warning.
+• English is the default language, Spanish the next most common; more languages can be added on the Settings tab (see Dialogflow's language reference for every code it supports).
 """,
     "Validate": """\
 Checks a project before building, without creating any files.
 
 • Config file: choose one, or leave blank to check intents.cfg and intents_nl.cfg in the project folder.
-• Checks that the Training Phrases folders exist for each language.
+• Checks that the Training Phrases folder exists for each language actually used in the config - a supported language that isn't used yet doesn't need a folder.
 • Runs the same config checks as a build: errors would stop a build, warnings are listed but a build would continue.
 • Phrase files are looked for in both the language folder and its NL folder.
 

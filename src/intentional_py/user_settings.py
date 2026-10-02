@@ -1,6 +1,6 @@
-"""Naming-rule, project-layout and NL-default overrides kept between sessions, in the
-user's profile, shared by the CLI and the GUI (unlike gui/settings.py, which is
-GUI-only convenience preferences).
+"""Naming-rule, project-layout, NL-default and language-settings overrides kept between
+sessions, in the user's profile, shared by the CLI and the GUI (unlike gui/settings.py,
+which is GUI-only convenience preferences).
 
 Windows: %APPDATA%\\Intentional\\<name>.json; elsewhere ~/.config/intentional/<name>.json.
 """
@@ -14,7 +14,12 @@ from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
+from intentional_py.models import (
+    LanguageSettings,
+    NamingRules,
+    NlDefaults,
+    ProjectLayout,
+)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -81,3 +86,17 @@ def load_nl_defaults(path: Path | None = None) -> NlDefaults:
 
 def save_nl_defaults(nl_defaults: NlDefaults, path: Path | None = None) -> None:
     _save(nl_defaults, path or nl_defaults_path())
+
+
+def language_settings_path() -> Path:
+    return _settings_path("language_settings.json")
+
+
+def load_language_settings(path: Path | None = None) -> LanguageSettings:
+    return _load(LanguageSettings, path or language_settings_path())
+
+
+def save_language_settings(
+    settings: LanguageSettings, path: Path | None = None
+) -> None:
+    _save(settings, path or language_settings_path())

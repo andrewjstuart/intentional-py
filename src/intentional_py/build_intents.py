@@ -12,7 +12,7 @@ from pathlib import Path
 from time import perf_counter
 
 from intentional_py import compare as comparing
-from intentional_py import constants, exceptions, models, utils
+from intentional_py import exceptions, models, utils
 from intentional_py import validate as validating
 from intentional_py.reporting import BuildResult, CompareResult, Reporter
 
@@ -25,6 +25,7 @@ def intents(
     clean: bool = False,
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
 ) -> BuildResult:
     """Build the intents described in the config file, after the preflight checks in validate.py.
 
@@ -38,13 +39,15 @@ def intents(
             original hardcoded behavior when not given.
         layout (ProjectLayout | None): project folder/file names; defaults to the
             original hardcoded layout when not given.
+        languages (LanguageSettings | None): supported language codes/names; defaults to
+            the original hardcoded set (en/es/fr) when not given.
 
     Returns:
         BuildResult: counts, changes since the previous build, and output folder.
     """
     layout = layout or models.ProjectLayout()
     files_to_write, result, t1_start = _generate(
-        mode, config, base_dir, reporter, rules, layout
+        mode, config, base_dir, reporter, rules, layout, languages
     )
     output_dir = Path(base_dir, layout.intents_dir)
 
@@ -90,10 +93,11 @@ def compare_build(
     reporter: Reporter,
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
 ) -> CompareResult:
     """Compare what the config would build with an agent export or intents folder; writes nothing."""
     files_to_write, _result, t1_start = _generate(
-        mode, config, base_dir, reporter, rules, layout
+        mode, config, base_dir, reporter, rules, layout, languages
     )
     result = comparing.compare(
         _summarize(files_to_write), comparing.load(source), str(source)
@@ -115,9 +119,11 @@ def _generate(
     reporter: Reporter,
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
 ) -> tuple[dict, BuildResult, float]:
     """Check the config and create every intent's JSON in memory, keyed by output file."""
     layout = layout or models.ProjectLayout()
+    languages = languages or models.LanguageSettings()
     # check if config file exists
     if not Path(config).exists():
         raise exceptions.FileSystemError(
@@ -131,7 +137,7 @@ def _generate(
 
     # Perform preflight validation on the config file to catch errors and warnings early
     rows, fatal_errors, warnings = validating.preflight_config(
-        config, base_dir, mode, rules, layout
+        config, base_dir, mode, rules, layout, languages
     )
     for warning in warnings:
         reporter.message("warning", f"[yellow]Warning:[/yellow] {warning}")
@@ -148,13 +154,13 @@ def _generate(
         )
 
     intents_with_english = {
-        row[0] for row in rows if row[2] == constants.DEFAULT_LANGUAGE
+        row[0] for row in rows if row[2] == languages.default_language
     }
     first_row_for_intent: dict[str, int] = {}
     first_english_row_for_intent: dict[str, int] = {}
     for row_number, row in enumerate(rows):
         first_row_for_intent.setdefault(row[0], row_number)
-        if row[2] == constants.DEFAULT_LANGUAGE:
+        if row[2] == languages.default_language:
             first_english_row_for_intent.setdefault(row[0], row_number)
 
     label = f"Creating [green]{mode}[/green] intents using [cyan]{config}[/cyan]"
@@ -164,7 +170,7 @@ def _generate(
         # machine learning); every row still writes its own phrases, so a repeated
         # intent+language row can swap in different phrases without changing the intent
         write_intent = (
-            row[2] == constants.DEFAULT_LANGUAGE
+            row[2] == languages.default_language
             and first_english_row_for_intent[row[0]] == row_number
         ) or (
             row[0] not in intents_with_english
@@ -179,12 +185,13 @@ def _generate(
             temp_nomatch,
             temp_ml,
         ) = create_json(
-            models.ConfigRow.from_csv_row(row, row_number + 1, rules),
+            models.ConfigRow.from_csv_row(row, row_number + 1, rules, languages),
             mode,
             base_dir,
             reporter,
             write_intent,
             layout,
+            languages,
         )
 
         # a duplicate (intent, language) row's phrases replace the earlier row's phrases
@@ -214,6 +221,7 @@ def create_json(
     reporter: Reporter,
     write_intent: bool = True,
     layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
 ) -> tuple[dict, int, int, int, str, int, str]:
     """Create the JSON for one config row, which must already have passed preflight_config.
 
@@ -225,6 +233,8 @@ def create_json(
         write_intent (bool): Whether this row owns the shared intent definition file.
         layout (ProjectLayout | None): project folder/file names; defaults to the
             original hardcoded layout when not given.
+        languages (LanguageSettings | None): supported language codes/names; defaults to
+            the original hardcoded set (en/es/fr) when not given.
 
     Returns:
         tuple[dict, int, int, int, str, int, str]
@@ -238,6 +248,7 @@ def create_json(
 
     """
     layout = layout or models.ProjectLayout()
+    languages = languages or models.LanguageSettings()
     df_intent = row.intent
     priority = row.priority
 
@@ -252,7 +263,7 @@ def create_json(
     language = row.language
     dtmf_only: bool = language == "dtmf"
     if dtmf_only:
-        language = constants.DEFAULT_LANGUAGE
+        language = languages.default_language
     langs_used: str = language  # store for return
 
     action = row.action

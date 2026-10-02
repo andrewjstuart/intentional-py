@@ -31,7 +31,12 @@ from intentional_py.gui.widgets import (
     style_tables,
 )
 from intentional_py.gui.worker import GuiReporter, JobRunner
-from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
+from intentional_py.models import (
+    LanguageSettings,
+    NamingRules,
+    NlDefaults,
+    ProjectLayout,
+)
 from intentional_py.reporting import Level
 
 POLL_MS = 100
@@ -199,6 +204,7 @@ class App(ctk.CTk):
         self.settings = settings.load()
         self.project_layout_snapshot = user_settings.load_project_layout()
         self.nl_defaults_snapshot = user_settings.load_nl_defaults()
+        self.language_settings_snapshot = user_settings.load_language_settings()
         self.clean_var = tk.BooleanVar(self, value=bool(self.settings["clean"]))
         self.check_updates_var = tk.BooleanVar(
             self, value=bool(self.settings["check_updates"])
@@ -361,14 +367,15 @@ class App(ctk.CTk):
         self.xl_mode.grid(row=0, column=1, **PAD)
         ctk.CTkLabel(options, text="Language").grid(row=0, column=2, **PAD)
         self.xl_language = ctk.CTkOptionMenu(
-            options, values=list(constants.LANGUAGE_NAMES), width=90
+            options, values=list(self.language_settings_snapshot.languages), width=90
         )
         self.xl_language.grid(row=0, column=3, **PAD)
 
         self._hint(
             tab,
             2,
-            "Phrases are saved under the project's Training Phrases folder; phrases being replaced are zipped first.",
+            "Phrases are saved under the project's Training Phrases folder; phrases being replaced are zipped first. "
+            "More languages than these can be added on the Settings tab.",
         )
         self._run_button(tab, 3, "Extract phrases", self._run_extract)
 
@@ -517,6 +524,42 @@ class App(ctk.CTk):
         ).grid(row=row, column=1, sticky="w", padx=10, pady=(0, 10))
         row += 1
 
+        ctk.CTkLabel(
+            frame,
+            text="Supported languages",
+            font=ctk.CTkFont(weight="bold"),
+            fg_color=card,
+        ).grid(row=row, column=0, columnspan=2, sticky="w", padx=10, pady=(10, 0))
+        row += 1
+        self._hint(
+            frame,
+            row,
+            "One 'code=Name' per line, e.g. 'de=German'. Not a Dialogflow requirement - "
+            "just which languages this tool validates and builds. English ('en') is "
+            "the default, Spanish ('es') the next most common - see Dialogflow's "
+            "language reference (cloud.google.com/dialogflow/es/docs/reference/language) "
+            "for every language and code it supports.",
+            fg_color=card,
+        )
+        row += 1
+        self.settings_languages_box = ctk.CTkTextbox(frame, height=140)
+        self.settings_languages_box.grid(
+            row=row, column=1, columnspan=2, sticky="ew", padx=10, pady=(0, 6)
+        )
+        row += 1
+        self.settings_default_language = self._entry_row(
+            frame, row, "Default language code", "", fg_color=card
+        )
+        row += 1
+        ctk.CTkButton(
+            frame,
+            text="Reset to defaults",
+            width=140,
+            fg_color="gray",
+            command=self._reset_language_settings,
+        ).grid(row=row, column=1, sticky="w", padx=10, pady=(0, 10))
+        row += 1
+
         self._hint(
             frame,
             row,
@@ -538,6 +581,7 @@ class App(ctk.CTk):
         self.settings_context_chars.insert(0, rules.context_discouraged_chars)
         self._fill_project_layout_entries(user_settings.load_project_layout())
         self._fill_nl_defaults_entry(user_settings.load_nl_defaults())
+        self._fill_language_settings(user_settings.load_language_settings())
 
     def _fill_project_layout_entries(self, layout: ProjectLayout) -> None:
         for field, _label in PROJECT_LAYOUT_FIELDS:
@@ -548,6 +592,16 @@ class App(ctk.CTk):
     def _fill_nl_defaults_entry(self, nl_defaults: NlDefaults) -> None:
         self.settings_nl_context.delete(0, "end")
         self.settings_nl_context.insert(0, nl_defaults.context)
+
+    def _fill_language_settings(self, language_settings: LanguageSettings) -> None:
+        lines = "\n".join(
+            f"{code}={name}"
+            for code, name in sorted(language_settings.languages.items())
+        )
+        self.settings_languages_box.delete("1.0", "end")
+        self.settings_languages_box.insert("1.0", lines)
+        self.settings_default_language.delete(0, "end")
+        self.settings_default_language.insert(0, language_settings.default_language)
 
     def _reset_naming_rules(self) -> None:
         defaults = NamingRules()
@@ -562,6 +616,32 @@ class App(ctk.CTk):
     def _reset_nl_defaults(self) -> None:
         self._fill_nl_defaults_entry(NlDefaults())
 
+    def _reset_language_settings(self) -> None:
+        self._fill_language_settings(LanguageSettings())
+
+    def _parse_language_settings(self) -> LanguageSettings:
+        languages: dict[str, str] = {}
+        text = self.settings_languages_box.get("1.0", "end").strip()
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            line = line.strip()
+            if not line:
+                continue
+            code, has_name, name = line.partition("=")
+            code, name = code.strip().lower(), name.strip()
+            if not code or not has_name or not name:
+                raise exceptions.ConfigurationError(
+                    f"Line {line_number}: expected 'code=Name', found '{line}'."
+                )
+            languages[code] = name
+        if not languages:
+            raise exceptions.ConfigurationError("At least one language is required.")
+        default_language = self.settings_default_language.get().strip().lower()
+        if default_language not in languages:
+            raise exceptions.ConfigurationError(
+                f"Default language '{default_language}' is not in the list above."
+            )
+        return LanguageSettings(languages=languages, default_language=default_language)
+
     def _save_project_settings(self) -> None:
         rules = NamingRules(
             intent_forbidden_chars=self.settings_intent_chars.get(),
@@ -574,12 +654,20 @@ class App(ctk.CTk):
             }
         )
         nl_defaults = NlDefaults(context=self.settings_nl_context.get())
+        try:
+            language_settings = self._parse_language_settings()
+        except exceptions.IntentionalException as error:
+            messagebox.showerror("Intentional", str(error), parent=self)
+            return
         user_settings.save_naming_rules(rules)
         user_settings.save_project_layout(layout)
         user_settings.save_nl_defaults(nl_defaults)
+        user_settings.save_language_settings(language_settings)
         self.project_layout_snapshot = layout
         self.nl_defaults_snapshot = nl_defaults
+        self.language_settings_snapshot = language_settings
         self._refresh_layout_placeholders()
+        self.xl_language.configure(values=list(language_settings.languages))
         messagebox.showinfo("Intentional", "Settings saved.", parent=self)
 
     def _refresh_layout_placeholders(self) -> None:
@@ -874,7 +962,11 @@ class App(ctk.CTk):
             checkbox.select() if self.settings[key] else checkbox.deselect()
         for menu, key, allowed in (
             (self.xl_mode, "extract_mode", ["NL", "DD"]),
-            (self.xl_language, "extract_language", list(constants.LANGUAGE_NAMES)),
+            (
+                self.xl_language,
+                "extract_language",
+                list(self.language_settings_snapshot.languages),
+            ),
             (self.compare_mode, "compare_mode", ["DD", "NL"]),
         ):
             if self.settings[key] in allowed:
@@ -937,9 +1029,12 @@ class App(ctk.CTk):
         )
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
+        languages = user_settings.load_language_settings()
         self._start(
             "Build DD intents",
-            lambda r: actions.build_dd(project, config, r, clean, rules, layout),
+            lambda r: actions.build_dd(
+                project, config, r, clean, rules, layout, languages
+            ),
         )
 
     def _run_nl(self) -> None:
@@ -955,9 +1050,12 @@ class App(ctk.CTk):
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
         nl_defaults = user_settings.load_nl_defaults()
+        languages = user_settings.load_language_settings()
         self._start(
             "Build NL intents",
-            lambda r: actions.build_nl(*values, r, clean, rules, layout, nl_defaults),
+            lambda r: actions.build_nl(
+                *values, r, clean, rules, layout, nl_defaults, languages
+            ),
         )
 
     def _run_extract(self) -> None:
@@ -968,14 +1066,19 @@ class App(ctk.CTk):
             self.xl_language.get(),
         )
         layout = user_settings.load_project_layout()
-        self._start("Extract phrases", lambda r: actions.extract(*values, r, layout))
+        languages = user_settings.load_language_settings()
+        self._start(
+            "Extract phrases", lambda r: actions.extract(*values, r, layout, languages)
+        )
 
     def _run_validate(self) -> None:
         project, config = self.project_entry.get(), self.val_config.get()
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
+        languages = user_settings.load_language_settings()
         self._start(
-            "Validate", lambda r: actions.validate(project, config, r, rules, layout)
+            "Validate",
+            lambda r: actions.validate(project, config, r, rules, layout, languages),
         )
 
     def _run_compare(self) -> None:
@@ -987,7 +1090,10 @@ class App(ctk.CTk):
         )
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
-        self._start("Compare", lambda r: actions.compare(*values, r, rules, layout))
+        languages = user_settings.load_language_settings()
+        self._start(
+            "Compare", lambda r: actions.compare(*values, r, rules, layout, languages)
+        )
 
     def _run_design(self) -> None:
         values = (

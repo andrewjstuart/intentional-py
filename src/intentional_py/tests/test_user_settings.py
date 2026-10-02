@@ -1,7 +1,12 @@
 from pathlib import Path
 
 from intentional_py import user_settings
-from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
+from intentional_py.models import (
+    LanguageSettings,
+    NamingRules,
+    NlDefaults,
+    ProjectLayout,
+)
 
 
 def test_load_naming_rules_defaults_when_file_is_missing(tmp_path: Path) -> None:
@@ -132,6 +137,41 @@ def test_nl_defaults_path_uses_appdata_or_xdg_config(
     assert (
         user_settings.nl_defaults_path()
         == tmp_path / "Intentional" / "nl_defaults.json"
+    )
+
+
+def test_load_language_settings_defaults_when_file_is_missing(tmp_path: Path) -> None:
+    settings = user_settings.load_language_settings(tmp_path / "does-not-exist.json")
+
+    assert settings == LanguageSettings()
+
+
+def test_load_language_settings_defaults_when_file_is_damaged(tmp_path: Path) -> None:
+    path = tmp_path / "language_settings.json"
+    path.write_text("not json", encoding="utf-8")
+
+    assert user_settings.load_language_settings(path) == LanguageSettings()
+
+
+def test_save_and_load_language_settings_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "settings" / "language_settings.json"
+    settings = LanguageSettings(
+        languages={"en": "English", "de": "German"}, default_language="de"
+    )
+
+    user_settings.save_language_settings(settings, path)
+
+    assert user_settings.load_language_settings(path) == settings
+
+
+def test_language_settings_path_uses_appdata_or_xdg_config(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    assert (
+        user_settings.language_settings_path()
+        == tmp_path / "Intentional" / "language_settings.json"
     )
 
     monkeypatch.delenv("APPDATA", raising=False)

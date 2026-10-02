@@ -370,7 +370,7 @@
         <p>Checks a project zip before building, without creating any files.</p>
         <ul>
           <li>Config file name: leave blank to check the standard <code>intents.cfg</code> and <code>intents_nl.cfg</code> in the zip, or name a different one.</li>
-          <li>Checks that the Training Phrases folders exist for each language.</li>
+          <li>Checks that the Training Phrases folder exists for each language actually used in the config - a supported language that isn't used yet doesn't need a folder.</li>
           <li>Runs the same config checks as a build: errors would stop a build, warnings are listed but a build would continue.</li>
           <li>Entity tags must look like <code>&lt;entity|text&gt;</code>; a missing <code>&lt;</code>, <code>&gt;</code> or <code>|</code> is reported with its line numbers.</li>
           <li>DD intents that share a phrase are reported only when they also share a language and a context.</li>
@@ -383,7 +383,7 @@
           <li>Config file name: leave blank for <code>intents.cfg</code> at the zip's root.</li>
           <li>Each config row has 7 comma-separated values; the last one is optional: Intent, Context, Language, Action, Entities, DTMF, Machine learning.</li>
           <li>Phrases are read from <code>Training Phrases/&lt;language&gt;/&lt;action&gt;.txt</code>.</li>
-          <li>The English row supplies the shared intent definition; with no English row, one is generated from the first row.</li>
+          <li>The default-language row (English, <code>en</code>, unless changed) supplies the shared intent definition; with no such row, one is generated from the first row.</li>
           <li>A priority can follow the intent name in braces, e.g. <code>MYAC.Billing.Pay{high}</code>.</li>
           <li><strong>Clear the intents folder first</strong> zips everything in the intents folder and removes it before building.</li>
         </ul>
@@ -407,6 +407,7 @@
           <li>NL mode writes as if under <code>Training Phrases/&lt;language&gt;/NL</code>; DD mode writes as if under <code>Training Phrases/&lt;language&gt;</code>.</li>
           <li>The whole workbook is read before anything is written, so a file that can't be read produces no output.</li>
           <li>A sheet with no phrases creates an empty file and a warning.</li>
+          <li>English is the default language, Spanish the next most common; the CLI/GUI can add more via <code>language-settings</code> / the Settings tab (see Dialogflow's <a href="https://cloud.google.com/dialogflow/es/docs/reference/language" target="_blank" rel="noopener">language reference</a> for every code it supports).</li>
         </ul>
       </section>
       <section id="help-design" class="help-section">

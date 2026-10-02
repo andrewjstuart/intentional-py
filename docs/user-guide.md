@@ -61,7 +61,8 @@ MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
 - **Intent**: by convention, parts are separated by periods (`.`). A `-` is not allowed in the name.
 - **Context**: by convention, parts are separated by dashes (`-`).
 - These two naming rules are this project's own convention, not a Dialogflow requirement, and can be changed with the `naming-rules` command (or the GUI's **Settings** tab) if a project needs different standards; see [Commands and options](#commands-and-options).
-- **Language**: `en`, `es` or `fr`, or `dtmf` to add only the DTMF values as phrases. When an intent has several language rows, its `en` row supplies the shared intent definition and every row supplies that language's phrases. If it has no `en` row, an English row is generated in memory from the first row: its context, action, entities, DTMF and machine-learning value are reused, and phrases are read from the matching `Training Phrases/en/<action>.txt`. The config file itself is not changed. Two rows can also share the same intent **and** language on purpose, to swap in a different set of phrases without duplicating the intent; see [Special values](#special-values).
+- **Language**: `en` (English) is the default, `es` (Spanish) the next most common, or `dtmf` to add only the DTMF values as phrases. Dialogflow ES supports many more languages than these two, and this tool validates against whichever ones are configured (see below) — the CLI/GUI can add any of them with `language-settings`. When an intent has several language rows, its default-language row (`en` unless changed) supplies the shared intent definition and every row supplies that language's phrases. If it has no default-language row, one is generated in memory from the first row: its context, action, entities, DTMF and machine-learning value are reused, and phrases are read from the matching `Training Phrases/<default language>/<action>.txt`. The config file itself is not changed. Two rows can also share the same intent **and** language on purpose, to swap in a different set of phrases without duplicating the intent; see [Special values](#special-values).
+  - The supported language set (and which one is the default) is this project's own convention, not a Dialogflow requirement, and can be changed with the `language-settings` command (or the GUI's **Settings** tab); see [Commands and options](#commands-and-options). It's just which codes this tool accepts and validates — a language doesn't need a `Training Phrases` folder until a config row actually uses it (see [Validate a project](#validate-a-project)).
 - **Action**: the value returned by the intent; the phrases are read from `<action>.txt`.
 - **Entities** and **DTMF** can be empty, but their commas are still needed so the columns line up.
 - **Machine Learning** is optional, for configs written before the column existed. It maps directly to Dialogflow's JSON `auto` field:
@@ -164,7 +165,7 @@ When the config is created:
 
 ### Extract phrases from Excel
 
-Saves the phrases from an Excel workbook (`.xlsb`, `.xlsm` or `.xlsx`) as phrase files. Each sheet is one intent, with its phrases in the first column; the sheet name becomes the file name. Duplicate phrases in a sheet are removed and the rest are sorted. Choose the mode (DD or NL, default NL) and the language (default `en`).
+Saves the phrases from an Excel workbook (`.xlsb`, `.xlsm` or `.xlsx`) as phrase files. Each sheet is one intent, with its phrases in the first column; the sheet name becomes the file name. Duplicate phrases in a sheet are removed and the rest are sorted. Choose the mode (DD or NL, default NL) and the language (default `en`; see [Config files](#config-files) for the full supported set and how to add more).
 
 The whole workbook is read before anything is changed, so a file that cannot be read leaves the existing phrases untouched. The phrases being replaced are saved to a zip file first:
 
@@ -175,7 +176,7 @@ On the CLI, the phrases are saved under the current folder, so run `extract` fro
 
 ### Validate a project
 
-Reports problems **before** a build, without writing any files. Validate runs the same config checks as a build, so it reports exactly what a build would, and also checks that the `Training Phrases` folders and config files exist. Phrase files are looked for in both the language folder and its `NL` folder.
+Reports problems **before** a build, without writing any files. Validate runs the same config checks as a build, so it reports exactly what a build would, and also checks that the `Training Phrases` folder exists, along with a language's subfolder for each language actually used in the config (a supported language that isn't used yet doesn't need one), and that the config files exist. Phrase files are looked for in both the language folder and its `NL` folder.
 
 The phrase files are checked too, as warnings:
 
@@ -234,8 +235,8 @@ intentional-cli.exe compare --export agent.zip --report billing-changes.md
 Start the GUI with `intentional.exe`, `uv run intentional`, or `uv run intentional-cli gui` (optionally with `--project <folder>`). The GUI doesn't take command-line options; if `intentional` or `intentional.exe` is started with any, it opens normally and shows a reminder to use `intentional-cli` instead.
 
 - **Project folder**: see [Project folder](#project-folder). The list offers recently used folders, and the last one opens at start-up. The version number is shown next to it.
-- **Tabs**: one per [task](#tasks), plus a **Settings** tab for the naming rules, project layout and NL defaults (see below); these apply to every project, not just the current one, so they are kept separate from the per-project tasks. Leave a config box blank to use the standard file in the project folder.
-- **Settings** tab: the saved naming rules, project layout and NL defaults, editable directly (mirrors the `naming-rules`, `project-layout` and `nl-defaults` CLI commands). **Reset to defaults** only changes the form; **Save settings** is what actually saves all three sections. Reopening the tab reloads the currently saved values, in case they were changed elsewhere (e.g. the CLI) since it was last open.
+- **Tabs**: one per [task](#tasks), plus a **Settings** tab for the naming rules, project layout, NL defaults and supported languages (see below); these apply to every project, not just the current one, so they are kept separate from the per-project tasks. Leave a config box blank to use the standard file in the project folder.
+- **Settings** tab: the saved naming rules, project layout, NL defaults and supported languages, editable directly (mirrors the `naming-rules`, `project-layout`, `nl-defaults` and `language-settings` CLI commands). Languages are one `code=Name` per line (e.g. `de=German`). **Reset to defaults** only changes the form; **Save settings** is what actually saves all four sections. Reopening the tab reloads the currently saved values, in case they were changed elsewhere (e.g. the CLI) since it was last open.
 - **Edit config…** (on the build and Design doc tabs) opens the config file as a table. Rows can be added, edited (double-click), duplicated, deleted and reordered. **Check** runs the same checks as a build and colours the rows with errors or warnings. **Save** writes the file and keeps the previous version as `<name>.bak`.
 - **?** (top-right corner): **Help** (also **F1**), which opens at the section for the current tab; **Check for updates**; **Check for updates at start-up**; **Appearance** (**Match system**, **Light**, or **Dark** — remembered for next time); and **About Intentional**. When a newer release is available, a **Version … available** link appears next to the version number. A failed automatic check is silent; a failed manual check shows the network error.
 
@@ -261,13 +262,14 @@ Every command has `--help`, and `-q` / `--quiet` to show less output. Every task
 |-|-|
 | *(none)*: build DD intents | `--config <file>` (default from `project-layout`, originally `intents.cfg`), `--clean` |
 | `nl` (or `natural-language`): build NL intents | `-v` / `--vertical <prefix>`, `-c` / `--context <name>` (default from `nl-defaults`, originally `GetIntent`), `-lc` / `--lowercase`, `-r` / `--reuse`, `--config <file>` (default from `project-layout`, originally `intents_nl.cfg`), `--clean` |
-| `extract` (or `x`) | `-f` / `--file <workbook>`, `-m` / `--mode DD\|NL` (default `NL`), `-l` / `--lang en\|es\|fr` (default `en`) |
+| `extract` (or `x`) | `-f` / `--file <workbook>`, `-m` / `--mode DD\|NL` (default `NL`), `-l` / `--lang <code>` (default `en`; valid codes come from `language-settings`) |
 | `validate` | `--config <file>` |
 | `compare` | `-e` / `--export <zip or folder>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
 | `design` | `-f` / `--file <workbook>` (required), `-s` / `--sheet <name>`, `--config <file>` (default from `project-layout`, originally `intents.cfg`) |
 | `naming-rules` | `--set-intent-forbidden-chars <chars>`, `--set-context-discouraged-chars <chars>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\naming_rules.json` on Windows, `~/.config/intentional/naming_rules.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `project-layout` | `--set-training-phrases-dir <name>`, `--set-intents-dir <name>`, `--set-nl-subfolder <name>`, `--set-dd-config <file>`, `--set-nl-config <file>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\project_layout.json` on Windows, `~/.config/intentional/project_layout.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `nl-defaults` | `--set-context <name>`, `--reset`. With no options, shows the current value. Saved to the user's profile (`%APPDATA%\Intentional\nl_defaults.json` on Windows, `~/.config/intentional/nl_defaults.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
+| `language-settings` | `--add <code>` (looks up the name in the full Dialogflow ES catalog) or `--add <code>=<Name>` (repeatable), `--remove <code>` (repeatable), `--set-default <code>`, `--reset`. With no options, shows the current values. Not a Dialogflow requirement to support every language it supports - this is just which ones this tool checks for and accepts in a config file's Language column. Saved to the user's profile (`%APPDATA%\Intentional\language_settings.json` on Windows, `~/.config/intentional/language_settings.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `gui` | `-p` / `--project <folder>` |
 
 `intentional-cli --version` (or `-v`) shows the version.
@@ -311,7 +313,7 @@ This builds the project wheel automatically if it's missing or out of date, serv
 - **? Help** (top-right): the same per-task explanations as the GUI's Help window, opening on the section for the currently selected task.
 - The page follows the browser's light/dark mode by default; the button next to **? Help** overrides and remembers the choice.
 
-Differences from the GUI/CLI: the web version always uses the standard naming rules and folder names (no Settings tab yet), and a Build NL duplicate-phrase prompt is answered "yes" automatically instead of asking.
+Differences from the GUI/CLI: the web version always uses the standard naming rules, folder names and supported language set (no Settings tab yet), and a Build NL duplicate-phrase prompt is answered "yes" automatically instead of asking.
 
 ## Files and errors
 

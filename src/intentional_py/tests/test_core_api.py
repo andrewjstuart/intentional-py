@@ -6,7 +6,8 @@ import openpyxl
 import pytest
 
 from intentional_py import build_intents, exceptions, extract
-from intentional_py.models import ProjectLayout
+from intentional_py import validate as validating
+from intentional_py.models import LanguageSettings, ProjectLayout
 from intentional_py.tests.conftest import FakeReporter, make_nl_phrases
 
 
@@ -138,6 +139,61 @@ def test_extract_with_a_custom_project_layout(tmp_path: Path) -> None:
 
     assert result.output_dir == tmp_path / "Phrases" / "en" / "Natural"
     assert not (tmp_path / "Training Phrases").exists()
+
+
+def test_dd_build_with_a_non_default_language_set(tmp_path: Path) -> None:
+    languages = LanguageSettings(
+        languages={"en": "English", "de": "German"}, default_language="de"
+    )
+    phrase_dir = tmp_path / "Training Phrases" / "de"
+    phrase_dir.mkdir(parents=True)
+    (phrase_dir / "billing.txt").write_text(
+        "bezahle meine Rechnung\n", encoding="utf-8"
+    )
+    config = tmp_path / "intents.cfg"
+    config.write_text("A.Billing,Ctx,de,billing,,,\n", encoding="utf-8")
+
+    result = build_intents.intents(
+        "DD", config, tmp_path, FakeReporter(), languages=languages
+    )
+
+    assert result.intents == 1
+    assert (tmp_path / "intents" / "A.Billing.json").exists()
+    assert (tmp_path / "intents" / "A.Billing_usersays_de.json").exists()
+
+
+def test_dd_build_synthesizes_the_configured_default_language(tmp_path: Path) -> None:
+    # a row in a non-default language still needs a 'de' row with a custom default,
+    # the same way one needed an 'en' row with the original hardcoded default
+    languages = LanguageSettings(
+        languages={"en": "English", "de": "German"}, default_language="de"
+    )
+    phrase_dir = tmp_path / "Training Phrases" / "en"
+    phrase_dir.mkdir(parents=True)
+    (phrase_dir / "billing.txt").write_text("pay my bill\n", encoding="utf-8")
+    config = tmp_path / "intents.cfg"
+    config.write_text("A.Billing,Ctx,en,billing,,,\n", encoding="utf-8")
+
+    build_intents.intents("DD", config, tmp_path, FakeReporter(), languages=languages)
+
+    assert (tmp_path / "intents" / "A.Billing_usersays_en.json").exists()
+
+
+def test_validate_with_a_non_default_language_set(tmp_path: Path) -> None:
+    languages = LanguageSettings(
+        languages={"en": "English", "de": "German"}, default_language="de"
+    )
+    (tmp_path / "Training Phrases" / "de").mkdir(parents=True)
+    config = tmp_path / "intents.cfg"
+    config.write_text("A.Billing,Ctx,de,billing,,,\n", encoding="utf-8")
+
+    result = validating.validate(config, tmp_path, FakeReporter(), languages=languages)
+
+    labels = [(c.label, c.ok) for c in result.directories]
+    assert ("German path", True) in labels
+    # only languages actually used in the config are checked - a supported but
+    # unused language doesn't need a folder yet
+    assert not any(label == "English path" for label, _ok in labels)
 
 
 def test_dd_cli_uses_config_directory(tmp_path: Path, monkeypatch) -> None:

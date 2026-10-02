@@ -83,6 +83,28 @@ class NlDefaults(BaseModel):
     context: str = constants.DEFAULT_NL_CONTEXT
 
 
+class LanguageSettings(BaseModel):
+    """Supported language codes and their display names, overridable per user; these
+    defaults are every language Dialogflow ES supports (see user_settings.py). Not a
+    Dialogflow requirement to support all of them - trim the set with the
+    'language-settings' command or the GUI's Settings tab for a project that only
+    needs a few.
+
+    default_language is the one every intent needs a row for; validate.py synthesizes
+    one from another row's phrases when it's missing, the same way it already did for
+    the original hardcoded English ('en') default.
+    """
+
+    languages: dict[str, str] = Field(
+        default_factory=lambda: dict(constants.LANGUAGE_NAMES)
+    )
+    default_language: str = constants.DEFAULT_LANGUAGE
+
+    @property
+    def codes(self) -> set[str]:
+        return set(self.languages)
+
+
 class ConfigRow(BaseModel):
     """One row of intents.cfg / intents_nl.cfg, and the problems found while reading it."""
 
@@ -107,18 +129,25 @@ class ConfigRow(BaseModel):
 
     @classmethod
     def from_csv_row(
-        cls, row: list[str], row_number: int, rules: NamingRules | None = None
+        cls,
+        row: list[str],
+        row_number: int,
+        rules: NamingRules | None = None,
+        languages: LanguageSettings | None = None,
     ) -> ConfigRow:
         """Build from a raw 6- or 7-value config line, collecting problems instead of raising.
 
         rules (NamingRules | None): intent/context naming rules; defaults to NamingRules()
             (the original hardcoded behavior) when not given.
+        languages (LanguageSettings | None): supported language codes/names; defaults to
+            LanguageSettings() (every Dialogflow ES language) when not given.
         """
         if len(row) not in (6, 7):
             raise ValueError(
                 f"Row {row_number}: expected 6 or 7 values, found {len(row)}."
             )
         rules = rules or NamingRules()
+        languages = languages or LanguageSettings()
         cells = [cell.strip() for cell in row] + [""] * (7 - len(row))
         (
             intent_text,
@@ -173,12 +202,12 @@ class ConfigRow(BaseModel):
             )
 
         language = language_text.lower()
-        if language not in constants.VALID_LANGUAGES | {"dtmf"}:
+        if language not in languages.codes | {"dtmf"}:
             warnings.append(
                 f"Row {row_number}: language '{language or '<blank>'}' "
-                f"will default to '{constants.DEFAULT_LANGUAGE}'."
+                f"will default to '{languages.default_language}'."
             )
-            language = constants.DEFAULT_LANGUAGE
+            language = languages.default_language
 
         if language == "dtmf" and not dtmf_text:
             errors.append(f"Row {row_number}: DTMF rows require a DTMF value.")
