@@ -6,7 +6,7 @@
 
 Intentional creates Dialogflow ES intents from a config file and training phrase files, ready to import into an agent. It was first written in Perl and converted to Python for easier use and maintenance.
 
-It has a graphical interface (GUI) and a command line (CLI), with the same features. Both run on Windows or Linux from source, or as standalone Windows executables that don't need Python: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI).
+It has a graphical interface (GUI) and a command line (CLI), with the same features. Both run on Windows or Linux from source, or as standalone Windows executables that don't need Python: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI). An experimental browser-based version is also available (see [Web (experimental)](#web-experimental)).
 
 ## Documentation
 
@@ -73,3 +73,17 @@ intentional-cli.exe --help            list every command
 ```
 
 From source, use `uv run intentional` for the GUI and `uv run intentional-cli` for the CLI, after `uv sync --extra gui` (see [Development](docs/development.md#running-from-source)).
+
+## Web (experimental)
+
+A third front end, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — no install, nothing uploaded anywhere; it all runs in the tab. It reuses the same core as the CLI and GUI, so a project's config and phrase files validate identically everywhere.
+
+Open a project (a zip, or start empty) and run as many tasks against it as you like — Validate, Build DD/NL, Extract, Compare, and Design doc, the same as the CLI/GUI — with each task's output immediately available to the next, and a **Download project** button whenever you want the result.
+
+Try it hosted, with nothing to install or run: **[andrewjstuart.github.io/intentional-py](https://andrewjstuart.github.io/intentional-py/)**. Or run it from source — double-click `web/run.bat` (Windows) or `web/run.sh` (Linux/macOS), or from a terminal:
+
+```bash
+python web/serve.py
+```
+
+That one command builds the project wheel if needed, then opens a local page (no internet needed once the one-time Pyodide/package download finishes); see [Development](docs/development.md#running-the-web-version) for details. The page follows your system's light/dark mode automatically, with a toggle to override it.

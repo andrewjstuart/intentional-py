@@ -13,7 +13,10 @@ a = Analysis(
     ['src/intentional_py/gui/__main__.py'],
     pathex=['src'],
     binaries=[],
-    datas=[],
+    datas=[
+        ('src/intentional_py/gui/icon.png', 'intentional_py/gui'),
+        ('src/intentional_py/gui/theme.json', 'intentional_py/gui'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -43,5 +46,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/icon.ico',
     version=version_resource('intentional', 'Intentional - Dialogflow ES intent builder'),
 )

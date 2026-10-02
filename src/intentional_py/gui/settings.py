@@ -19,6 +19,7 @@ DEFAULTS: dict = {
     "extract_language": "en",
     "compare_mode": "DD",
     "check_updates": True,
+    "appearance_mode": "system",
 }
 
 
