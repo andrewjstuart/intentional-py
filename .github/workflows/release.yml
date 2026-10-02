@@ -79,9 +79,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $files = "dist/intentional.exe", "dist/intentional-cli.exe", "dist/SHA256SUMS.txt"
-          gh release view $env:TAG *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:TAG @files --clobber
-          } else {
-            gh release create $env:TAG @files --title $env:TAG --generate-notes --verify-tag
+          # a release just published via the UI can briefly 404 on the separate
+          # uploads.github.com host even once `gh release view` finds it on the main
+          # API (replication lag between the two) - retry rather than fail on that
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            gh release view $env:TAG *> $null
+            if ($LASTEXITCODE -eq 0) {
+              gh release upload $env:TAG @files --clobber
+            } else {
+              gh release create $env:TAG @files --title $env:TAG --generate-notes --verify-tag
+            }
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($attempt -eq 5) { throw "Publishing the release failed after $attempt attempts" }
+            Write-Host "Attempt $attempt failed (likely a brief GitHub API delay); retrying in 15s..."
+            Start-Sleep -Seconds 15
           }
