@@ -294,7 +294,9 @@ uv run intentional-cli gui --project "C:\Projects\Billing"
 
 ## Web (experimental)
 
-A third, experimental way to use Intentional, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — the same core as the CLI/GUI, with nothing uploaded anywhere. See [Development](development.md#running-the-web-version) for how it's built; the short version:
+A third, experimental way to use Intentional, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — the same core as the CLI/GUI, with nothing uploaded anywhere. Open the hosted copy and nothing needs installing or running: **[andrewjstuart.github.io/intentional-py](https://andrewjstuart.github.io/intentional-py/)**.
+
+To run it yourself from source instead, see [Development](development.md#running-the-web-version) for how it's built; the short version:
 
 ```bash
 python web/serve.py
