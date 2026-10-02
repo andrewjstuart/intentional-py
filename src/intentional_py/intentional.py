@@ -495,7 +495,7 @@ def gui(
         )
         raise typer.Exit(code=1)
     try:
-        gui_app.main(project.resolve() if project else None)
+        gui_app.main((project or Path.cwd()).resolve())
     except tkinter.TclError as e:
         console.print(
             f"\n[bold][red]✗ Error:[/red][/bold] Could not open the GUI ({e}).\n"

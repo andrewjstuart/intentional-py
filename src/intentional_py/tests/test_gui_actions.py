@@ -246,10 +246,13 @@ def test_gui_command_opens_project(tmp_path: Path, monkeypatch) -> None:
 
     opened = []
     monkeypatch.setattr(gui_app, "main", lambda project=None: opened.append(project))
+    monkeypatch.chdir(tmp_path)
 
     assert CliRunner().invoke(app, ["gui", "--project", str(tmp_path)]).exit_code == 0
     assert CliRunner().invoke(app, ["gui"]).exit_code == 0
-    assert opened == [tmp_path.resolve(), None]
+    # with no --project, it's the current directory, not whatever the GUI last
+    # had open - the user can still change it from inside the GUI
+    assert opened == [tmp_path.resolve(), tmp_path.resolve()]
 
 
 def test_gui_command_rejects_missing_project(tmp_path: Path) -> None:
