@@ -68,6 +68,16 @@ def test_a_task_without_a_project_is_rejected() -> None:
         validate_project()
 
 
+def test_open_project_rejects_a_zip_slip_entry() -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("../../evil.cfg", "A.Pay,Ctx,en,pay,,,")
+    new_project()
+
+    with pytest.raises(exceptions.ConfigurationError):
+        open_project(buffer.getvalue())
+
+
 def test_validate_project_passes_for_a_valid_project(tmp_path: Path) -> None:
     project = tmp_path / "project"
     dd_project(

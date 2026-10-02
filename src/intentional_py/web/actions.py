@@ -21,7 +21,7 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from intentional_py import build_intents, design_doc, exceptions, result_views
+from intentional_py import build_intents, design_doc, exceptions, result_views, utils
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
 from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
@@ -71,6 +71,10 @@ def open_project(zip_bytes: bytes) -> str:
     """Start this session's project from an uploaded zip; returns its file listing."""
     new_project()
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        # reject a member path (e.g. '../../etc/passwd') that would land outside the
+        # workspace, before extracting anything - zipfile.extractall() does not check this
+        for name in archive.namelist():
+            utils.safe_join(_workspace, name)
         archive.extractall(_workspace)
     return _project_status()
 

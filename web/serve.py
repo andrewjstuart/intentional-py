@@ -65,8 +65,9 @@ def main() -> None:
     # lets the server restart immediately after being stopped, instead of
     # failing with "Address already in use" while the port is in TIME_WAIT
     socketserver.TCPServer.allow_reuse_address = True
+    # bind to localhost only - "" (all interfaces) would expose this to the LAN
     with socketserver.TCPServer(
-        ("", PORT), http.server.SimpleHTTPRequestHandler
+        ("127.0.0.1", PORT), http.server.SimpleHTTPRequestHandler
     ) as httpd:
         url = f"http://localhost:{PORT}/"
         print(f"Serving {Path.cwd()} at {url} (Ctrl+C to stop)")

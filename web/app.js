@@ -241,7 +241,9 @@ newProjectButton.addEventListener("click", async () => {
 });
 
 downloadProjectButton.addEventListener("click", () => {
-  const bytes = pyFunctions.downloadProject().toJs();
+  const resultPy = pyFunctions.downloadProject();
+  const bytes = resultPy.toJs();
+  resultPy.destroy(); // pyodide does not auto-convert bytes, so this proxy needs releasing
   const blob = new Blob([bytes], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
