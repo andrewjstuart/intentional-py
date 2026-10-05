@@ -32,7 +32,7 @@ def preflight_config(
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
     languages: models.LanguageSettings | None = None,
-) -> tuple[list[list[str]], list[str], list[str]]:
+) -> tuple[list[list[str]], list[str], list[str], list[models.RemovalRow]]:
     """Validate and normalize a config file's rows before a build starts; see check_rows."""
     return check_rows(
         read_config_rows(config), base_path, mode, rules, layout, languages
@@ -46,7 +46,7 @@ def check_rows(
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
     languages: models.LanguageSettings | None = None,
-) -> tuple[list[list[str]], list[str], list[str]]:
+) -> tuple[list[list[str]], list[str], list[str], list[models.RemovalRow]]:
     """Validate and normalize config rows.
 
     Missing required values and malformed rows are fatal. Values that the
@@ -60,12 +60,16 @@ def check_rows(
         original hardcoded layout when not given.
     languages (LanguageSettings | None): supported language codes/names; defaults to
         every Dialogflow ES language when not given (see models.LanguageSettings).
+
+    Returns a 4th list of RemovalRow, for rows starting with '-' or '--' - these are
+    never built; see build_intents.py for how they remove existing output instead.
     """
     layout = layout or models.ProjectLayout()
     languages = languages or models.LanguageSettings()
     fatal_errors: list[str] = []
     warnings: list[str] = []
     normalized_rows: list[list[str]] = []
+    removals: list[models.RemovalRow] = []
     # (language, context, phrase) -> {intent: row number}, for the same-context duplicate check
     phrase_owners: dict[tuple[str, str, str], dict[str, int]] = {}
     intent_languages: dict[str, list[tuple[int, str]]] = {}
@@ -103,6 +107,19 @@ def check_rows(
 
         fatal_errors.extend(parsed.errors)
         warnings.extend(parsed.warnings)
+
+        if parsed.removal:
+            # never built, and excluded from the default-language-row synthesis below -
+            # a lone removal row shouldn't cause a brand new build row to be invented
+            removals.append(
+                models.RemovalRow(
+                    row_number=row_number,
+                    intent=parsed.intent,
+                    language=language,
+                    confirmed=parsed.remove_confirmed,
+                )
+            )
+            continue
 
         if intent:
             intent_languages.setdefault(intent, []).append((row_number, language))
@@ -210,7 +227,29 @@ def check_rows(
                         )
                     )
     warnings.extend(_duplicate_phrase_warnings(phrase_owners))
-    return normalized_rows, fatal_errors, warnings
+
+    removals_by_intent: dict[str, list[models.RemovalRow]] = {}
+    for removal in removals:
+        removals_by_intent.setdefault(removal.intent, []).append(removal)
+    for intent, intent_removals in removals_by_intent.items():
+        default_removals = [
+            r for r in intent_removals if r.language == languages.default_language
+        ]
+        if not default_removals:
+            continue
+        # removing the default-language row removes the whole intent; warn if another
+        # language is still being built for it and wasn't itself marked for removal
+        still_built = sorted(
+            {language for _row_number, language in intent_languages.get(intent, [])}
+        )
+        if still_built:
+            warnings.append(
+                f"Row {default_removals[0].row_number}: removing '{intent}' "
+                f"('{languages.default_language}') also removes its "
+                f"{', '.join(still_built)} files, which {'is' if len(still_built) == 1 else 'are'} "
+                "not marked for removal."
+            )
+    return normalized_rows, fatal_errors, warnings, removals
 
 
 def _read_phrases(phrase_file: Path) -> list[str]:
@@ -347,7 +386,7 @@ def validate(
             config_checks.append((file.name, False, False, []))
             continue
         # the same checks a build runs, so validate reports exactly what a build would
-        rows, errors, warnings = preflight_config(
+        rows, errors, warnings, removals = preflight_config(
             file, base_dir, None, rules, layout, languages
         )
         used_languages.update(row[2] for row in rows if row[2] != "dtmf")
@@ -355,6 +394,13 @@ def validate(
             errors = ["The config file does not contain data."]
         details = [f"Error: {error}" for error in errors]
         details += [f"Warning: {warning}" for warning in warnings]
+        details += [
+            f"Warning: Row {removal.row_number}: '{removal.intent}' "
+            f"('{removal.language}') is marked for removal"
+            + ("" if removal.confirmed else " and will ask for confirmation first")
+            + "."
+            for removal in removals
+        ]
         config_checks.append((file.name, True, not errors, details))
 
     # check for directory structure - only for languages actually used in the config(s)

@@ -41,27 +41,23 @@ Ideas that have been discussed but not built yet, with the steps to build each o
 
 ## Import zip merged into an agent export
 
-**Status:** tabled. Needs a check of how the Dialogflow console's **Import** and **Restore** behave with a partial zip.
+**Status:** implemented for the CLI (`intentional-cli package`, see the [user guide](user-guide.md#package-an-updated-agent-export)) and covered by [test_package_export.py](../src/intentional_py/tests/test_package_export.py), but only against a synthetic zip - it still needs checking against a real Dialogflow ES export, and a GUI/web front end.
 
-**What it would do:** take the current agent export, add or replace the intents from a build, and produce a new zip that can be imported, so the agent is not left missing the intents that this config does not build.
+**What it does:** takes the current agent export, adds or replaces the intents from a build, and produces a new zip that can be imported, so the agent is not left missing the intents that this config does not build.
 
 **Considerations**
 
 - **Restore** replaces the whole agent with the zip, which would delete any intent not in it. That is why a zip of only the new intents is not safe.
-- **Import** is documented as adding new intents and replacing ones with the same name, while keeping the rest. Verify this with a test agent first; if it holds, a zip of only the built intents plus the export's `agent.json` and `package.json` may be enough.
-- Intents that are no longer used still have to be deleted from the agent by hand. The `compare` results already list them as "only in the export".
-- Entities (`entities/`) and agent settings in the export must be kept unchanged.
+- **Import** is documented as adding new intents and replacing ones with the same name, while keeping the rest. This still needs verifying with a test agent - `package_export()` currently assumes it (see `compare.merge_export()`).
+- Intents that are no longer used still have to be deleted from the agent by hand, unless marked with a `-`/`--` [removal row](user-guide.md#special-values), in which case they're removed from the copy too. The result still lists the rest as "only in the export".
+- Entities (`entities/`) and agent settings in the export are kept unchanged - carried over as-is rather than parsed, since this tool doesn't build them.
+- The `intents/` folder's exact location inside the zip (root, or nested under an agent-name folder) is detected from the zip's own contents (`compare._intents_prefix()`) rather than assumed, since this hasn't been confirmed against a real export yet.
 
-**Implementation steps**
+**Remaining steps**
 
-1. Test **Import** and **Restore** with a copy of an agent to confirm which one keeps unrelated intents.
-2. Add `merge_export(export_zip, intents_dir, output_zip)` to `compare.py` or a new module:
-   - Copy every file from the export zip except the `intents/` files being replaced.
-   - Add the built intent and usersays files, matched by intent name, so the export's copies are replaced.
-   - Keep `agent.json`, `package.json` and `entities/` from the export as they are.
-3. Add a CLI command, e.g. `intentional-cli package --export agent.zip --output agent_updated.zip`, and a button on the **Compare** tab.
-4. Show the comparison with the export, and list the intents that must be deleted by hand, before writing the zip.
-5. Tests: build a small export zip, merge a build into it, and check that the unrelated intents and entities are unchanged.
+1. Test **Import** and **Restore** with a copy of a real agent's export to confirm `package_export()`'s assumptions (that intents/ is found correctly, and that unmentioned intents/entities really are left alone by Import) - adjust `compare.py`'s zip handling if the real layout differs.
+2. Add a GUI **Package** button (likely a second action on the **Compare** tab, since it needs the same export file and shows the same comparison first) and a web action, mirroring how `compare` is wired into `gui/actions.py` and `web/actions.py`.
+3. Once confirmed against a real export, remove the "experimental" caveat from the user guide.
 
 ---
 

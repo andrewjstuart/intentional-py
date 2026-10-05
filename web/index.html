@@ -360,9 +360,11 @@
           <li><code>intents_nl.cfg</code> — NL config (created by Build NL)</li>
         </ul>
         <p>
-          Differences from the CLI/GUI: this always uses the standard naming rules and folder
-          names (no Settings tab yet), and a Build NL duplicate-phrase prompt is answered "yes"
-          automatically instead of asking you.
+          Differences from the CLI/GUI: this always uses the standard naming rules, folder
+          names and supported language set (no Settings tab yet), and any confirmation prompt
+          (a Build NL duplicate-phrase warning, or a <code>-</code> removal row) is answered
+          "yes" automatically instead of asking you — a <code>--</code> row is the way to
+          remove something deliberately without relying on that.
         </p>
       </section>
       <section id="help-validate" class="help-section">
@@ -374,6 +376,7 @@
           <li>Runs the same config checks as a build: errors would stop a build, warnings are listed but a build would continue.</li>
           <li>Entity tags must look like <code>&lt;entity|text&gt;</code>; a missing <code>&lt;</code>, <code>&gt;</code> or <code>|</code> is reported with its line numbers.</li>
           <li>DD intents that share a phrase are reported only when they also share a language and a context.</li>
+          <li>A row starting with <code>-</code> or <code>--</code> is reported as marked for removal, without deleting anything - nothing is written by Validate.</li>
         </ul>
       </section>
       <section id="help-buildDd" class="help-section">
@@ -385,6 +388,7 @@
           <li>Phrases are read from <code>Training Phrases/&lt;language&gt;/&lt;action&gt;.txt</code>.</li>
           <li>The default-language row (English, <code>en</code>, unless changed) supplies the shared intent definition; with no such row, one is generated from the first row.</li>
           <li>A priority can follow the intent name in braces, e.g. <code>MYAC.Billing.Pay{high}</code>.</li>
+          <li>A row starting with <code>-</code> or <code>--</code> removes instead of builds (asking to confirm first for a single <code>-</code>; nothing left asked for <code>--</code>, or three or more dashes) - a default-language row removes the whole intent, any other language only that language's phrases. This also deletes matching files left over from a previous build.</li>
           <li><strong>Clear the intents folder first</strong> zips everything in the intents folder and removes it before building.</li>
         </ul>
       </section>

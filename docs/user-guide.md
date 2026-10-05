@@ -13,6 +13,7 @@ How to use Intentional from the graphical interface (GUI), the command line (CLI
   - [Extract phrases from Excel](#extract-phrases-from-excel)
   - [Validate a project](#validate-a-project)
   - [Compare with an agent export](#compare-with-an-agent-export)
+  - [Package an updated agent export](#package-an-updated-agent-export)
   - [Create the config from the design document](#create-the-config-from-the-design-document)
 - [Save a job report](#save-a-job-report)
 - [The GUI](#the-gui)
@@ -110,6 +111,19 @@ MYAC.NewServicehomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
 
    This only applies when rows differ in some way. A row that is a byte-for-byte copy of an earlier row (every column the same) is an accidental duplicate rather than an intentional phrase swap, and is dropped automatically, with a warning naming the row it duplicates.
 
+7. **Removing an intent (or one of its languages)**: start the row with `-` or `--` instead of building it — the rest of the row is the usual format, just naming what to remove rather than what to create:
+
+   ```text
+   MYAC.NewServiceHomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
+   -MYAC.NewServiceHomeOrBus.Home,MYAC-NewServiceHomeOrBus-Home,en,home,,1,FALSE
+   ```
+
+   - `-` asks for confirmation first (a single dash is easy to mistake for a typo); `--` removes without asking, since it's unambiguous intent. Three or more dashes (`---`, `----`, ...) are treated the same as `--`.
+   - A removal row in the **default language** (`en` unless changed, see [language-settings](#commands-and-options)) removes the whole intent: its shared definition file and every language's phrases file. If another row for the same intent in a different language is still being built and isn't itself marked for removal, a warning says so — removing the default-language row takes the rest of the intent with it.
+   - A removal row in any **other** language only removes that one language's phrases file; the intent and its other languages are left alone.
+   - This affects a regular build, not just comparing with an agent export: a previous build's leftover files for a removed intent are deleted, instead of silently lingering the way they would if the row were simply deleted from the config without a `-`/`--` marker (that case is still only reported as a warning, since nothing says it's safe to delete them).
+   - **Validate** reports what's marked for removal without deleting anything, so this can be checked before a real build.
+
 ## Phrase files
 
 Each intent's training phrases are in a text file named after its action, one phrase per line: `Training Phrases/<language>/<action>.txt` for DD, and `Training Phrases/<language>/NL/<action>.txt` for NL. The DTMF values from the config are added as extra phrases.
@@ -136,6 +150,7 @@ Each task is a tab in the GUI and a command on the CLI.
 | Extract phrases from Excel | Extract | `intentional-cli extract` |
 | Check a project without building | Validate | `intentional-cli validate` |
 | Compare with an agent export | Compare | `intentional-cli compare` |
+| Package an updated agent export | *(CLI only for now)* | `intentional-cli package` |
 | Create the config from the design document | Design doc | `intentional-cli design` |
 
 ### Build directed dialog (DD) intents
@@ -203,6 +218,21 @@ The result lists:
 
 IDs and timestamps are ignored, since they change with every build and export. For NL, the existing `intents_nl.cfg` is used; build the NL config first if the phrase files have changed.
 
+### Package an updated agent export
+
+> **Experimental:** only available on the CLI so far, and the export's internal layout is detected rather than hardcoded, since it hasn't been checked against every kind of Dialogflow ES export yet. Report anything that looks wrong.
+
+Merges a build into a copy of an agent export zip, so the copy can be imported straight back into Dialogflow instead of adding and removing intents by hand:
+
+1. Export the agent, the same as for [Compare with an agent export](#compare-with-an-agent-export).
+2. Run `intentional-cli package --export agent.zip`. Add `--mode NL` for an NL config, and `--config` for a config other than the standard one.
+
+The **export itself is never modified.** A copy is written next to it, named after it with a timestamp added (e.g. `agent_2026-01-15_143022.zip`):
+
+- New and changed intents from this build are added to the copy, replacing any existing file with the same name.
+- A `-`/`--` [removal row](#special-values) also deletes its files from the copy, with the same confirm-first-for-a-single-`-` rule as a regular build.
+- Everything else in the export (its `agent.json`, `package.json`, entities, and any intent this config doesn't mention or mark for removal) is carried over unchanged. Intents only in the export are listed, same as Compare, in case any should be deleted from the agent by hand.
+
 ### Create the config from the design document
 
 Creates `intents.cfg` from the Excel design document, so the rows don't have to be copied by hand.
@@ -265,6 +295,7 @@ Every command has `--help`, and `-q` / `--quiet` to show less output. Every task
 | `extract` (or `x`) | `-f` / `--file <workbook>`, `-m` / `--mode DD\|NL` (default `NL`), `-l` / `--lang <code>` (default `en`; valid codes come from `language-settings`) |
 | `validate` | `--config <file>` |
 | `compare` | `-e` / `--export <zip or folder>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
+| `package` | `-e` / `--export <zip>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
 | `design` | `-f` / `--file <workbook>` (required), `-s` / `--sheet <name>`, `--config <file>` (default from `project-layout`, originally `intents.cfg`) |
 | `naming-rules` | `--set-intent-forbidden-chars <chars>`, `--set-context-discouraged-chars <chars>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\naming_rules.json` on Windows, `~/.config/intentional/naming_rules.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `project-layout` | `--set-training-phrases-dir <name>`, `--set-intents-dir <name>`, `--set-nl-subfolder <name>`, `--set-dd-config <file>`, `--set-nl-config <file>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\project_layout.json` on Windows, `~/.config/intentional/project_layout.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
@@ -289,6 +320,7 @@ uv run intentional-cli validate --config test.cfg
 uv run intentional-cli validate --config test.cfg --report validation.md
 uv run intentional-cli compare --export agent.zip
 uv run intentional-cli compare --export agent.zip --mode NL
+uv run intentional-cli package --export agent.zip
 uv run intentional-cli design --file "Billing design.xlsx"
 uv run intentional-cli design --file "Billing design.xlsx" --sheet Intents --config billing.cfg
 uv run intentional-cli gui --project "C:\Projects\Billing"
@@ -313,7 +345,7 @@ This builds the project wheel automatically if it's missing or out of date, serv
 - **? Help** (top-right): the same per-task explanations as the GUI's Help window, opening on the section for the currently selected task.
 - The page follows the browser's light/dark mode by default; the button next to **? Help** overrides and remembers the choice.
 
-Differences from the GUI/CLI: the web version always uses the standard naming rules, folder names and supported language set (no Settings tab yet), and a Build NL duplicate-phrase prompt is answered "yes" automatically instead of asking.
+Differences from the GUI/CLI: the web version always uses the standard naming rules, folder names and supported language set (no Settings tab yet), and any confirmation prompt (a Build NL duplicate-phrase warning, or a `-` removal row) is answered "yes" automatically instead of asking — a `--` row is the way to remove something deliberately without relying on that.
 
 ## Files and errors
 

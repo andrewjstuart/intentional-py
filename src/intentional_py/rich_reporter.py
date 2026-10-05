@@ -24,6 +24,7 @@ from intentional_py.reporting import (
     DesignResult,
     ExtractResult,
     Level,
+    PackageResult,
     ValidateResult,
 )
 
@@ -165,6 +166,42 @@ class RichReporter:
             self.table(
                 [f"Only in {result.source} (not built by this config)"],
                 [[name] for name in result.removed],
+            )
+
+    def show_package(self, result: PackageResult) -> None:
+        self.table(
+            ["Time", "Added", "Changed", "Unchanged", "Removed", "Only in export"],
+            [
+                [
+                    f"{result.elapsed:.3f} s",
+                    str(len(result.added)),
+                    str(len(result.changed)),
+                    str(result.unchanged),
+                    str(len(result.removed)),
+                    str(len(result.unmarked)),
+                ]
+            ],
+        )
+        if result.added:
+            self.table(["New intents"], [[name] for name in result.added])
+        if result.changed:
+            self.table(
+                ["Changed intent", "Changes"],
+                [[change.name, "\n".join(change.details)] for change in result.changed],
+            )
+        if result.removed:
+            self.table(
+                ["Removed (marked with '-'/'--')"], [[name] for name in result.removed]
+            )
+        if result.unmarked:
+            self.table(
+                [f"Only in {result.source} (not built by this config)"],
+                [[name] for name in result.unmarked],
+            )
+        if result.output:
+            self.message(
+                "info",
+                f"[green]Updated export written to[/green] [blue]{result.output}[/blue]",
             )
 
     def show_design(self, result: DesignResult) -> None:

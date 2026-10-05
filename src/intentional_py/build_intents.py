@@ -14,7 +14,7 @@ from time import perf_counter
 from intentional_py import compare as comparing
 from intentional_py import exceptions, models, utils
 from intentional_py import validate as validating
-from intentional_py.reporting import BuildResult, CompareResult, Reporter
+from intentional_py.reporting import BuildResult, CompareResult, PackageResult, Reporter
 
 
 def intents(
@@ -46,7 +46,7 @@ def intents(
         BuildResult: counts, changes since the previous build, and output folder.
     """
     layout = layout or models.ProjectLayout()
-    files_to_write, result, t1_start = _generate(
+    files_to_write, result, t1_start, removals = _generate(
         mode, config, base_dir, reporter, rules, layout, languages
     )
     output_dir = Path(base_dir, layout.intents_dir)
@@ -75,6 +75,10 @@ def intents(
             for path in previous:
                 path.unlink()
 
+    result.removed = _remove_marked_intents(
+        removals, output_dir, reporter, languages or models.LanguageSettings()
+    )
+
     output_dir.mkdir(parents=True, exist_ok=True)
     for file, data in files_to_write.items():
         with utils.file_errors(file), open(file, mode="w", encoding="utf-8") as output:
@@ -96,12 +100,76 @@ def compare_build(
     languages: models.LanguageSettings | None = None,
 ) -> CompareResult:
     """Compare what the config would build with an agent export or intents folder; writes nothing."""
-    files_to_write, _result, t1_start = _generate(
+    files_to_write, _result, t1_start, _removals = _generate(
         mode, config, base_dir, reporter, rules, layout, languages
     )
     result = comparing.compare(
         _summarize(files_to_write), comparing.load(source), str(source)
     )
+    result.elapsed = perf_counter() - t1_start
+    return result
+
+
+def package_export(
+    mode: str,
+    config: Path,
+    base_dir: Path,
+    export: Path,
+    reporter: Reporter,
+    rules: models.NamingRules | None = None,
+    layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
+) -> PackageResult:
+    """Merge this config's build into a copy of an agent export zip, ready to re-import:
+    new or changed intents are added to the copy, and any '-'/'--' removal row also
+    deletes its files from it (same confirm-first-for-a-single-'-' rule as a regular
+    build). The export itself is never modified; the copy is written next to it with a
+    timestamp appended to its name.
+
+    The export's internal layout (where its intents/ folder lives) is detected from its
+    own contents rather than assumed, since different exports may nest it differently -
+    this is the part most likely to need adjusting once a real export is available.
+    """
+    languages = languages or models.LanguageSettings()
+    files_to_write, _result, t1_start, removals = _generate(
+        mode, config, base_dir, reporter, rules, layout, languages
+    )
+    diff = comparing.compare(
+        _summarize(files_to_write), comparing.load(export), str(export)
+    )
+
+    prefix, names = comparing.export_contents(export)
+    name_set = set(names)
+    targets = [
+        (removal, arcnames)
+        for removal in removals
+        if (
+            arcnames := comparing.removal_arcnames(removal, prefix, name_set, languages)
+        )
+    ]
+    _confirm_removals(targets, reporter, lambda name: Path(name).name)
+    removed_arcnames: set[str] = set()
+    for removal, arcnames in targets:
+        for arcname in arcnames:
+            removed_arcnames.add(arcname)
+            reporter.message(
+                "info",
+                f"[yellow]Removed[/yellow] {Path(arcname).name} (row {removal.row_number})",
+            )
+
+    marked_intents = {removal.intent for removal in removals}
+    result = PackageResult(source=export)
+    result.added = diff.added
+    result.changed = diff.changed
+    result.unchanged = diff.unchanged
+    result.unmarked = sorted(
+        name for name in diff.removed if name not in marked_intents
+    )
+    result.removed = sorted(Path(name).name for name in removed_arcnames)
+
+    output = export.with_name(f"{export.stem}_{utils.timestamp()}{export.suffix}")
+    comparing.merge_export(export, files_to_write, removed_arcnames, prefix, output)
+    result.output = output
     result.elapsed = perf_counter() - t1_start
     return result
 
@@ -112,6 +180,81 @@ def _summarize(files_to_write: dict) -> dict:
     )
 
 
+def _removal_targets(
+    removal: models.RemovalRow, output_dir: Path, languages: models.LanguageSettings
+) -> list[Path]:
+    """Existing output files a removal row refers to: the whole intent (shared
+    definition + every language's usersays file) for the default language, or just
+    one language's usersays file otherwise."""
+    if removal.language == languages.default_language:
+        found = [
+            path for path in (output_dir / f"{removal.intent}.json",) if path.exists()
+        ]
+        if output_dir.is_dir():
+            found += sorted(output_dir.glob(f"{removal.intent}_usersays_*.json"))
+        return found
+    candidate = output_dir / f"{removal.intent}_usersays_{removal.language}.json"
+    return [candidate] if candidate.exists() else []
+
+
+def _confirm_removals(
+    targets: list[tuple[models.RemovalRow, list]],
+    reporter: Reporter,
+    name_of,
+) -> None:
+    """Ask once for every target whose row isn't already confirmed (an unconfirmed '-'
+    row); raises if declined. No-op when every target is '--' or already confirmed.
+    Shared by _remove_marked_intents() (filesystem paths) and package_export() (zip
+    entry names), via `name_of` to get a display name from either.
+    """
+    to_confirm = [
+        (removal, items) for removal, items in targets if not removal.confirmed
+    ]
+    if not to_confirm:
+        return
+    details = [
+        f"'{removal.intent}' ('{removal.language}'): "
+        + ", ".join(name_of(item) for item in items)
+        for removal, items in to_confirm
+    ]
+    if not reporter.confirm("Remove the intents marked for removal", details):
+        raise exceptions.IntentionalException(
+            "\n[bold][red]Abort processing...[/bold][/red]\n"
+            "User declined to remove the marked intents"
+        )
+
+
+def _remove_marked_intents(
+    removals: list[models.RemovalRow],
+    output_dir: Path,
+    reporter: Reporter,
+    languages: models.LanguageSettings,
+) -> list[str]:
+    """Delete existing output for rows starting with '-' or '--'; a lone '-' (easier to
+    mistake for a typo) asks to confirm first, '--' removes without asking."""
+    targets = [
+        (removal, paths)
+        for removal in removals
+        if (paths := _removal_targets(removal, output_dir, languages))
+    ]
+    if not targets:
+        return []
+
+    _confirm_removals(targets, reporter, lambda path: path.name)
+
+    removed: list[str] = []
+    for removal, paths in targets:
+        for path in paths:
+            with utils.file_errors(path):
+                path.unlink(missing_ok=True)
+            removed.append(path.name)
+            reporter.message(
+                "info",
+                f"[yellow]Removed[/yellow] {path.name} (row {removal.row_number})",
+            )
+    return removed
+
+
 def _generate(
     mode: str,
     config: Path,
@@ -120,7 +263,7 @@ def _generate(
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
     languages: models.LanguageSettings | None = None,
-) -> tuple[dict, BuildResult, float]:
+) -> tuple[dict, BuildResult, float, list[models.RemovalRow]]:
     """Check the config and create every intent's JSON in memory, keyed by output file."""
     layout = layout or models.ProjectLayout()
     languages = languages or models.LanguageSettings()
@@ -136,7 +279,7 @@ def _generate(
     machine_learning_off: set = set()
 
     # Perform preflight validation on the config file to catch errors and warnings early
-    rows, fatal_errors, warnings = validating.preflight_config(
+    rows, fatal_errors, warnings, removals = validating.preflight_config(
         config, base_dir, mode, rules, layout, languages
     )
     for warning in warnings:
@@ -148,7 +291,7 @@ def _generate(
         )
 
     t1_start = perf_counter()
-    if len(rows) == 0:
+    if len(rows) == 0 and len(removals) == 0:
         raise exceptions.ValidationError(
             f"[red]Config file does not contain data[/red]: [cyan]{config}[/cyan]"
         )
@@ -211,7 +354,7 @@ def _generate(
     result.intent_names = sorted({utils.check_priority(row[0])[0] for row in rows})
     result.languages = sorted(langs_set)
     result.machine_learning_off = sorted(machine_learning_off)
-    return files_to_write, result, t1_start
+    return files_to_write, result, t1_start, removals
 
 
 def create_json(

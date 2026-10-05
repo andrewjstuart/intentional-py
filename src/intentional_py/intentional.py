@@ -574,6 +574,74 @@ def compare(
         raise typer.Exit(code=1)
 
 
+@app.command("package")
+def package(
+    export: Annotated[
+        Path,
+        typer.Option(
+            "--export",
+            "-e",
+            help="Agent export zip to merge this config's build into. The export itself is never modified; a timestamped copy is written next to it.",
+        ),
+    ],
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            "-m",
+            help="Mode of the config: [yellow]'DD'[/yellow] or [yellow]'NL'[/yellow]",
+        ),
+    ] = "DD",
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            help="Config file to build from. (default: intents.cfg, or intents_nl.cfg for NL)",
+        ),
+    ] = None,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
+    ] = False,
+    report: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
+) -> None:
+    """
+    Merge this config's build into a copy of an agent export zip, ready to re-import: new or changed intents are added, and a '-'/'--' removal row also deletes its files from the copy.
+    """
+    reporter = RichReporter(quiet=quiet)
+    try:
+        mode = mode.upper()
+        if mode not in constants.VALID_MODES:
+            raise exceptions.ConfigurationError(
+                f"Invalid mode: {mode}. Valid modes: DD, NL"
+            )
+        layout = user_settings.load_project_layout()
+        default = layout.nl_config if mode == "NL" else layout.dd_config
+        config = (config or Path(default)).resolve()
+        result = build.package_export(
+            mode,
+            config,
+            config.parent,
+            export.resolve(),
+            reporter,
+            user_settings.load_naming_rules(),
+            layout,
+            user_settings.load_language_settings(),
+        )
+        reporter.show_package(result)
+        _save_report(report, "Package export", result, reporter)
+    except exceptions.IntentionalException as e:
+        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
+        raise typer.Exit(code=1)
+
+
 @app.command("design")
 def design(
     xl_file: Annotated[

@@ -43,6 +43,24 @@ class CompareResult:
 
 
 @dataclass
+class PackageResult:
+    """Merging a build into a copy of an agent export zip; see build_intents.package_export()."""
+
+    source: Path  # the export zip given to merge into; never modified
+    output: Path | None = None  # the new, timestamped copy written next to it
+    added: list[str] = field(default_factory=list)
+    changed: list[IntentChange] = field(default_factory=list)
+    unchanged: int = 0
+    removed: list[str] = field(
+        default_factory=list
+    )  # file names deleted by a '-'/'--' removal row
+    unmarked: list[str] = field(
+        default_factory=list
+    )  # only in the export, not built by this config and not marked for removal
+    elapsed: float = 0.0
+
+
+@dataclass
 class BuildResult:
     intents: int = 0
     intent_names: list[str] = field(default_factory=list)
@@ -58,6 +76,9 @@ class BuildResult:
         None  # against the previous build in the intents folder
     )
     backup: Path | None = None  # zip of the intents folder, when it was cleared first
+    removed: list[str] = field(
+        default_factory=list
+    )  # file names deleted by a '-'/'--' removal row
 
 
 @dataclass

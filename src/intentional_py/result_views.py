@@ -13,12 +13,20 @@ from intentional_py.reporting import (
     DesignResult,
     ExtractResult,
     Level,
+    PackageResult,
     ValidateResult,
 )
 
 # Canonical result/issue/table shapes; gui/actions.py and report.py import these
 # instead of redefining them, so the front ends can't drift out of sync.
-Result = BuildResult | ExtractResult | ValidateResult | CompareResult | DesignResult
+Result = (
+    BuildResult
+    | ExtractResult
+    | ValidateResult
+    | CompareResult
+    | DesignResult
+    | PackageResult
+)
 Issue = tuple[Level, str, str]
 Table = tuple[str, list[str], list[list[str]]]
 
@@ -38,6 +46,8 @@ def summary_rows(result: Result) -> list[tuple[str, str]]:
         ]
         if result.nomatch:
             rows.append(("NoMatch", str(result.nomatch)))
+        if result.removed:
+            rows.append(("Removed", str(len(result.removed))))
         return rows
     if isinstance(result, ExtractResult):
         return [
@@ -52,6 +62,17 @@ def summary_rows(result: Result) -> list[tuple[str, str]]:
             ("Unchanged", str(result.unchanged)),
             ("Only in export", str(len(result.removed))),
         ]
+    if isinstance(result, PackageResult):
+        rows = [
+            ("Added", str(len(result.added))),
+            ("Changed", str(len(result.changed))),
+            ("Unchanged", str(result.unchanged)),
+        ]
+        if result.removed:
+            rows.append(("Removed", str(len(result.removed))))
+        if result.unmarked:
+            rows.append(("Only in export", str(len(result.unmarked))))
+        return rows
     if isinstance(result, DesignResult):
         return [
             ("Rows", str(result.rows)),
@@ -72,12 +93,20 @@ def summary_tiles(result: Result) -> list[tuple[str, str]]:
     rows = summary_rows(result)
     if isinstance(result, BuildResult):
         by_name = dict(rows)
-        ordered = ["Intents", "Phrases", "Entities", "Files", "Languages", "NoMatch"]
+        ordered = [
+            "Intents",
+            "Phrases",
+            "Entities",
+            "Files",
+            "Languages",
+            "NoMatch",
+            "Removed",
+        ]
         return [(name, by_name[name]) for name in ordered if name in by_name]
     return rows
 
 
-def change_rows(result: CompareResult) -> list[list[str]]:
+def change_rows(result: CompareResult | PackageResult) -> list[list[str]]:
     rows = [["Added", name, ""] for name in result.added]
     rows.extend(
         ["Changed", change.name, "; ".join(change.details)] for change in result.changed
@@ -110,25 +139,56 @@ def result_issues(
             ("warning", "", extract_empty_sheet_message.format(name=name))
             for name in result.empty_sheets
         ]
-    if (
-        isinstance(result, BuildResult)
-        and result.changes
-        and result.changes.removed
-        and not result.backup
-    ):
-        return [
-            (
-                "warning",
-                "",
-                build_removed_message.format(names=", ".join(result.changes.removed)),
+    if isinstance(result, BuildResult):
+        issues: list[Issue] = []
+        if result.removed:
+            issues.append(
+                (
+                    "warning",
+                    "",
+                    f"Removed (marked with '-'/'--'): {', '.join(result.removed)}.",
+                )
             )
-        ]
+        if result.changes and result.changes.removed and not result.backup:
+            issues.append(
+                (
+                    "warning",
+                    "",
+                    build_removed_message.format(
+                        names=", ".join(result.changes.removed)
+                    ),
+                )
+            )
+        return issues
+    if isinstance(result, PackageResult):
+        issues = []
+        if result.removed:
+            issues.append(
+                (
+                    "warning",
+                    "",
+                    f"Removed (marked with '-'/'--'): {', '.join(result.removed)}.",
+                )
+            )
+        if result.unmarked:
+            issues.append(
+                (
+                    "warning",
+                    "",
+                    f"Only in {result.source} (not built by this config, left as-is): "
+                    + ", ".join(result.unmarked)
+                    + ".",
+                )
+            )
+        return issues
     return []
 
 
 def output_folder(result: Result) -> Path | None:
     if isinstance(result, ValidateResult | CompareResult):
         return None
+    if isinstance(result, PackageResult):
+        return result.output.parent if result.output else None
     if isinstance(result, DesignResult):
         return result.config.parent
     return result.output_dir

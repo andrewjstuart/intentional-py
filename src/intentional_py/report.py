@@ -9,6 +9,7 @@ from intentional_py.reporting import (
     BuildResult,
     CompareResult,
     DesignResult,
+    PackageResult,
     ValidateResult,
 )
 from intentional_py.result_views import Issue, Result, Table
@@ -18,7 +19,7 @@ def _summary(result: Result) -> list[tuple[str, str]]:
     return result_views.summary_rows(result)
 
 
-def _changes(result: CompareResult, title: str) -> Table | None:
+def _changes(result: CompareResult | PackageResult, title: str) -> Table | None:
     """Added and changed intents, matching the table shown by both front ends."""
     rows = result_views.change_rows(result)
     return (title, ["Change", "Intent", "Details"], rows) if rows else None
@@ -72,6 +73,28 @@ def _tables(result: Result) -> list[Table]:
         )
         if removed:
             tables.append(removed)
+        return tables
+    if isinstance(result, PackageResult):
+        tables = []
+        changes = _changes(result, f"Differences from {result.source}")
+        if changes:
+            tables.append(changes)
+        removed = _removed_table(result.removed, "Removed (marked with '-'/'--')")
+        if removed:
+            tables.append(removed)
+        unmarked = _removed_table(
+            result.unmarked, f"Only in {result.source} (not built by this config)"
+        )
+        if unmarked:
+            tables.append(unmarked)
+        if result.output:
+            tables.append(
+                (
+                    "Output",
+                    ["Item", "Location"],
+                    [["Updated export written to", str(result.output)]],
+                )
+            )
         return tables
     if isinstance(result, ValidateResult):
         checks = result_views.checks(result)
