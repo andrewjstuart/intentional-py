@@ -120,6 +120,8 @@ class ConfigRow(BaseModel):
     dtmf: list[str] = Field(default_factory=list)
     machine_learning: bool = True
     machine_learning_text: str = constants.MACHINE_LEARNING_DEFAULT
+    removal: bool = False  # row started with '-' or '--': remove instead of build
+    remove_confirmed: bool = False  # '--': remove without asking; '-': ask first
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
@@ -149,6 +151,22 @@ class ConfigRow(BaseModel):
         rules = rules or NamingRules()
         languages = languages or LanguageSettings()
         cells = [cell.strip() for cell in row] + [""] * (7 - len(row))
+        # '--name,...' removes without asking first; '-name,...' asks first (a single
+        # '-' is easier to mistake for a typo, so it gets a confirmation; '--' is
+        # unambiguous intent and doesn't). Three or more dashes are treated the same as
+        # '--'. Stripped before the usual name checks below, so e.g. '-' itself is never
+        # flagged as a forbidden character in the name.
+        removal = False
+        remove_confirmed = False
+        name_without_dashes = cells[0].lstrip("-")
+        dash_count = len(cells[0]) - len(name_without_dashes)
+        if dash_count == 1:
+            removal = True
+            cells[0] = name_without_dashes.strip()
+        elif dash_count >= 2:
+            removal = True
+            remove_confirmed = True
+            cells[0] = name_without_dashes.strip()
         (
             intent_text,
             context_text,
@@ -243,9 +261,26 @@ class ConfigRow(BaseModel):
             dtmf=dtmf,
             machine_learning=machine_learning_text.lower() == "true",
             machine_learning_text=machine_learning_text,
+            removal=removal,
+            remove_confirmed=remove_confirmed,
             errors=errors,
             warnings=warnings,
         )
+
+
+class RemovalRow(BaseModel):
+    """A config row that started with '-' or '--': removes an intent (or one of its
+    languages) instead of building one. See check_rows()/build_intents.py.
+
+    language is the row's own language cell; when it's the default language, the
+    whole intent is removed (all languages); otherwise just that one language's
+    usersays file is removed and the intent is left otherwise alone.
+    """
+
+    row_number: int
+    intent: str
+    language: str
+    confirmed: bool  # True for '--' (remove without asking); False for '-' (ask first)
 
 
 def parse_rows(rows: list[list[str]]) -> tuple[list[ConfigRow], list[str], list[str]]:

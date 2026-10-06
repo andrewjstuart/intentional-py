@@ -24,6 +24,7 @@ from intentional_py.reporting import (
     DesignResult,
     ExtractResult,
     Level,
+    PackageResult,
     ValidateResult,
 )
 
@@ -140,6 +141,30 @@ class RichReporter:
                     "their files are still in the intents folder: "
                     f"{', '.join(changes.removed)}. Use --clean to remove them."
                 )
+        if result.package:
+            package = result.package
+            self.message(
+                "info",
+                f"Also merged into a '{package.style}' copy of {package.source}: "
+                f"{len(package.added)} added, {len(package.changed)} changed, "
+                f"{package.unchanged} unchanged.",
+            )
+            if package.removed:
+                self.message(
+                    "info",
+                    f"[yellow]Removed from the copy[/yellow]: {', '.join(package.removed)}.",
+                )
+            if package.needs_manual_removal and not self._hidden("warning"):
+                self.console.print(
+                    "[yellow]Warning:[/yellow] Dialogflow's Import can't delete intents; remove "
+                    f"{', '.join(package.needs_manual_removal)} from the agent by hand, or use "
+                    "--style restore instead."
+                )
+            if package.output:
+                self.message(
+                    "info",
+                    f"[green]Updated export written to[/green] [blue]{package.output}[/blue]",
+                )
 
     def show_compare(self, result: CompareResult) -> None:
         self.table(
@@ -165,6 +190,49 @@ class RichReporter:
             self.table(
                 [f"Only in {result.source} (not built by this config)"],
                 [[name] for name in result.removed],
+            )
+
+    def show_package(self, result: PackageResult) -> None:
+        self.message("info", f"Package style: [cyan]{result.style}[/cyan]")
+        self.table(
+            ["Time", "Added", "Changed", "Unchanged", "Removed", "Only in export"],
+            [
+                [
+                    f"{result.elapsed:.3f} s",
+                    str(len(result.added)),
+                    str(len(result.changed)),
+                    str(result.unchanged),
+                    str(len(result.removed)),
+                    str(len(result.unmarked)),
+                ]
+            ],
+        )
+        if result.added:
+            self.table(["New intents"], [[name] for name in result.added])
+        if result.changed:
+            self.table(
+                ["Changed intent", "Changes"],
+                [[change.name, "\n".join(change.details)] for change in result.changed],
+            )
+        if result.removed:
+            self.table(
+                ["Removed from the package zip (marked with '-'/'--')"],
+                [[name] for name in result.removed],
+            )
+        if result.needs_manual_removal:
+            self.table(
+                ["Marked for removal, but 'import' can't delete - remove by hand"],
+                [[name] for name in result.needs_manual_removal],
+            )
+        if result.unmarked:
+            self.table(
+                [f"Only in {result.source} (not built by this config)"],
+                [[name] for name in result.unmarked],
+            )
+        if result.output:
+            self.message(
+                "info",
+                f"[green]Updated export written to[/green] [blue]{result.output}[/blue]",
             )
 
     def show_design(self, result: DesignResult) -> None:

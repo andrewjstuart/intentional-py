@@ -18,6 +18,7 @@ DEFAULTS: dict = {
     "extract_mode": "NL",
     "extract_language": "en",
     "compare_mode": "DD",
+    "package_style": "restore",
     "check_updates": True,
     "appearance_mode": "system",
 }

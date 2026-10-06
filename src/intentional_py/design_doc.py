@@ -148,7 +148,7 @@ def config_from_design(
         config.open("w", encoding="utf-8", newline="") as file,
     ):
         csv.writer(file).writerows(rows)
-    _, result.errors, result.warnings = validating.check_rows(
+    _, result.errors, result.warnings, _removals = validating.check_rows(
         rows, config.parent, "DD", rules
     )
     return result

@@ -135,14 +135,16 @@
   }
   button#runButton:hover:not(:disabled), button#openProjectButton:hover:not(:disabled) { background: var(--accent-hover); }
   button#runButton:disabled, button#openProjectButton:disabled,
-  button#newProjectButton:disabled, button#downloadProjectButton:disabled {
+  button#newProjectButton:disabled, button#downloadProjectButton:disabled,
+  button#downloadPackageButton:disabled {
     opacity: 0.55; cursor: not-allowed;
   }
-  button#newProjectButton, button#downloadProjectButton {
+  button#newProjectButton, button#downloadProjectButton, button#downloadPackageButton {
     background: var(--surface); color: var(--fg); border: 1px solid var(--border);
     border-radius: 8px; padding: 0.6rem 1.2rem; font-size: 0.9rem; font-weight: 600; cursor: pointer;
   }
-  button#newProjectButton:hover:not(:disabled), button#downloadProjectButton:hover:not(:disabled) {
+  button#newProjectButton:hover:not(:disabled), button#downloadProjectButton:hover:not(:disabled),
+  button#downloadPackageButton:hover:not(:disabled) {
     border-color: var(--accent);
   }
 
@@ -256,6 +258,7 @@
         <option value="extract">Extract phrases from Excel</option>
         <option value="design">Create config from design document</option>
         <option value="compare">Compare with an agent export</option>
+        <option value="package">Package into an agent export</option>
       </select>
     </div>
     <div class="field-grid" style="margin-top: 0.9rem;">
@@ -298,6 +301,13 @@
         <label for="sheet">Sheet name (optional)</label>
         <input type="text" id="sheet" placeholder="blank finds the header row" />
       </div>
+      <div class="field field-half" id="field-packageStyle">
+        <label for="packageStyle">Package style</label>
+        <select id="packageStyle">
+          <option value="restore">restore (complete)</option>
+          <option value="import">import (new/changed only)</option>
+        </select>
+      </div>
       <div class="field field-half" id="field-vertical">
         <label for="vertical">Vertical prefix</label>
         <input type="text" id="vertical" placeholder="FIN" />
@@ -318,6 +328,7 @@
     </div>
     <div class="actions">
       <button id="runButton" disabled>Run</button>
+      <button id="downloadPackageButton" type="button" style="display: none;">Download package</button>
     </div>
   </div>
   <div class="card">
@@ -337,6 +348,7 @@
       <button type="button" data-section="extract">Extract</button>
       <button type="button" data-section="design">Design doc</button>
       <button type="button" data-section="compare">Compare</button>
+      <button type="button" data-section="package">Package</button>
     </nav>
     <div class="help-content">
       <section id="help-start" class="help-section active">
@@ -360,9 +372,11 @@
           <li><code>intents_nl.cfg</code> — NL config (created by Build NL)</li>
         </ul>
         <p>
-          Differences from the CLI/GUI: this always uses the standard naming rules and folder
-          names (no Settings tab yet), and a Build NL duplicate-phrase prompt is answered "yes"
-          automatically instead of asking you.
+          Differences from the CLI/GUI: this always uses the standard naming rules, folder
+          names and supported language set (no Settings tab yet), and any confirmation prompt
+          (a Build NL duplicate-phrase warning, or a <code>-</code> removal row) is answered
+          "yes" automatically instead of asking you — a <code>--</code> row is the way to
+          remove something deliberately without relying on that.
         </p>
       </section>
       <section id="help-validate" class="help-section">
@@ -374,6 +388,7 @@
           <li>Runs the same config checks as a build: errors would stop a build, warnings are listed but a build would continue.</li>
           <li>Entity tags must look like <code>&lt;entity|text&gt;</code>; a missing <code>&lt;</code>, <code>&gt;</code> or <code>|</code> is reported with its line numbers.</li>
           <li>DD intents that share a phrase are reported only when they also share a language and a context.</li>
+          <li>A row starting with <code>-</code> or <code>--</code> is reported as marked for removal, without deleting anything - nothing is written by Validate.</li>
         </ul>
       </section>
       <section id="help-buildDd" class="help-section">
@@ -385,7 +400,9 @@
           <li>Phrases are read from <code>Training Phrases/&lt;language&gt;/&lt;action&gt;.txt</code>.</li>
           <li>The default-language row (English, <code>en</code>, unless changed) supplies the shared intent definition; with no such row, one is generated from the first row.</li>
           <li>A priority can follow the intent name in braces, e.g. <code>MYAC.Billing.Pay{high}</code>.</li>
+          <li>A row starting with <code>-</code> or <code>--</code> removes instead of builds (asking to confirm first for a single <code>-</code>; nothing left asked for <code>--</code>, or three or more dashes) - a default-language row removes the whole intent, any other language only that language's phrases. This also deletes matching files left over from a previous build.</li>
           <li><strong>Clear the intents folder first</strong> zips everything in the intents folder and removes it before building.</li>
+          <li><strong>Agent export (zip, optional)</strong> and <strong>Package style</strong>: also merges this build into a copy of an uploaded export zip, in the same step - see the Package help section. Nothing zip-related happens without an export.</li>
         </ul>
       </section>
       <section id="help-buildNl" class="help-section">
@@ -397,6 +414,7 @@
           <li><strong>Reuse the existing NL config</strong>: builds from the uploaded <code>intents_nl.cfg</code> instead of recreating it from the phrase files.</li>
           <li>A file name ending in <code>^</code> turns machine learning off; ending in <code>-NM</code> returns the action <code>nomatch</code>.</li>
           <li>Phrases can mark entities as <code>&lt;entity|text&gt;</code>, e.g. <code>pay &lt;sys.unit-currency|$20&gt;</code>.</li>
+          <li><strong>Agent export (zip, optional)</strong> and <strong>Package style</strong>: the same as Build DD's - also merges this build into a copy of the export zip, in the same step.</li>
         </ul>
       </section>
       <section id="help-extract" class="help-section">
@@ -429,6 +447,16 @@
           <li>Upload that export zip alongside your project zip, choose the mode and config file name, then run.</li>
           <li>Results list intents that would be added, changed (contexts, action, priority, machine learning, entities, phrases), and intents only in the export.</li>
           <li>Intents only in the export aren't built by this config — they may belong to other modules, or need deleting from the agent by hand.</li>
+        </ul>
+      </section>
+      <section id="help-package" class="help-section">
+        <h3>Package into an agent export</h3>
+        <p>Merges a build into a copy of the export zip, matching one of Dialogflow's own actions, instead of adding and removing intents by hand. The export itself is never modified. (The Build DD/Build NL tasks have their own Agent export/Package style fields too, for merging in the same step as the build itself, without needing to come back here afterward.)</p>
+        <ul>
+          <li>Upload the export zip, choose the mode and config file name, and pick a <strong>Package style</strong>, then run.</li>
+          <li><code>restore</code> (default): a complete copy, for Dialogflow's <strong>Restore</strong> action, which replaces the whole agent. New/changed intents are added, and a <code>-</code>/<code>--</code> removal row also deletes its files from the copy.</li>
+          <li><code>import</code>: a partial copy with just the new/changed intents, for Dialogflow's <strong>Import</strong> action, which only adds or overwrites and never deletes. A removal row has no effect here — those intents are listed to delete from the agent by hand instead.</li>
+          <li>When it finishes, a <strong>Download <em>&lt;name&gt;</em></strong> button appears for the merged copy — it isn't added to the project, so it isn't part of <strong>Download project</strong>.</li>
         </ul>
       </section>
     </div>

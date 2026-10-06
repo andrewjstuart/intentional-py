@@ -36,6 +36,7 @@ from intentional_py.reporting import (
     DesignResult,
     ExtractResult,
     Level,
+    PackageResult,
     Reporter,
     ValidateResult,
 )
@@ -65,6 +66,33 @@ def resolve_config(project: Path, text: str, default: str) -> Path:
     return (path if path.is_absolute() else project / path).resolve()
 
 
+def _resolve_optional_export(project: Path, export_text: str) -> Path | None:
+    """The zip to merge a build into, or None for a blank field - used where merging
+    is optional (build_dd()/build_nl()) or always needed (package()), but unlike
+    compare()'s export, always a zip rather than optionally a folder, since merging
+    has to copy entries out of it.
+    """
+    if not export_text.strip():
+        return None
+    export = Path(export_text.strip()).expanduser()
+    export = (export if export.is_absolute() else project / export).resolve()
+    if export.is_dir():
+        raise exceptions.ConfigurationError(
+            "Merging into an export needs the zip itself, not a folder - unlike "
+            "Compare, it has to copy entries out of the zip to merge into a copy of it."
+        )
+    return export
+
+
+def _validate_style(style: str) -> str:
+    style = style.lower()
+    if style not in constants.VALID_PACKAGE_STYLES:
+        raise exceptions.ConfigurationError(
+            f"Invalid style: {style}. Valid styles: restore, import"
+        )
+    return style
+
+
 def build_dd(
     project_text: str,
     config_text: str,
@@ -73,11 +101,26 @@ def build_dd(
     rules: NamingRules | None = None,
     layout: ProjectLayout | None = None,
     languages: LanguageSettings | None = None,
+    export_text: str = "",
+    style: str = "restore",
 ) -> BuildResult:
     layout = layout or ProjectLayout()
-    config = resolve_config(project_dir(project_text), config_text, layout.dd_config)
+    project = project_dir(project_text)
+    config = resolve_config(project, config_text, layout.dd_config)
+    export = _resolve_optional_export(project, export_text)
+    if export is not None:
+        style = _validate_style(style)
     return build_intents.intents(
-        "DD", config, config.parent, reporter, clean, rules, layout, languages
+        "DD",
+        config,
+        config.parent,
+        reporter,
+        clean,
+        rules,
+        layout,
+        languages,
+        export,
+        style,
     )
 
 
@@ -94,10 +137,16 @@ def build_nl(
     layout: ProjectLayout | None = None,
     nl_defaults: NlDefaults | None = None,
     languages: LanguageSettings | None = None,
+    export_text: str = "",
+    style: str = "restore",
 ) -> BuildResult:
     layout = layout or ProjectLayout()
     nl_defaults = nl_defaults or NlDefaults()
-    config = resolve_config(project_dir(project_text), config_text, layout.nl_config)
+    project = project_dir(project_text)
+    config = resolve_config(project, config_text, layout.nl_config)
+    export = _resolve_optional_export(project, export_text)
+    if export is not None:
+        style = _validate_style(style)
     if not reuse or not config.exists():
         if not vertical.strip():
             raise exceptions.ConfigurationError(
@@ -116,7 +165,16 @@ def build_nl(
             layout,
         )
     return build_intents.intents(
-        "NL", config, config.parent, reporter, clean, rules, layout, languages
+        "NL",
+        config,
+        config.parent,
+        reporter,
+        clean,
+        rules,
+        layout,
+        languages,
+        export,
+        style,
     )
 
 
@@ -143,6 +201,33 @@ def compare(
     export = (export if export.is_absolute() else project / export).resolve()
     return build_intents.compare_build(
         mode, config, config.parent, export, reporter, rules, layout, languages
+    )
+
+
+def package(
+    project_text: str,
+    mode: str,
+    config_text: str,
+    export_text: str,
+    style: str,
+    reporter: Reporter,
+    rules: NamingRules | None = None,
+    layout: ProjectLayout | None = None,
+    languages: LanguageSettings | None = None,
+) -> PackageResult:
+    layout = layout or ProjectLayout()
+    project = project_dir(project_text)
+    mode = mode.upper()
+    default = layout.nl_config if mode == "NL" else layout.dd_config
+    config = resolve_config(project, config_text, default)
+    export = _resolve_optional_export(project, export_text)
+    if export is None:
+        raise exceptions.ConfigurationError(
+            "Choose an agent export (zip) to merge this build into."
+        )
+    style = _validate_style(style)
+    return build_intents.package_export(
+        mode, config, config.parent, export, reporter, rules, layout, languages, style
     )
 
 
@@ -272,6 +357,46 @@ def result_issues(result: Result) -> list[Issue]:
     )
 
 
+def _package_tables(package: PackageResult) -> list[Table]:
+    """Shared by BuildResult (when it has a `package`, from `intents(export=...)`) and
+    a standalone PackageResult - everything except the Output table, since that's
+    folded into the build's own Output table in the BuildResult case."""
+    tables: list[Table] = []
+    if package.added or package.changed:
+        tables.append(
+            (
+                "Differences from the export",
+                ["Change", "Intent", "Details"],
+                result_views.change_rows(package),
+            )
+        )
+    if package.removed:
+        tables.append(
+            (
+                "Removed from the package zip (marked with '-'/'--')",
+                ["Intent"],
+                [[n] for n in package.removed],
+            )
+        )
+    if package.needs_manual_removal:
+        tables.append(
+            (
+                "Marked for removal, but 'import' can't delete - remove by hand",
+                ["Intent"],
+                [[n] for n in package.needs_manual_removal],
+            )
+        )
+    if package.unmarked:
+        tables.append(
+            (
+                "Only in the export (not built by this config)",
+                ["Intent"],
+                [[n] for n in package.unmarked],
+            )
+        )
+    return tables
+
+
 def detail_tables(result: Result) -> list[Table]:
     if isinstance(result, BuildResult):
         tables: list[Table] = []
@@ -299,6 +424,12 @@ def detail_tables(result: Result) -> list[Table]:
                     [[name] for name in result.machine_learning_off],
                 )
             )
+        if result.package:
+            tables.extend(_package_tables(result.package))
+            output = [["Package style", result.package.style]]
+            if result.package.output:
+                output.append(["Updated export written to", str(result.package.output)])
+            tables.append(("Output", ["Item", "Location"], output))
         return tables
     if isinstance(result, CompareResult):
         tables = []
@@ -318,6 +449,13 @@ def detail_tables(result: Result) -> list[Table]:
                     [[n] for n in result.removed],
                 )
             )
+        return tables
+    if isinstance(result, PackageResult):
+        tables = _package_tables(result)
+        output = [["Package style", result.style]]
+        if result.output:
+            output.append(["Updated export written to", str(result.output)])
+        tables.append(("Output", ["Item", "Location"], output))
         return tables
     if isinstance(result, DesignResult):
         rows = [["Config written", str(result.config)], ["Sheet read", result.sheet]]

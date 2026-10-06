@@ -298,7 +298,7 @@ class App(ctk.CTk):
         help_button.grid(row=0, column=5, **PAD)
 
     def _build_tabs(self) -> None:
-        tabs = ctk.CTkTabview(self, height=210, command=self._on_mode_tab_changed)
+        tabs = ctk.CTkTabview(self, height=260, command=self._on_mode_tab_changed)
         tabs.grid(row=1, column=0, sticky="ew", padx=12, pady=(12, 0))
         self.mode_tabs = tabs
         self._build_dd_tab(self._tab(tabs, "Build DD"))
@@ -325,14 +325,28 @@ class App(ctk.CTk):
         self.dd_config = self._file_row(
             tab, 0, "Config file", self.project_layout_snapshot.dd_config, CONFIG_TYPES
         )
-        self._hint(
+        self.dd_export = self._file_row(
             tab,
             1,
+            "Agent export (optional)",
+            "Zip to also merge this build into, in the same step",
+            ZIP_TYPES,
+        )
+        options = ctk.CTkFrame(tab, fg_color="transparent")
+        options.grid(row=2, column=1, sticky="w")
+        ctk.CTkLabel(options, text="Package style").grid(row=0, column=0, **PAD)
+        self.dd_package_style = ctk.CTkOptionMenu(
+            options, values=["restore", "import"], width=90
+        )
+        self.dd_package_style.grid(row=0, column=1, **PAD)
+        self._hint(
+            tab,
+            3,
             "Training phrases are read from, and intents written to, the config file's folder.",
         )
-        self._clean_checkbox(tab, 2)
+        self._clean_checkbox(tab, 4)
         self._run_button(
-            tab, 3, "Build DD intents", self._run_dd, edit=(self.dd_config, "DD")
+            tab, 5, "Build DD intents", self._run_dd, edit=(self.dd_config, "DD")
         )
 
     def _build_nl_tab(self, tab: ctk.CTkFrame) -> None:
@@ -343,9 +357,16 @@ class App(ctk.CTk):
         self.nl_context = self._entry_row(
             tab, 2, "Context", self.nl_defaults_snapshot.context
         )
+        self.nl_export = self._file_row(
+            tab,
+            3,
+            "Agent export (optional)",
+            "Zip to also merge this build into, in the same step",
+            ZIP_TYPES,
+        )
 
         options = ctk.CTkFrame(tab, fg_color="transparent")
-        options.grid(row=3, column=1, sticky="w")
+        options.grid(row=4, column=1, sticky="w")
         self.nl_reuse = ctk.CTkCheckBox(options, text="Reuse existing config")
         self.nl_reuse.grid(row=0, column=0, **PAD)
         self.nl_lowercase = ctk.CTkCheckBox(options, text="Lowercase actions")
@@ -353,8 +374,15 @@ class App(ctk.CTk):
         ctk.CTkCheckBox(
             options, text="Clear the intents folder first", variable=self.clean_var
         ).grid(row=0, column=2, **PAD)
+        style_row = ctk.CTkFrame(tab, fg_color="transparent")
+        style_row.grid(row=5, column=1, sticky="w")
+        ctk.CTkLabel(style_row, text="Package style").grid(row=0, column=0, **PAD)
+        self.nl_package_style = ctk.CTkOptionMenu(
+            style_row, values=["restore", "import"], width=90
+        )
+        self.nl_package_style.grid(row=0, column=1, **PAD)
         self._run_button(
-            tab, 4, "Build NL intents", self._run_nl, edit=(self.nl_config, "NL")
+            tab, 6, "Build NL intents", self._run_nl, edit=(self.nl_config, "NL")
         )
 
     def _build_extract_tab(self, tab: ctk.CTkFrame) -> None:
@@ -415,6 +443,11 @@ class App(ctk.CTk):
         ctk.CTkLabel(options, text="Mode").grid(row=0, column=0, **PAD)
         self.compare_mode = ctk.CTkOptionMenu(options, values=["DD", "NL"], width=90)
         self.compare_mode.grid(row=0, column=1, **PAD)
+        ctk.CTkLabel(options, text="Package style").grid(row=0, column=2, **PAD)
+        self.package_style = ctk.CTkOptionMenu(
+            options, values=["restore", "import"], width=90
+        )
+        self.package_style.grid(row=0, column=3, **PAD)
         self.compare_config = self._file_row(
             tab,
             2,
@@ -426,9 +459,14 @@ class App(ctk.CTk):
         self._hint(
             tab,
             3,
-            "Shows what a build would add or change compared with the export. Nothing is written.",
+            "Compare shows what a build would add or change, without writing anything. "
+            "Package writes a copy of the export zip merged with this build, ready to "
+            "re-import: 'restore' is a complete copy, 'import' has just the new/changed "
+            "intents. Either way the export itself is never modified.",
         )
-        self._run_button(tab, 4, "Compare", self._run_compare)
+        self._run_button(
+            tab, 4, "Compare", self._run_compare, extra=("Package…", self._run_package)
+        )
 
     def _build_design_tab(self, tab: ctk.CTkFrame) -> None:
         self.design_file = self._file_row(tab, 0, "Design document", "", EXCEL_TYPES)
@@ -868,12 +906,22 @@ class App(ctk.CTk):
         text: str,
         command: Callable,
         edit: tuple[ctk.CTkEntry, str] | None = None,
+        extra: tuple[str, Callable] | None = None,
     ) -> None:
         buttons = ctk.CTkFrame(tab, fg_color="transparent")
         buttons.grid(row=row, column=1, sticky="w", padx=10, pady=(12, 6))
         button = ctk.CTkButton(buttons, text=text, command=command)
         button.grid(row=0, column=0)
         self.run_buttons.append(button)
+        column = 1
+        if extra:
+            extra_text, extra_command = extra
+            extra_button = ctk.CTkButton(
+                buttons, text=extra_text, command=extra_command
+            )
+            extra_button.grid(row=0, column=column, padx=(10, 0))
+            self.run_buttons.append(extra_button)
+            column += 1
         if edit:
             entry, mode = edit
             ctk.CTkButton(
@@ -884,7 +932,7 @@ class App(ctk.CTk):
                 border_width=1,
                 text_color=("gray10", "gray90"),
                 command=lambda: self._edit_config(entry, mode),
-            ).grid(row=0, column=1, padx=(10, 0))
+            ).grid(row=0, column=column, padx=(10, 0))
 
     def _clean_checkbox(self, tab: ctk.CTkFrame, row: int) -> None:
         ctk.CTkCheckBox(
@@ -968,6 +1016,9 @@ class App(ctk.CTk):
                 list(self.language_settings_snapshot.languages),
             ),
             (self.compare_mode, "compare_mode", ["DD", "NL"]),
+            (self.package_style, "package_style", ["restore", "import"]),
+            (self.dd_package_style, "package_style", ["restore", "import"]),
+            (self.nl_package_style, "package_style", ["restore", "import"]),
         ):
             if self.settings[key] in allowed:
                 menu.set(self.settings[key])
@@ -986,6 +1037,7 @@ class App(ctk.CTk):
             extract_mode=self.xl_mode.get(),
             extract_language=self.xl_language.get(),
             compare_mode=self.compare_mode.get(),
+            package_style=self.package_style.get(),
             check_updates=self.check_updates_var.get(),
         )
         settings.save(self.settings)
@@ -1027,13 +1079,14 @@ class App(ctk.CTk):
             self.dd_config.get(),
             self.clean_var.get(),
         )
+        export_text, style = self.dd_export.get(), self.dd_package_style.get()
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
         languages = user_settings.load_language_settings()
         self._start(
             "Build DD intents",
             lambda r: actions.build_dd(
-                project, config, r, clean, rules, layout, languages
+                project, config, r, clean, rules, layout, languages, export_text, style
             ),
         )
 
@@ -1047,6 +1100,7 @@ class App(ctk.CTk):
             bool(self.nl_reuse.get()),
         )
         clean = self.clean_var.get()
+        export_text, style = self.nl_export.get(), self.nl_package_style.get()
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
         nl_defaults = user_settings.load_nl_defaults()
@@ -1054,7 +1108,15 @@ class App(ctk.CTk):
         self._start(
             "Build NL intents",
             lambda r: actions.build_nl(
-                *values, r, clean, rules, layout, nl_defaults, languages
+                *values,
+                r,
+                clean,
+                rules,
+                layout,
+                nl_defaults,
+                languages,
+                export_text,
+                style,
             ),
         )
 
@@ -1093,6 +1155,22 @@ class App(ctk.CTk):
         languages = user_settings.load_language_settings()
         self._start(
             "Compare", lambda r: actions.compare(*values, r, rules, layout, languages)
+        )
+
+    def _run_package(self) -> None:
+        values = (
+            self.project_entry.get(),
+            self.compare_mode.get(),
+            self.compare_config.get(),
+            self.export_entry.get(),
+            self.package_style.get(),
+        )
+        rules = user_settings.load_naming_rules()
+        layout = user_settings.load_project_layout()
+        languages = user_settings.load_language_settings()
+        self._start(
+            "Package export",
+            lambda r: actions.package(*values, r, rules, layout, languages),
         )
 
     def _run_design(self) -> None:

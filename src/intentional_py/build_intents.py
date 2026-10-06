@@ -14,7 +14,7 @@ from time import perf_counter
 from intentional_py import compare as comparing
 from intentional_py import exceptions, models, utils
 from intentional_py import validate as validating
-from intentional_py.reporting import BuildResult, CompareResult, Reporter
+from intentional_py.reporting import BuildResult, CompareResult, PackageResult, Reporter
 
 
 def intents(
@@ -26,6 +26,8 @@ def intents(
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
     languages: models.LanguageSettings | None = None,
+    export: Path | None = None,
+    package_style: str = "restore",
 ) -> BuildResult:
     """Build the intents described in the config file, after the preflight checks in validate.py.
 
@@ -41,12 +43,20 @@ def intents(
             original hardcoded layout when not given.
         languages (LanguageSettings | None): supported language codes/names; defaults to
             the original hardcoded set (en/es/fr) when not given.
+        export (Path | None): an agent export zip to also merge this same build into,
+            in one step instead of a separate Package run; the intents folder is
+            always written the same way either way. Nothing zip-related happens
+            without this - the default is still just the intents folder.
+        package_style (str): "restore" (default) or "import"; see package_export().
+            Only meaningful when `export` is given.
 
     Returns:
-        BuildResult: counts, changes since the previous build, and output folder.
+        BuildResult: counts, changes since the previous build, the output folder, and
+        (when `export` is given) the merge into it as `package`.
     """
     layout = layout or models.ProjectLayout()
-    files_to_write, result, t1_start = _generate(
+    languages = languages or models.LanguageSettings()
+    files_to_write, result, t1_start, removals = _generate(
         mode, config, base_dir, reporter, rules, layout, languages
     )
     output_dir = Path(base_dir, layout.intents_dir)
@@ -75,12 +85,18 @@ def intents(
             for path in previous:
                 path.unlink()
 
+    result.removed = _remove_marked_intents(removals, output_dir, reporter, languages)
+
     output_dir.mkdir(parents=True, exist_ok=True)
     for file, data in files_to_write.items():
         with utils.file_errors(file), open(file, mode="w", encoding="utf-8") as output:
             json.dump(data, output, indent=4)
 
     result.output_dir = output_dir
+    if export is not None:
+        result.package = _merge_into_export(
+            files_to_write, removals, export, reporter, languages, package_style
+        )
     result.elapsed = perf_counter() - t1_start
     return result
 
@@ -96,7 +112,7 @@ def compare_build(
     languages: models.LanguageSettings | None = None,
 ) -> CompareResult:
     """Compare what the config would build with an agent export or intents folder; writes nothing."""
-    files_to_write, _result, t1_start = _generate(
+    files_to_write, _result, t1_start, _removals = _generate(
         mode, config, base_dir, reporter, rules, layout, languages
     )
     result = comparing.compare(
@@ -106,10 +122,191 @@ def compare_build(
     return result
 
 
+def package_export(
+    mode: str,
+    config: Path,
+    base_dir: Path,
+    export: Path,
+    reporter: Reporter,
+    rules: models.NamingRules | None = None,
+    layout: models.ProjectLayout | None = None,
+    languages: models.LanguageSettings | None = None,
+    style: str = "restore",
+) -> PackageResult:
+    """Merge this config's build into a copy of an agent export zip, matching one of
+    Dialogflow ES's own Import/Restore actions:
+
+    - "restore" (default): a complete copy of the export, since Restore replaces the
+      whole agent - anything missing is deleted. New/changed intents are added, and a
+      '-'/'--' removal row also deletes its files from the copy (same
+      confirm-first-for-a-single-'-' rule as a regular build); everything else carries
+      over unchanged.
+    - "import": a partial zip of just the new/changed intents, since Import only adds
+      or overwrites and never deletes; agent.json/package.json aren't included, since
+      this tool never writes them. A removal row has no effect on the zip here - those
+      intents are listed in the result's `needs_manual_removal` instead, to delete
+      from the agent by hand.
+
+    The export itself is never modified; the copy is written next to it with the style
+    and a timestamp appended to its name. Writes nothing to the intents folder - see
+    intents()'s own `export`/`package_style` parameters to do both in one step.
+    """
+    languages = languages or models.LanguageSettings()
+    files_to_write, _result, t1_start, removals = _generate(
+        mode, config, base_dir, reporter, rules, layout, languages
+    )
+    result = _merge_into_export(
+        files_to_write, removals, export, reporter, languages, style
+    )
+    result.elapsed = perf_counter() - t1_start
+    return result
+
+
+def _merge_into_export(
+    files_to_write: dict,
+    removals: list[models.RemovalRow],
+    export: Path,
+    reporter: Reporter,
+    languages: models.LanguageSettings,
+    style: str,
+) -> PackageResult:
+    """Shared by intents() (building and packaging in one step) and package_export()
+    (packaging an existing build's output without rebuilding it): the actual zip merge,
+    see package_export()'s docstring for the "restore"/"import" styles.
+    """
+    diff = comparing.compare(
+        _summarize(files_to_write), comparing.load(export), str(export)
+    )
+
+    prefix, names = comparing.export_contents(export)
+    name_set = set(names)
+    marked_intents = {removal.intent for removal in removals}
+
+    result = PackageResult(source=export, style=style)
+    result.added = diff.added
+    result.changed = diff.changed
+    result.unchanged = diff.unchanged
+    result.unmarked = sorted(
+        name for name in diff.removed if name not in marked_intents
+    )
+
+    output = export.with_name(
+        f"{export.stem}_{style}_{utils.timestamp()}{export.suffix}"
+    )
+    if style == "import":
+        if marked_intents:
+            result.needs_manual_removal = sorted(marked_intents)
+            reporter.message(
+                "warning",
+                "[yellow]Dialogflow's Import can't delete intents[/yellow]; remove "
+                + ", ".join(result.needs_manual_removal)
+                + " from the agent by hand, or use --style restore instead.",
+            )
+        comparing.write_import_zip(files_to_write, prefix, output)
+    else:
+        targets = [
+            (removal, arcnames)
+            for removal in removals
+            if (
+                arcnames := comparing.removal_arcnames(
+                    removal, prefix, name_set, languages
+                )
+            )
+        ]
+        _confirm_removals(targets, reporter, lambda name: Path(name).name)
+        removed_arcnames: set[str] = set()
+        for removal, arcnames in targets:
+            for arcname in arcnames:
+                removed_arcnames.add(arcname)
+                reporter.message(
+                    "info",
+                    f"[yellow]Removed[/yellow] {Path(arcname).name} (row {removal.row_number})",
+                )
+        result.removed = sorted(Path(name).name for name in removed_arcnames)
+        comparing.merge_export(export, files_to_write, removed_arcnames, prefix, output)
+    result.output = output
+    return result
+
+
 def _summarize(files_to_write: dict) -> dict:
     return comparing.summarize(
         {Path(file).name: data for file, data in files_to_write.items()}
     )
+
+
+def _removal_targets(
+    removal: models.RemovalRow, output_dir: Path, languages: models.LanguageSettings
+) -> list[Path]:
+    """Existing output files a removal row refers to: the whole intent (shared
+    definition + every language's usersays file) for the default language, or just
+    one language's usersays file otherwise."""
+    if removal.language == languages.default_language:
+        found = [
+            path for path in (output_dir / f"{removal.intent}.json",) if path.exists()
+        ]
+        if output_dir.is_dir():
+            found += sorted(output_dir.glob(f"{removal.intent}_usersays_*.json"))
+        return found
+    candidate = output_dir / f"{removal.intent}_usersays_{removal.language}.json"
+    return [candidate] if candidate.exists() else []
+
+
+def _confirm_removals(
+    targets: list[tuple[models.RemovalRow, list]],
+    reporter: Reporter,
+    name_of,
+) -> None:
+    """Ask once for every target whose row isn't already confirmed (an unconfirmed '-'
+    row); raises if declined. No-op when every target is '--' or already confirmed.
+    Shared by _remove_marked_intents() (filesystem paths) and package_export() (zip
+    entry names), via `name_of` to get a display name from either.
+    """
+    to_confirm = [
+        (removal, items) for removal, items in targets if not removal.confirmed
+    ]
+    if not to_confirm:
+        return
+    details = [
+        f"'{removal.intent}' ('{removal.language}'): "
+        + ", ".join(name_of(item) for item in items)
+        for removal, items in to_confirm
+    ]
+    if not reporter.confirm("Remove the intents marked for removal", details):
+        raise exceptions.IntentionalException(
+            "\n[bold][red]Abort processing...[/bold][/red]\n"
+            "User declined to remove the marked intents"
+        )
+
+
+def _remove_marked_intents(
+    removals: list[models.RemovalRow],
+    output_dir: Path,
+    reporter: Reporter,
+    languages: models.LanguageSettings,
+) -> list[str]:
+    """Delete existing output for rows starting with '-' or '--'; a lone '-' (easier to
+    mistake for a typo) asks to confirm first, '--' removes without asking."""
+    targets = [
+        (removal, paths)
+        for removal in removals
+        if (paths := _removal_targets(removal, output_dir, languages))
+    ]
+    if not targets:
+        return []
+
+    _confirm_removals(targets, reporter, lambda path: path.name)
+
+    removed: list[str] = []
+    for removal, paths in targets:
+        for path in paths:
+            with utils.file_errors(path):
+                path.unlink(missing_ok=True)
+            removed.append(path.name)
+            reporter.message(
+                "info",
+                f"[yellow]Removed[/yellow] {path.name} (row {removal.row_number})",
+            )
+    return removed
 
 
 def _generate(
@@ -120,7 +317,7 @@ def _generate(
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
     languages: models.LanguageSettings | None = None,
-) -> tuple[dict, BuildResult, float]:
+) -> tuple[dict, BuildResult, float, list[models.RemovalRow]]:
     """Check the config and create every intent's JSON in memory, keyed by output file."""
     layout = layout or models.ProjectLayout()
     languages = languages or models.LanguageSettings()
@@ -136,7 +333,7 @@ def _generate(
     machine_learning_off: set = set()
 
     # Perform preflight validation on the config file to catch errors and warnings early
-    rows, fatal_errors, warnings = validating.preflight_config(
+    rows, fatal_errors, warnings, removals = validating.preflight_config(
         config, base_dir, mode, rules, layout, languages
     )
     for warning in warnings:
@@ -148,7 +345,7 @@ def _generate(
         )
 
     t1_start = perf_counter()
-    if len(rows) == 0:
+    if len(rows) == 0 and len(removals) == 0:
         raise exceptions.ValidationError(
             f"[red]Config file does not contain data[/red]: [cyan]{config}[/cyan]"
         )
@@ -211,7 +408,7 @@ def _generate(
     result.intent_names = sorted({utils.check_priority(row[0])[0] for row in rows})
     result.languages = sorted(langs_set)
     result.machine_learning_off = sorted(machine_learning_off)
-    return files_to_write, result, t1_start
+    return files_to_write, result, t1_start, removals
 
 
 def create_json(

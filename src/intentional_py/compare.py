@@ -8,13 +8,15 @@ IDs and timestamps are ignored, since they change with every build or export.
 import json
 import re
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from intentional_py import exceptions, utils
+from intentional_py import exceptions, models, utils
 from intentional_py.reporting import CompareResult, IntentChange
 
 USERSAYS = re.compile(r"(.+)_usersays_([A-Za-z-]+)$")
+INTENTS_JSON = re.compile(r"^(.*?intents/)[^/]+\.json$")
 
 
 def summarize(files: dict[str, Any]) -> dict[str, dict]:
@@ -136,3 +138,100 @@ def _show(value: Any) -> str:
     if isinstance(value, list):
         return ", ".join(value) or "none"
     return str(value)
+
+
+def _intents_prefix(names: Iterable[str]) -> str:
+    """The folder an export zip keeps its intent JSON under. Confirmed to be a
+    top-level 'intents/' folder (alongside 'agent.json' and 'package.json'), but
+    detected from the zip's own contents rather than hardcoded in case some exports
+    nest it differently. Falls back to 'intents/' for an export with no intents yet.
+    """
+    for name in names:
+        match = INTENTS_JSON.match(name)
+        if match:
+            return match[1]
+    return "intents/"
+
+
+def export_contents(export: Path) -> tuple[str, list[str]]:
+    """The intents/ folder prefix and full namelist of an export zip, read once so the
+    caller can work out what a removal row refers to before merge_export() rewrites it."""
+    with utils.file_errors(export), zipfile.ZipFile(export) as archive:
+        names = archive.namelist()
+    return _intents_prefix(names), names
+
+
+def removal_arcnames(
+    removal: models.RemovalRow,
+    prefix: str,
+    names: set[str],
+    languages: models.LanguageSettings,
+) -> list[str]:
+    """Existing zip entries a removal row refers to, mirroring
+    build_intents._removal_targets() but against an export zip's namelist instead of
+    the filesystem."""
+    if removal.language == languages.default_language:
+        found = [name for name in (f"{prefix}{removal.intent}.json",) if name in names]
+        found += sorted(
+            name
+            for name in names
+            if name.startswith(f"{prefix}{removal.intent}_usersays_")
+            and name.endswith(".json")
+        )
+        return found
+    candidate = f"{prefix}{removal.intent}_usersays_{removal.language}.json"
+    return [candidate] if candidate in names else []
+
+
+def merge_export(
+    export: Path,
+    files_to_write: dict[Path, dict],
+    removed_arcnames: set[str],
+    prefix: str,
+    output: Path,
+) -> None:
+    """Write `output` as a complete copy of `export` (which replaces the whole agent,
+    so anything missing is deleted): each of `files_to_write` is added, or replaces
+    its existing intents/ entry, and every name in `removed_arcnames` is dropped;
+    everything else - other intents, entities, agent.json, package.json - is carried
+    over unchanged. `export` itself is never modified."""
+    new_arcnames = {
+        f"{prefix}{Path(file).name}": data for file, data in files_to_write.items()
+    }
+    with (
+        utils.file_errors(export),
+        zipfile.ZipFile(export) as source,
+        utils.file_errors(output),
+        zipfile.ZipFile(
+            output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+        ) as dest,
+    ):
+        for info in source.infolist():
+            if info.filename in new_arcnames or info.filename in removed_arcnames:
+                continue
+            dest.writestr(info, source.read(info.filename))
+        for arcname, data in new_arcnames.items():
+            dest.writestr(arcname, json.dumps(data, indent=4))
+
+
+def write_import_zip(
+    files_to_write: dict[Path, dict],
+    prefix: str,
+    output: Path,
+) -> None:
+    """Write `output` as a minimal zip (which only adds new intents and overwrites
+    ones with the same name, and never deletes): just this build's intent files,
+    nothing from the export itself - agent.json/package.json aren't written by this
+    tool, so there's nothing of ours to merge into them, and Import leaves everything
+    else alone anyway. A '-'/'--' removal row has no effect here, since Import can't
+    delete; those intents still need removing from the agent by hand (see
+    build_intents.package_export()'s `needs_manual_removal`).
+    """
+    with (
+        utils.file_errors(output),
+        zipfile.ZipFile(
+            output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+        ) as dest,
+    ):
+        for file, data in files_to_write.items():
+            dest.writestr(f"{prefix}{Path(file).name}", json.dumps(data, indent=4))

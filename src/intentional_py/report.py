@@ -9,6 +9,7 @@ from intentional_py.reporting import (
     BuildResult,
     CompareResult,
     DesignResult,
+    PackageResult,
     ValidateResult,
 )
 from intentional_py.result_views import Issue, Result, Table
@@ -18,7 +19,7 @@ def _summary(result: Result) -> list[tuple[str, str]]:
     return result_views.summary_rows(result)
 
 
-def _changes(result: CompareResult, title: str) -> Table | None:
+def _changes(result: CompareResult | PackageResult, title: str) -> Table | None:
     """Added and changed intents, matching the table shown by both front ends."""
     rows = result_views.change_rows(result)
     return (title, ["Change", "Intent", "Details"], rows) if rows else None
@@ -27,6 +28,33 @@ def _changes(result: CompareResult, title: str) -> Table | None:
 def _removed_table(names: list[str], title: str) -> Table | None:
     """Intents no longer produced, kept separate since they need a different action (delete by hand)."""
     return (title, ["Intent"], [[name] for name in names]) if names else None
+
+
+def _package_tables(package: PackageResult) -> list[Table]:
+    """Shared by BuildResult (when it has a `package`, from `intents(export=...)`) and
+    a standalone PackageResult - everything except the Output table, since that's
+    folded into the build's own Output table in the BuildResult case."""
+    tables: list[Table] = []
+    changes = _changes(package, f"Differences from {package.source}")
+    if changes:
+        tables.append(changes)
+    removed = _removed_table(
+        package.removed, "Removed from the package zip (marked with '-'/'--')"
+    )
+    if removed:
+        tables.append(removed)
+    manual = _removed_table(
+        package.needs_manual_removal,
+        "Marked for removal, but 'import' can't delete - remove by hand",
+    )
+    if manual:
+        tables.append(manual)
+    unmarked = _removed_table(
+        package.unmarked, f"Only in {package.source} (not built by this config)"
+    )
+    if unmarked:
+        tables.append(unmarked)
+    return tables
 
 
 def _tables(result: Result) -> list[Table]:
@@ -59,6 +87,11 @@ def _tables(result: Result) -> list[Table]:
             output.append(["Intents written to", str(result.output_dir)])
         if result.backup:
             output.append(["Previous intents saved to", str(result.backup)])
+        if result.package:
+            tables.extend(_package_tables(result.package))
+            output.append(["Package style", result.package.style])
+            if result.package.output:
+                output.append(["Updated export written to", str(result.package.output)])
         if output:
             tables.append(("Output", ["Item", "Location"], output))
         return tables
@@ -72,6 +105,13 @@ def _tables(result: Result) -> list[Table]:
         )
         if removed:
             tables.append(removed)
+        return tables
+    if isinstance(result, PackageResult):
+        tables = _package_tables(result)
+        output = [["Package style", result.style]]
+        if result.output:
+            output.append(["Updated export written to", str(result.output)])
+        tables.append(("Output", ["Item", "Location"], output))
         return tables
     if isinstance(result, ValidateResult):
         checks = result_views.checks(result)

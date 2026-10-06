@@ -1,5 +1,6 @@
 import queue
 import threading
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,15 @@ from intentional_py import exceptions
 from intentional_py.gui import actions
 from intentional_py.gui.worker import GuiReporter, JobRunner
 from intentional_py.models import LanguageSettings
-from intentional_py.reporting import BuildResult, Check, ExtractResult, ValidateResult
+from intentional_py.reporting import (
+    BuildResult,
+    Check,
+    ExtractResult,
+    IntentChange,
+    PackageResult,
+    ValidateResult,
+)
+from intentional_py.tests.conftest import dd_project
 
 
 def drain(events: queue.Queue, timeout: float = 30) -> list[tuple]:
@@ -101,6 +110,36 @@ def test_build_display(tmp_path: Path) -> None:
     assert actions.output_folder(result) == tmp_path
 
 
+def test_build_display_with_a_package(tmp_path: Path) -> None:
+    # intents(export=...) builds and packages in one step; the package nests under
+    # the same BuildResult rather than needing a separate Package run
+    package_output = tmp_path / "agent_restore_2026.zip"
+    result = BuildResult(
+        intents=1,
+        phrases=1,
+        files=2,
+        languages=["en"],
+        elapsed=0.5,
+        output_dir=tmp_path,
+        package=PackageResult(
+            source=tmp_path / "agent.zip",
+            style="restore",
+            output=package_output,
+            added=["A.New"],
+            unmarked=["A.Unrelated"],
+        ),
+    )
+    assert ("Package style", "restore") in actions.tiles(result)
+    titles = [title for title, _, _ in actions.detail_tables(result)]
+    assert "Differences from the export" in titles
+    assert "Only in the export (not built by this config)" in titles
+    assert titles[-1] == "Output"
+    issues = actions.result_issues(result)
+    assert any("not built by this config" in message for _, _, message in issues)
+    # the main build's own output folder, not the package's, is what gets an Open button
+    assert actions.output_folder(result) == tmp_path
+
+
 def test_extract_display(tmp_path: Path) -> None:
     backup = tmp_path / "NL_2026.zip"
     result = ExtractResult(
@@ -112,6 +151,40 @@ def test_extract_display(tmp_path: Path) -> None:
     (_, _, locations), (_, _, sheets) = actions.detail_tables(result)
     assert locations[1] == ["Previous phrases saved to", str(backup)]
     assert sheets == [["EMPTY"]]
+
+
+def test_package_display(tmp_path: Path) -> None:
+    output = tmp_path / "agent_restore_2026.zip"
+    result = PackageResult(
+        source=tmp_path / "agent.zip",
+        style="import",
+        output=output,
+        added=["A.New"],
+        changed=[IntentChange("A.Changed", ["action: old -> new"])],
+        removed=["A.Old.json"],
+        needs_manual_removal=["A.Stuck"],
+        unmarked=["A.Unrelated"],
+    )
+    assert actions.tiles(result)[0] == ("Style", "import")
+    tables = actions.detail_tables(result)
+    titles = [title for title, _, _ in tables]
+    assert titles == [
+        "Differences from the export",
+        "Removed from the package zip (marked with '-'/'--')",
+        "Marked for removal, but 'import' can't delete - remove by hand",
+        "Only in the export (not built by this config)",
+        "Output",
+    ]
+    assert actions.output_folder(result) == tmp_path
+
+
+def test_package_rejects_an_export_folder(tmp_path: Path) -> None:
+    folder = tmp_path / "unzipped_export"
+    folder.mkdir()
+    with pytest.raises(exceptions.ConfigurationError):
+        actions.package(
+            str(tmp_path), "DD", "", str(folder), "restore", GuiReporter(queue.Queue())
+        )
 
 
 def test_validate_display() -> None:
@@ -168,6 +241,55 @@ def test_build_nl_requires_vertical(tmp_path: Path) -> None:
     reporter = GuiReporter(queue.Queue())
     with pytest.raises(exceptions.ConfigurationError):
         actions.build_nl(str(tmp_path), "", " ", "", False, False, reporter)
+
+
+def test_build_dd_merges_into_an_export_when_given(tmp_path: Path) -> None:
+    dd_project(tmp_path, ["A.Pay,Ctx,en,pay,,,"], {"pay": "pay my bill"})
+    export = tmp_path / "agent.zip"
+    with zipfile.ZipFile(export, "w") as archive:
+        archive.writestr("agent.json", "{}")
+        archive.writestr("intents/Old.json", '{"name": "Old"}')
+    reporter = GuiReporter(queue.Queue())
+
+    result = actions.build_dd(str(tmp_path), "", reporter, export_text=str(export))
+
+    # the intents folder is still written the same way as without an export
+    assert (tmp_path / "intents" / "A.Pay.json").exists()
+    assert result.package is not None
+    assert result.package.style == "restore"
+    assert result.package.added == ["A.Pay"]
+
+
+def test_build_dd_without_an_export_leaves_package_none(tmp_path: Path) -> None:
+    dd_project(tmp_path, ["A.Pay,Ctx,en,pay,,,"], {"pay": "pay my bill"})
+    reporter = GuiReporter(queue.Queue())
+
+    result = actions.build_dd(str(tmp_path), "", reporter)
+
+    assert result.package is None
+
+
+def test_build_dd_rejects_an_export_folder(tmp_path: Path) -> None:
+    dd_project(tmp_path, ["A.Pay,Ctx,en,pay,,,"], {"pay": "pay my bill"})
+    folder = tmp_path / "unzipped_export"
+    folder.mkdir()
+    reporter = GuiReporter(queue.Queue())
+
+    with pytest.raises(exceptions.ConfigurationError):
+        actions.build_dd(str(tmp_path), "", reporter, export_text=str(folder))
+
+
+def test_build_dd_rejects_an_invalid_style(tmp_path: Path) -> None:
+    dd_project(tmp_path, ["A.Pay,Ctx,en,pay,,,"], {"pay": "pay my bill"})
+    export = tmp_path / "agent.zip"
+    with zipfile.ZipFile(export, "w") as archive:
+        archive.writestr("agent.json", "{}")
+    reporter = GuiReporter(queue.Queue())
+
+    with pytest.raises(exceptions.ConfigurationError):
+        actions.build_dd(
+            str(tmp_path), "", reporter, export_text=str(export), style="bogus"
+        )
 
 
 def test_extract_rejects_missing_file(tmp_path: Path) -> None:

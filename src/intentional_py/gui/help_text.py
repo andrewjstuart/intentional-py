@@ -36,14 +36,15 @@ Each config row has 7 comma-separated values; the last one is optional:
    e.g. MYAC.Billing.Pay,MYAC-Billing-Pay,en,pay,,1,FALSE
 
 • The phrases are read from Training Phrases\\<language>\\<action>.txt.
-• Language can be en, es, fr, or dtmf (DTMF values only).
-• The English row supplies the shared intent definition. With no English row, one is generated in memory from the first row and uses the matching English phrase file.
+• Language defaults to en, es or fr, or dtmf (DTMF values only); more languages can be added on the Settings tab.
+• The default-language row (en unless changed) supplies the shared intent definition. With no such row, one is generated in memory from the first row and uses the matching phrase file.
 • Two rows can share the same intent and language on purpose, with a different Action, to swap in a different phrase file without duplicating the intent: the first such row still defines the intent (context, action, priority, entities, machine learning); later rows only replace the phrases. A row that is a byte-for-byte copy of an earlier row is dropped automatically instead, with a warning.
 • Machine learning stays on when the last value is TRUE, blank or left off; FALSE turns it off.
 • An action ending in ^ also turns machine learning off for that intent.
 • A priority can follow the intent name in braces, e.g. MYAC.Billing.Pay{high}.
 • Entities are separated by | ; a trailing * marks a required entity and [name] sets its alias.
 • DTMF values must each be a single digit 0-9, # or *; anything else is an error.
+• A row starting with - or -- removes instead of builds: - asks to confirm first (easy to mistake for a typo), -- removes without asking (--- and longer runs of dashes count as --). A default-language row removes the whole intent; any other language only removes that language's phrases. This also deletes matching files left over from a previous build.
 
 Errors (missing intent, context or action; invalid DTMF values; or a forbidden character in an intent name — see the Settings tab) stop the build before any file is written.
 
@@ -52,6 +53,8 @@ Edit config… opens the config file as a table: add, edit, reorder or delete ro
 Clear the intents folder first zips everything in the intents folder and removes it before building, so intents that are no longer in the config are not left behind to be imported. Without it, the results list any intents that are no longer built but are still in the folder.
 
 Each build lists what changed since the previous build in the intents folder.
+
+Agent export (optional): also merges this same build into a copy of that export zip, in the same step - no separate Package run needed. Nothing zip-related happens without it. Choose a Package style first: restore (default) for a complete copy; import for a partial copy of just the new/changed intents. Either way the export itself is never modified; the copy is written next to it with the style and a timestamp added to its name. See the Compare help section for more on packaging on its own, without rebuilding.
 """,
     "Build NL": """\
 Builds natural language intents from the phrase files in Training Phrases\\<language>\\NL.
@@ -60,6 +63,7 @@ Builds natural language intents from the phrase files in Training Phrases\\<lang
 • Context: the context used by all NL intents; prefilled from the Settings tab's NL defaults (GetIntent unless changed).
 • Reuse existing config: build from the current NL config instead of recreating it from the phrase files.
 • Lowercase actions: also writes a lowercase action for clients whose NL actions are lowercase.
+• Agent export (optional) and Package style: the same as Build DD's - also merges this build into a copy of the export zip, in the same step.
 
 File names control the intents:
 • BILLING.txt becomes the intent RTL.Billing with the action BILLING.
@@ -105,6 +109,13 @@ The results list the intents a build would add, the intents that would change (c
 Intents only in the export are not built by this config. They may belong to other modules, or be intents that should now be deleted from the agent by hand.
 
 IDs and timestamps are ignored, since they change with every build and export.
+
+Package merges a build straight into a copy of the export zip, matching one of Dialogflow's own actions, so it can be used straight away instead of adding and removing intents by hand - choose a Package style first, then press Package instead of Compare. (The Build DD/Build NL tabs have their own Agent export/Package style fields too, for merging in the same step as the build itself, instead of a separate Package run afterward.)
+
+• restore (default): a complete copy, which replaces the whole agent. New/changed intents are added, and a '-'/'--' removal row also deletes its files from the copy.
+• import: a partial copy with just the new/changed intents, which only adds or overwrites and never deletes. A removal row has no effect here - those intents are listed to delete from the agent by hand instead.
+
+Either way, the export itself is never modified - the copy is written next to it with the style and a timestamp added to its name. Package needs the export zip itself, not a folder, unlike Compare.
 """,
     "Design doc": """\
 Creates a config file from the Excel design document.

@@ -71,7 +71,9 @@ def test_intent_without_english_row_is_complete(tmp_path: Path) -> None:
     config = tmp_path / "intents.cfg"
     config.write_text("A.Pay,Ctx,es,pagar,,,\n", encoding="utf-8")
 
-    rows, errors, warnings = validate.preflight_config(config, tmp_path, "DD")
+    rows, errors, warnings, _removals = validate.preflight_config(
+        config, tmp_path, "DD"
+    )
     result = build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     assert errors == []
@@ -159,7 +161,9 @@ def test_exact_duplicate_row_is_dropped_before_other_checks(tmp_path: Path) -> N
         {"pay": "pay my bill\nmake a payment\n"},
     )
 
-    rows, errors, warnings = validate.preflight_config(config, tmp_path, "DD")
+    rows, errors, warnings, _removals = validate.preflight_config(
+        config, tmp_path, "DD"
+    )
     assert errors == []
     assert warnings == ["Row 2: identical to row 1; the duplicate was dropped."]
     assert len(rows) == 1

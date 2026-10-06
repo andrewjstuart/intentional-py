@@ -14,6 +14,8 @@ const configNameInput = document.getElementById("configName");
 const modeSelect = document.getElementById("mode");
 const languageSelect = document.getElementById("language");
 const sheetInput = document.getElementById("sheet");
+const packageStyleSelect = document.getElementById("packageStyle");
+const exportZipLabel = document.querySelector('label[for="exportInput"]');
 const verticalInput = document.getElementById("vertical");
 const contextInput = document.getElementById("context");
 const lowercaseInput = document.getElementById("lowercase");
@@ -23,6 +25,7 @@ const runButton = document.getElementById("runButton");
 const openProjectButton = document.getElementById("openProjectButton");
 const newProjectButton = document.getElementById("newProjectButton");
 const downloadProjectButton = document.getElementById("downloadProjectButton");
+const downloadPackageButton = document.getElementById("downloadPackageButton");
 const projectStatusEl = document.getElementById("projectStatus");
 const projectStatusTextEl = document.getElementById("projectStatusText");
 const projectFilesDetails = document.getElementById("projectFilesDetails");
@@ -53,18 +56,28 @@ wireFileName(exportInput, "exportInputName");
 // Python function it calls.
 const TASKS = {
   validate: { label: "Validate", fields: ["configName"] },
-  buildDd: { label: "Build DD intents", fields: ["configName", "clean"] },
+  buildDd: {
+    label: "Build DD intents",
+    fields: ["configName", "clean", "exportZip", "packageStyle"],
+  },
   buildNl: {
     label: "Build NL intents",
-    fields: ["configName", "vertical", "context", "lowercase", "reuse", "clean"],
+    fields: [
+      "configName", "vertical", "context", "lowercase", "reuse", "clean",
+      "exportZip", "packageStyle",
+    ],
   },
   extract: { label: "Extract phrases", fields: ["excelFile", "mode", "language"] },
   design: { label: "Create config from design doc", fields: ["excelFile", "sheet", "configName"] },
   compare: { label: "Compare with export", fields: ["configName", "mode", "exportZip"] },
+  package: {
+    label: "Package export",
+    fields: ["configName", "mode", "exportZip", "packageStyle"],
+  },
 };
 const ALL_FIELDS = [
   "excelFile", "exportZip", "configName", "mode",
-  "language", "sheet", "vertical", "context", "lowercase", "reuse", "clean",
+  "language", "sheet", "vertical", "context", "lowercase", "reuse", "clean", "packageStyle",
 ];
 
 function updateVisibleFields() {
@@ -72,10 +85,16 @@ function updateVisibleFields() {
   for (const field of ALL_FIELDS) {
     document.getElementById(`field-${field}`).style.display = visible.has(field) ? "" : "none";
   }
+  // the same export field is required for compare/package, but optional for a build
+  const optionalExport = taskSelect.value === "buildDd" || taskSelect.value === "buildNl";
+  exportZipLabel.textContent = optionalExport ? "Agent export (zip, optional)" : "Agent export (zip)";
   runButton.textContent = TASKS[taskSelect.value].label;
 }
 
-taskSelect.addEventListener("change", updateVisibleFields);
+taskSelect.addEventListener("change", () => {
+  updateVisibleFields();
+  downloadPackageButton.style.display = "none";
+});
 updateVisibleFields();
 
 // Help dialog: a native <dialog> (backdrop, ESC to close, focus trapping for free).
@@ -151,7 +170,8 @@ async function setup() {
   await pyodide.runPythonAsync(
     "from intentional_py.web.actions import (new_project, open_project, " +
     "project_files, download_project, validate_project, build_dd_project, " +
-    "build_nl_project, extract_project, design_project, compare_project)"
+    "build_nl_project, extract_project, design_project, compare_project, " +
+    "package_project, download_package)"
   );
   pyFunctions = {
     newProject: pyodide.globals.get("new_project"),
@@ -164,6 +184,8 @@ async function setup() {
     extract: pyodide.globals.get("extract_project"),
     design: pyodide.globals.get("design_project"),
     compare: pyodide.globals.get("compare_project"),
+    package: pyodide.globals.get("package_project"),
+    downloadPackage: pyodide.globals.get("download_package"),
   };
   // exposed for console/debugging use, e.g. window.intentional.validate()
   window.intentional = pyFunctions;
@@ -189,6 +211,16 @@ async function fileBytesPy(input, label) {
   return { name: file.name, bytesPy: pyodideInstance.toPy(bytes) };
 }
 
+// For an optional export (building): no file chosen just means no merge, not an error.
+async function optionalFileBytesPy(input) {
+  const file = input.files[0];
+  if (!file) {
+    return { name: "", bytesPy: null };
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  return { name: file.name, bytesPy: pyodideInstance.toPy(bytes) };
+}
+
 function setProjectOpen(open) {
   projectOpen = open;
   projectStatusEl.dataset.open = String(open);
@@ -196,6 +228,7 @@ function setProjectOpen(open) {
   excelInput.disabled = !open;
   exportInput.disabled = !open;
   runButton.disabled = !open;
+  downloadPackageButton.style.display = "none";
 }
 
 function showProjectFiles(filesJson) {
@@ -253,15 +286,43 @@ downloadProjectButton.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+downloadPackageButton.addEventListener("click", () => {
+  const resultPy = pyFunctions.downloadPackage();
+  const bytes = resultPy.toJs();
+  resultPy.destroy(); // pyodide does not auto-convert bytes, so this proxy needs releasing
+  const blob = new Blob([bytes], { type: "application/zip" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = downloadPackageButton.textContent.replace(/^Download /, "") || "package.zip";
+  link.click();
+  URL.revokeObjectURL(url);
+});
+
 async function runTask(task) {
   const configName = configNameInput.value.trim();
   if (task === "validate") return pyFunctions.validate(configName);
-  if (task === "buildDd") return pyFunctions.buildDd(configName, cleanInput.checked);
+  if (task === "buildDd") {
+    const { name, bytesPy } = await optionalFileBytesPy(exportInput);
+    try {
+      return pyFunctions.buildDd(
+        configName, cleanInput.checked, bytesPy, name, packageStyleSelect.value
+      );
+    } finally {
+      bytesPy?.destroy();
+    }
+  }
   if (task === "buildNl") {
-    return pyFunctions.buildNl(
-      configName, verticalInput.value.trim(), contextInput.value.trim(),
-      lowercaseInput.checked, reuseInput.checked, cleanInput.checked
-    );
+    const { name, bytesPy } = await optionalFileBytesPy(exportInput);
+    try {
+      return pyFunctions.buildNl(
+        configName, verticalInput.value.trim(), contextInput.value.trim(),
+        lowercaseInput.checked, reuseInput.checked, cleanInput.checked,
+        bytesPy, name, packageStyleSelect.value
+      );
+    } finally {
+      bytesPy?.destroy();
+    }
   }
   if (task === "extract") {
     const { name, bytesPy } = await fileBytesPy(excelInput, "an Excel file");
@@ -287,6 +348,14 @@ async function runTask(task) {
       bytesPy.destroy();
     }
   }
+  if (task === "package") {
+    const { name, bytesPy } = await fileBytesPy(exportInput, "an agent export zip");
+    try {
+      return pyFunctions.package(bytesPy, name, modeSelect.value, configName, packageStyleSelect.value);
+    } finally {
+      bytesPy.destroy();
+    }
+  }
   throw new Error(`Unknown task: ${task}`);
 }
 
@@ -298,9 +367,15 @@ runButton.addEventListener("click", async () => {
   }
   runButton.disabled = true;
   resultEl.textContent = "Running…";
+  downloadPackageButton.style.display = "none";
   try {
     const resultJson = await runTask(taskSelect.value);
-    render(JSON.parse(resultJson));
+    const parsed = JSON.parse(resultJson);
+    render(parsed);
+    if (parsed.output_name) {
+      downloadPackageButton.textContent = `Download ${parsed.output_name}`;
+      downloadPackageButton.style.display = "";
+    }
     await refreshProjectFiles();
   } catch (error) {
     resultEl.textContent = `Error: ${error}`;
@@ -363,6 +438,22 @@ function renderCompare(result, lines) {
   lines.push(textLine(`${result.unchanged} unchanged`));
 }
 
+function renderPackage(result, lines) {
+  lines.push(textLine(`Style: ${result.style}`));
+  lines.push(textLine(`Merged with ${result.source}`));
+  for (const name of result.added) lines.push(textLine(`+ ${name}`));
+  for (const change of result.changed) {
+    lines.push(textLine(`~ ${change.name}: ${change.details.join("; ")}`));
+  }
+  for (const name of result.removed) lines.push(checkLine(`Removed: ${name}`, true));
+  for (const name of result.needs_manual_removal) {
+    lines.push(checkLine(`Marked for removal, but 'import' can't delete: ${name} - remove by hand`, false));
+  }
+  for (const name of result.unmarked) lines.push(textLine(`- ${name} (only in the export)`));
+  lines.push(textLine(`${result.unchanged} unchanged`));
+  if (result.output_name) lines.push(textLine(`Ready: ${result.output_name}`));
+}
+
 const RENDERERS = {
   validate: renderValidate,
   buildDd: renderBuild,
@@ -370,6 +461,7 @@ const RENDERERS = {
   extract: renderExtract,
   design: renderDesign,
   compare: renderCompare,
+  package: renderPackage,
 };
 
 function render(result) {

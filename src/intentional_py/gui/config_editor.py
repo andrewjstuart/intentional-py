@@ -486,7 +486,7 @@ class ConfigEditor(ctk.CTkToplevel):
         if self.config_path is None:
             return
         rules = user_settings.load_naming_rules()
-        _, errors, warnings = validating.check_rows(
+        _, errors, warnings, _removals = validating.check_rows(
             self.rows, self.config_path.parent, self.mode, rules
         )
         issues = [actions.issue("error", e) for e in errors] + [

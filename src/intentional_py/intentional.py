@@ -124,6 +124,21 @@ def main(
             help="Zip and remove everything in the intents folder before building, so no old intents are left.",
         ),
     ] = False,
+    export: Annotated[
+        Path | None,
+        typer.Option(
+            "--export",
+            "-e",
+            help="Agent export zip to also merge this build into, in the same step (see the 'package' command). Nothing zip-related happens without this.",
+        ),
+    ] = None,
+    style: Annotated[
+        str,
+        typer.Option(
+            "--style",
+            help="Only used with --export. 'restore': a complete zip, which replaces the whole agent. 'import': a partial zip of just the new/changed intents, which only adds or overwrites.",
+        ),
+    ] = constants.DEFAULT_PACKAGE_STYLE,
     report: Annotated[
         Path | None,
         typer.Option(
@@ -150,6 +165,12 @@ def main(
         layout = user_settings.load_project_layout()
         # the config's folder holds the training phrases and receives the intents
         config = (config or Path(layout.dd_config)).resolve()
+        style = style.lower()
+        if export is not None and style not in constants.VALID_PACKAGE_STYLES:
+            console.print(
+                f"\n[bold][red]✗ Error:[/red][/bold] Invalid style: {style}. Valid styles: restore, import\n"
+            )
+            raise typer.Exit(code=1)
         try:
             result = build.intents(
                 "DD",
@@ -160,6 +181,8 @@ def main(
                 user_settings.load_naming_rules(),
                 layout,
                 user_settings.load_language_settings(),
+                export.resolve() if export else None,
+                style,
             )
             reporter.show_build(result)
             _save_report(report, "Build DD intents", result, reporter)
@@ -227,6 +250,21 @@ def natural_language(
             help="Zip and remove everything in the intents folder before building, so no old intents are left.",
         ),
     ] = False,
+    export: Annotated[
+        Path | None,
+        typer.Option(
+            "--export",
+            "-e",
+            help="Agent export zip to also merge this build into, in the same step (see the 'package' command). Nothing zip-related happens without this.",
+        ),
+    ] = None,
+    style: Annotated[
+        str,
+        typer.Option(
+            "--style",
+            help="Only used with --export. 'restore': a complete zip, which replaces the whole agent. 'import': a partial zip of just the new/changed intents, which only adds or overwrites.",
+        ),
+    ] = constants.DEFAULT_PACKAGE_STYLE,
     report: Annotated[
         Path | None,
         typer.Option(
@@ -255,6 +293,12 @@ def natural_language(
     context = context or user_settings.load_nl_defaults().context
     # the config's folder holds the training phrases and receives the intents
     config = (config or Path(layout.nl_config)).resolve()
+    style = style.lower()
+    if export is not None and style not in constants.VALID_PACKAGE_STYLES:
+        console.print(
+            f"\n[bold][red]✗ Error:[/red][/bold] Invalid style: {style}. Valid styles: restore, import\n"
+        )
+        raise typer.Exit(code=1)
     try:
         # rebuild the NL config unless --reuse is given and it exists; ask for a vertical if missing
         file_not_exist: bool = not config.exists()
@@ -279,6 +323,8 @@ def natural_language(
             user_settings.load_naming_rules(),
             layout,
             user_settings.load_language_settings(),
+            export.resolve() if export else None,
+            style,
         )
         reporter.show_build(result)
         _save_report(report, "Build NL intents", result, reporter)
@@ -569,6 +615,87 @@ def compare(
         )
         reporter.show_compare(result)
         _save_report(report, "Compare intents", result, reporter)
+    except exceptions.IntentionalException as e:
+        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
+        raise typer.Exit(code=1)
+
+
+@app.command("package")
+def package(
+    export: Annotated[
+        Path,
+        typer.Option(
+            "--export",
+            "-e",
+            help="Agent export zip to merge this config's build into. The export itself is never modified; a timestamped copy is written next to it.",
+        ),
+    ],
+    mode: Annotated[
+        str,
+        typer.Option(
+            "--mode",
+            "-m",
+            help="Mode of the config: [yellow]'DD'[/yellow] or [yellow]'NL'[/yellow]",
+        ),
+    ] = "DD",
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            help="Config file to build from. (default: intents.cfg, or intents_nl.cfg for NL)",
+        ),
+    ] = None,
+    style: Annotated[
+        str,
+        typer.Option(
+            "--style",
+            help="'restore': a complete zip, which replaces the whole agent. 'import': a partial zip of just the new/changed intents, which only adds or overwrites (a removal row can't be applied this way - it's listed to remove by hand instead).",
+        ),
+    ] = constants.DEFAULT_PACKAGE_STYLE,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
+    ] = False,
+    report: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
+) -> None:
+    """
+    Merge this config's build into a copy of an agent export zip, matching Dialogflow's own Import/Restore actions: new or changed intents are added either way, and a '-'/'--' removal row also deletes its files from a 'restore'-style copy (an 'import'-style copy lists them to remove by hand instead, since Import can't delete).
+    """
+    reporter = RichReporter(quiet=quiet)
+    try:
+        mode = mode.upper()
+        if mode not in constants.VALID_MODES:
+            raise exceptions.ConfigurationError(
+                f"Invalid mode: {mode}. Valid modes: DD, NL"
+            )
+        style = style.lower()
+        if style not in constants.VALID_PACKAGE_STYLES:
+            raise exceptions.ConfigurationError(
+                f"Invalid style: {style}. Valid styles: restore, import"
+            )
+        layout = user_settings.load_project_layout()
+        default = layout.nl_config if mode == "NL" else layout.dd_config
+        config = (config or Path(default)).resolve()
+        result = build.package_export(
+            mode,
+            config,
+            config.parent,
+            export.resolve(),
+            reporter,
+            user_settings.load_naming_rules(),
+            layout,
+            user_settings.load_language_settings(),
+            style,
+        )
+        reporter.show_package(result)
+        _save_report(report, "Package export", result, reporter)
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
         raise typer.Exit(code=1)

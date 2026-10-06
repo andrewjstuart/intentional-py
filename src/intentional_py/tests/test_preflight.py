@@ -10,7 +10,9 @@ def test_preflight_normalizes_defaultable_values(tmp_path: Path) -> None:
     config = tmp_path / "intents.cfg"
     write_config(config, ["welcome", "GetIntent", "", "welcome", "", "", "maybe"])
 
-    rows, fatal_errors, warnings = validate.preflight_config(config, tmp_path, "DD")
+    rows, fatal_errors, warnings, _removals = validate.preflight_config(
+        config, tmp_path, "DD"
+    )
 
     assert fatal_errors == []
     assert rows == [["welcome", "GetIntent", "en", "welcome", "", "", "TRUE"]]
@@ -23,7 +25,9 @@ def test_preflight_rejects_malformed_rows_before_build(tmp_path: Path) -> None:
     config = tmp_path / "intents.cfg"
     write_config(config, ["welcome", "GetIntent", "en"])
 
-    rows, fatal_errors, warnings = validate.preflight_config(config, tmp_path, "DD")
+    rows, fatal_errors, warnings, _removals = validate.preflight_config(
+        config, tmp_path, "DD"
+    )
 
     assert rows == []
     assert warnings == []
@@ -36,7 +40,7 @@ def test_preflight_rejects_a_path_traversal_intent_name(tmp_path: Path) -> None:
     config = tmp_path / "intents.cfg"
     write_config(config, ["../../evil", "GetIntent", "en", "welcome", "", "", ""])
 
-    _, fatal_errors, _ = validate.preflight_config(config, tmp_path, "DD")
+    _, fatal_errors, _, _removals = validate.preflight_config(config, tmp_path, "DD")
 
     assert fatal_errors == [
         "Row 1: intent name '../../evil' cannot contain '/' or '\\'."
@@ -51,7 +55,9 @@ def test_machine_learning_column_is_optional(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    rows, fatal_errors, warnings = validate.preflight_config(config, tmp_path, "DD")
+    rows, fatal_errors, warnings, _removals = validate.preflight_config(
+        config, tmp_path, "DD"
+    )
 
     assert fatal_errors == []
     assert [row[6] for row in rows] == ["TRUE", "TRUE", "false"]
@@ -62,7 +68,7 @@ def test_preflight_requires_dtmf_value(tmp_path: Path) -> None:
     config = tmp_path / "intents.cfg"
     write_config(config, ["menu", "GetIntent", "dtmf", "menu", "", "", "TRUE"])
 
-    _, fatal_errors, _ = validate.preflight_config(config, tmp_path, "DD")
+    _, fatal_errors, _, _removals = validate.preflight_config(config, tmp_path, "DD")
 
     assert fatal_errors == ["Row 1: DTMF rows require a DTMF value."]
 
@@ -75,7 +81,7 @@ def test_preflight_finds_phrase_files_in_a_custom_layout(tmp_path: Path) -> None
     config = tmp_path / "intents.cfg"
     write_config(config, ["welcome", "GetIntent", "en", "welcome", "", "", "TRUE"])
 
-    _, fatal_errors, warnings = validate.preflight_config(
+    _, fatal_errors, warnings, _removals = validate.preflight_config(
         config, tmp_path, "DD", layout=layout
     )
 

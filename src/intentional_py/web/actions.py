@@ -21,13 +21,21 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from intentional_py import build_intents, design_doc, exceptions, result_views, utils
+from intentional_py import (
+    build_intents,
+    constants,
+    design_doc,
+    exceptions,
+    result_views,
+    utils,
+)
 from intentional_py import extract as extracting
 from intentional_py import validate as validating
 from intentional_py.models import NamingRules, NlDefaults, ProjectLayout
 from intentional_py.web.reporter import WebReporter
 
 _workspace: Path | None = None
+_last_package: tuple[bytes, str] | None = None
 
 
 def _require_workspace() -> Path:
@@ -36,6 +44,39 @@ def _require_workspace() -> Path:
             "Start or open a project before running a task."
         )
     return _workspace
+
+
+def _validate_style(style: str) -> str:
+    style = style.lower()
+    if style not in constants.VALID_PACKAGE_STYLES:
+        raise exceptions.ConfigurationError(
+            f"Invalid style: {style}. Valid styles: restore, import"
+        )
+    return style
+
+
+def _save_upload(data: bytes | None, filename: str) -> tuple[Path | None, Path | None]:
+    """Write optional uploaded bytes to a throwaway temp dir, returning (path, dir) -
+    both None when there's nothing uploaded. The caller removes `dir` when done."""
+    if not data:
+        return None, None
+    upload_dir = Path(tempfile.mkdtemp(prefix="intentional_web_upload_"))
+    path = upload_dir / f"export{Path(filename).suffix or '.zip'}"
+    path.write_bytes(data)
+    return path, upload_dir
+
+
+def _remember_package(result) -> None:
+    """Stash a build's merged export (if any) for download_package(), the same way
+    package_project() does - see intents()'s `export`/`package_style` parameters.
+    Cleared when this build didn't merge into one, so a stale zip from an earlier
+    run can't be downloaded once the button for it is gone."""
+    global _last_package
+    _last_package = (
+        (result.package.output.read_bytes(), result.package.output.name)
+        if result.package and result.package.output
+        else None
+    )
 
 
 def _zip_dir(directory: Path) -> bytes:
@@ -62,10 +103,11 @@ def _project_status() -> str:
 
 def new_project() -> str:
     """Start a fresh, empty project for this session; returns its (empty) file listing."""
-    global _workspace
+    global _workspace, _last_package
     if _workspace is not None:
         shutil.rmtree(_workspace, ignore_errors=True)
     _workspace = Path(tempfile.mkdtemp(prefix="intentional_web_"))
+    _last_package = None
     return _project_status()
 
 
@@ -116,22 +158,48 @@ def validate_project(config_name: str = "") -> str:
     return json.dumps(payload)
 
 
-def build_dd_project(config_name: str = "", clean: bool = False) -> str:
-    """Build DD intents into the current project."""
+def build_dd_project(
+    config_name: str = "",
+    clean: bool = False,
+    export_bytes: bytes | None = None,
+    export_filename: str = "",
+    style: str = "restore",
+) -> str:
+    """Build DD intents into the current project, optionally also merging the same
+    build into a copy of an uploaded agent export zip - see package_project()'s
+    docstring for the styles. Nothing zip-related happens without `export_bytes`."""
     workspace = _require_workspace()
     layout = ProjectLayout()
     reporter = WebReporter()
     config = Path(workspace, config_name or layout.dd_config)
-    result = build_intents.intents(
-        "DD", config, workspace, reporter, clean, NamingRules(), layout
-    )
-    return json.dumps(
-        {
-            "messages": reporter.messages,
-            "summary": result_views.summary_rows(result),
-            "issues": result_views.result_issues(result),
-        }
-    )
+    export, upload_dir = _save_upload(export_bytes, export_filename)
+    try:
+        if export is not None:
+            style = _validate_style(style)
+        result = build_intents.intents(
+            "DD",
+            config,
+            workspace,
+            reporter,
+            clean,
+            NamingRules(),
+            layout,
+            None,
+            export,
+            style,
+        )
+        _remember_package(result)
+        return json.dumps(
+            {
+                "messages": reporter.messages,
+                "summary": result_views.summary_rows(result),
+                "issues": result_views.result_issues(result),
+                "output_name": _last_package[1] if result.package else None,
+            }
+        )
+    finally:
+        if upload_dir is not None:
+            shutil.rmtree(upload_dir, ignore_errors=True)
 
 
 def build_nl_project(
@@ -141,35 +209,57 @@ def build_nl_project(
     lowercase: bool = False,
     reuse: bool = False,
     clean: bool = False,
+    export_bytes: bytes | None = None,
+    export_filename: str = "",
+    style: str = "restore",
 ) -> str:
-    """Build NL intents into the current project."""
+    """Build NL intents into the current project, optionally also merging the same
+    build into a copy of an uploaded agent export zip - see build_dd_project()."""
     workspace = _require_workspace()
     layout = ProjectLayout()
     reporter = WebReporter()
     config = Path(workspace, config_name or layout.nl_config)
-    if not reuse or not config.exists():
-        if not vertical.strip():
-            raise exceptions.ConfigurationError(
-                "Enter a vertical prefix to build the NL config."
+    export, upload_dir = _save_upload(export_bytes, export_filename)
+    try:
+        if export is not None:
+            style = _validate_style(style)
+        if not reuse or not config.exists():
+            if not vertical.strip():
+                raise exceptions.ConfigurationError(
+                    "Enter a vertical prefix to build the NL config."
+                )
+            build_intents.nl_config(
+                config,
+                vertical.strip(),
+                context.strip() or NlDefaults().context,
+                lowercase,
+                reporter,
+                layout,
             )
-        build_intents.nl_config(
+        result = build_intents.intents(
+            "NL",
             config,
-            vertical.strip(),
-            context.strip() or NlDefaults().context,
-            lowercase,
+            workspace,
             reporter,
+            clean,
+            NamingRules(),
             layout,
+            None,
+            export,
+            style,
         )
-    result = build_intents.intents(
-        "NL", config, workspace, reporter, clean, NamingRules(), layout
-    )
-    return json.dumps(
-        {
-            "messages": reporter.messages,
-            "summary": result_views.summary_rows(result),
-            "issues": result_views.result_issues(result),
-        }
-    )
+        _remember_package(result)
+        return json.dumps(
+            {
+                "messages": reporter.messages,
+                "summary": result_views.summary_rows(result),
+                "issues": result_views.result_issues(result),
+                "output_name": _last_package[1] if result.package else None,
+            }
+        )
+    finally:
+        if upload_dir is not None:
+            shutil.rmtree(upload_dir, ignore_errors=True)
 
 
 def extract_project(
@@ -257,3 +347,71 @@ def compare_project(
         return json.dumps(payload)
     finally:
         shutil.rmtree(upload_dir, ignore_errors=True)
+
+
+def package_project(
+    export_bytes: bytes,
+    export_filename: str,
+    mode: str = "DD",
+    config_name: str = "",
+    style: str = "restore",
+) -> str:
+    """Merge the current project's build into a copy of an uploaded agent export zip,
+    matching Dialogflow's own Import/Restore actions. The copy itself is held in
+    memory for download_package() instead of being written into the project
+    workspace, since it isn't part of the project.
+    """
+    global _last_package
+    workspace = _require_workspace()
+    layout = ProjectLayout()
+    style = style.lower()
+    if style not in constants.VALID_PACKAGE_STYLES:
+        raise exceptions.ConfigurationError(
+            f"Invalid style: {style}. Valid styles: restore, import"
+        )
+    upload_dir = Path(tempfile.mkdtemp(prefix="intentional_web_upload_"))
+    try:
+        default = layout.nl_config if mode == "NL" else layout.dd_config
+        config = Path(workspace, config_name or default)
+        export_path = upload_dir / f"export{Path(export_filename).suffix or '.zip'}"
+        export_path.write_bytes(export_bytes)
+        reporter = WebReporter()
+        result = build_intents.package_export(
+            mode,
+            config,
+            workspace,
+            export_path,
+            reporter,
+            NamingRules(),
+            layout,
+            None,
+            style,
+        )
+        _last_package = (
+            (result.output.read_bytes(), result.output.name) if result.output else None
+        )
+        payload = {
+            "messages": reporter.messages,
+            "source": str(result.source),
+            "style": result.style,
+            "added": result.added,
+            "changed": [
+                {"name": change.name, "details": change.details}
+                for change in result.changed
+            ],
+            "removed": result.removed,
+            "needs_manual_removal": result.needs_manual_removal,
+            "unmarked": result.unmarked,
+            "unchanged": result.unchanged,
+            "output_name": _last_package[1] if _last_package else None,
+        }
+        return json.dumps(payload)
+    finally:
+        shutil.rmtree(upload_dir, ignore_errors=True)
+
+
+def download_package() -> bytes:
+    """The zip written by the last package_project() call, for the browser to download."""
+    if _last_package is None:
+        raise exceptions.ConfigurationError("Run Package first.")
+    return _last_package[0]
