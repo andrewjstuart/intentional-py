@@ -54,7 +54,7 @@ Clear the intents folder first zips everything in the intents folder and removes
 
 Each build lists what changed since the previous build in the intents folder.
 
-Agent export (optional): also merges this same build into a copy of that export zip, in the same step - no separate Package run needed. Nothing zip-related happens without it. Choose a Package style first: restore (default) for a complete copy; import for a partial copy of just the new/changed intents. Either way the export itself is never modified; the copy is written next to it with the style and a timestamp added to its name. See the Compare help section for more on packaging on its own, without rebuilding.
+Agent export (optional): also merges this same build into a copy of that export zip, in the same step - no separate Merge/Package run needed. Nothing zip-related happens unless Package is set to Merge or Zip (None, the default, does nothing). Either way the export itself is never modified; the copy is written next to it with the style and a timestamp added to its name. See the Merge/Package help sections for merging/packaging on its own, without rebuilding.
 """,
     "Build NL": """\
 Builds natural language intents from the phrase files in Training Phrases\\<language>\\NL.
@@ -63,7 +63,7 @@ Builds natural language intents from the phrase files in Training Phrases\\<lang
 • Context: the context used by all NL intents; prefilled from the Settings tab's NL defaults (GetIntent unless changed).
 • Reuse existing config: build from the current NL config instead of recreating it from the phrase files.
 • Lowercase actions: also writes a lowercase action for clients whose NL actions are lowercase.
-• Agent export (optional) and Package style: the same as Build DD's - also merges this build into a copy of the export zip, in the same step.
+• Agent export (optional) and Package: the same as Build DD's - also merges this build into a copy of the export zip, in the same step.
 
 File names control the intents:
 • BILLING.txt becomes the intent RTL.Billing with the action BILLING.
@@ -72,16 +72,6 @@ File names control the intents:
 • Phrases can mark entities as <entity|text>, e.g. pay <sys.unit-currency|$20>.
 
 If the same phrase appears in more than one file, a scrollable dialog lists the duplicates so you can choose Continue or Stop.
-""",
-    "Extract": """\
-Saves the phrases from an Excel workbook (.xlsb, .xlsm or .xlsx) as text files.
-
-• Each sheet becomes one text file named after the sheet, with the phrases in the first column.
-• NL mode writes to Training Phrases\\<language>\\NL; DD mode writes to Training Phrases\\<language>.
-• The phrases being replaced are saved to a timestamped zip file first. DD mode keeps the NL folder.
-• The whole workbook is read before anything changes, so a file that cannot be read changes nothing.
-• A sheet with no phrases creates an empty file and a warning.
-• English is the default language, Spanish the next most common; more languages can be added on the Settings tab (see Dialogflow's language reference for every code it supports).
 """,
     "Validate": """\
 Checks a project before building, without creating any files.
@@ -97,6 +87,28 @@ The phrase files are checked too:
 • Empty phrase files are reported.
 • DD intents that share a phrase are reported only when they also share a language and a context, since the context decides which intent is active.
 """,
+    "Extract": """\
+Saves the phrases from an Excel workbook (.xlsb, .xlsm or .xlsx) as text files.
+
+• Each sheet becomes one text file named after the sheet, with the phrases in the first column.
+• NL mode writes to Training Phrases\\<language>\\NL; DD mode writes to Training Phrases\\<language>.
+• The phrases being replaced are saved to a timestamped zip file first. DD mode keeps the NL folder.
+• The whole workbook is read before anything changes, so a file that cannot be read changes nothing.
+• A sheet with no phrases creates an empty file and a warning.
+• English is the default language, Spanish the next most common; more languages can be added on the Settings tab (see Dialogflow's language reference for every code it supports).
+""",
+    "Create Config": """\
+Creates a config file from the Excel design document.
+
+The workbook needs one sheet with a header row and one intent per row below it. The header names are found automatically, anywhere in the first rows:
+   Intent, Context, Language, Action, Entities, DTMF, Machine Learning
+
+• Sheet: leave blank to use the first sheet with an Intent, Context, Language and Action header.
+• Machine Learning uses the same values as the config: TRUE or blank keeps it on; FALSE turns it off.
+• Blank rows are skipped.
+• An existing config file is copied to a timestamped backup before it is replaced.
+• The new rows are checked with the same rules as a build; press Edit config… to fix any problems.
+""",
     "Compare": """\
 Shows what a build would change in the Dialogflow agent, without writing any files.
 
@@ -110,24 +122,33 @@ Intents only in the export are not built by this config. They may belong to othe
 
 IDs and timestamps are ignored, since they change with every build and export.
 
-Package merges a build straight into a copy of the export zip, matching one of Dialogflow's own actions, so it can be used straight away instead of adding and removing intents by hand - choose a Package style first, then press Package instead of Compare. (The Build DD/Build NL tabs have their own Agent export/Package style fields too, for merging in the same step as the build itself, instead of a separate Package run afterward.)
-
-• restore (default): a complete copy, which replaces the whole agent. New/changed intents are added, and a '-'/'--' removal row also deletes its files from the copy.
-• import: a partial copy with just the new/changed intents, which only adds or overwrites and never deletes. A removal row has no effect here - those intents are listed to delete from the agent by hand instead.
-
-Either way, the export itself is never modified - the copy is written next to it with the style and a timestamp added to its name. Package needs the export zip itself, not a folder, unlike Compare.
+See the Merge and Package tabs to take the intents already built and merge them into a copy of this same export, instead of adding and removing intents by hand - without rebuilding, and without needing to pick a style here (the tab itself says which).
 """,
-    "Design doc": """\
-Creates a config file from the Excel design document.
+    "Merge": """\
+Takes the intents already built in the project's intents folder and produces a complete copy of an agent export zip, for Dialogflow's Restore action, which replaces the whole agent - anything missing is deleted.
 
-The workbook needs one sheet with a header row and one intent per row below it. The header names are found automatically, anywhere in the first rows:
-   Intent, Context, Language, Action, Entities, DTMF, Machine Learning
+1. Build DD/Build NL first if the intents folder needs updating - Merge doesn't build anything itself.
+2. Export the agent from the Dialogflow ES console (Settings > Export and Import > Export as ZIP).
+3. Choose the export zip and press Merge.
 
-• Sheet: leave blank to use the first sheet with an Intent, Context, Language and Action header.
-• Machine Learning uses the same values as the config: TRUE or blank keeps it on; FALSE turns it off.
-• Blank rows are skipped.
-• An existing config file is copied to a timestamped backup before it is replaced.
-• The new rows are checked with the same rules as a build; press Edit config… to fix any problems.
+New/changed intents are added, replacing any existing file with the same name; everything else (other intents, entities, agent.json, package.json) is carried over unchanged. An intent removed from the intents folder by a past build stays in the export - Merge has no config to read a removal row from, so it can't tell that apart from an intent that simply belongs to another module. It's listed as only in the export either way, to delete from the agent by hand if needed.
+
+The export itself is never modified; the copy is written next to it with a timestamp added to its name. Merge needs the export zip itself, not a folder, unlike Compare.
+
+See Package for a partial copy instead, for Dialogflow's Import action.
+""",
+    "Package": """\
+Takes the intents already built in the project's intents folder and produces a partial copy of an agent export zip with just the new/changed intents, for Dialogflow's Import action, which only adds or overwrites and never deletes.
+
+1. Build DD/Build NL first if the intents folder needs updating - Package doesn't build anything itself.
+2. Export the agent from the Dialogflow ES console (Settings > Export and Import > Export as ZIP).
+3. Choose the export zip and press Package.
+
+agent.json/package.json aren't included, since this tool never writes them. Intents only in the export are listed, same as Compare/Merge, in case any should be deleted from the agent by hand - Package can't delete anything either way.
+
+The export itself is never modified; the copy is written next to it with a timestamp added to its name. Package needs the export zip itself, not a folder, unlike Compare.
+
+See Merge for a complete copy instead, for Dialogflow's Restore action.
 """,
     "Settings": """\
 Project-wide settings, saved to your profile so they apply to every project, on the

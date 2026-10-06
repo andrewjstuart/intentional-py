@@ -627,31 +627,17 @@ def package(
         typer.Option(
             "--export",
             "-e",
-            help="Agent export zip to merge this config's build into. The export itself is never modified; a timestamped copy is written next to it.",
+            help="Agent export zip to package the already-built intents for. The export itself is never modified; a timestamped copy is written next to it.",
         ),
     ],
-    mode: Annotated[
-        str,
-        typer.Option(
-            "--mode",
-            "-m",
-            help="Mode of the config: [yellow]'DD'[/yellow] or [yellow]'NL'[/yellow]",
-        ),
-    ] = "DD",
-    config: Annotated[
+    project: Annotated[
         Path | None,
         typer.Option(
-            "--config",
-            help="Config file to build from. (default: intents.cfg, or intents_nl.cfg for NL)",
+            "--project",
+            "-p",
+            help="Project folder containing the intents folder to package. (default: the current folder)",
         ),
     ] = None,
-    style: Annotated[
-        str,
-        typer.Option(
-            "--style",
-            help="'restore': a complete zip, which replaces the whole agent. 'import': a partial zip of just the new/changed intents, which only adds or overwrites (a removal row can't be applied this way - it's listed to remove by hand instead).",
-        ),
-    ] = constants.DEFAULT_PACKAGE_STYLE,
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
@@ -666,36 +652,65 @@ def package(
     ] = None,
 ) -> None:
     """
-    Merge this config's build into a copy of an agent export zip, matching Dialogflow's own Import/Restore actions: new or changed intents are added either way, and a '-'/'--' removal row also deletes its files from a 'restore'-style copy (an 'import'-style copy lists them to remove by hand instead, since Import can't delete).
+    Package the intents already built in a project's intents folder into a zip of just the new/changed files, ready for Dialogflow's Import action (adds/overwrites, never deletes). Doesn't build anything - run a regular build first if the intents folder needs updating. See 'merge' for a complete zip, for Dialogflow's Restore action instead.
     """
     reporter = RichReporter(quiet=quiet)
     try:
-        mode = mode.upper()
-        if mode not in constants.VALID_MODES:
-            raise exceptions.ConfigurationError(
-                f"Invalid mode: {mode}. Valid modes: DD, NL"
-            )
-        style = style.lower()
-        if style not in constants.VALID_PACKAGE_STYLES:
-            raise exceptions.ConfigurationError(
-                f"Invalid style: {style}. Valid styles: restore, import"
-            )
         layout = user_settings.load_project_layout()
-        default = layout.nl_config if mode == "NL" else layout.dd_config
-        config = (config or Path(default)).resolve()
+        base_dir = (project or Path.cwd()).resolve()
         result = build.package_export(
-            mode,
-            config,
-            config.parent,
-            export.resolve(),
-            reporter,
-            user_settings.load_naming_rules(),
-            layout,
-            user_settings.load_language_settings(),
-            style,
+            base_dir, export.resolve(), reporter, layout, "import"
         )
         reporter.show_package(result)
         _save_report(report, "Package export", result, reporter)
+    except exceptions.IntentionalException as e:
+        console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
+        raise typer.Exit(code=1)
+
+
+@app.command("merge")
+def merge(
+    export: Annotated[
+        Path,
+        typer.Option(
+            "--export",
+            "-e",
+            help="Agent export zip to merge the already-built intents into. The export itself is never modified; a timestamped copy is written next to it.",
+        ),
+    ],
+    project: Annotated[
+        Path | None,
+        typer.Option(
+            "--project",
+            "-p",
+            help="Project folder containing the intents folder to merge. (default: the current folder)",
+        ),
+    ] = None,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
+    ] = False,
+    report: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            help="Save a Markdown (.md) or CSV (.csv) report of the completed job.",
+            callback=_report_callback,
+        ),
+    ] = None,
+) -> None:
+    """
+    Merge the intents already built in a project's intents folder into a complete copy of an agent export zip, ready for Dialogflow's Restore action (replaces the whole agent). Doesn't build anything - run a regular build first if the intents folder needs updating. See 'package' for a partial zip, for Dialogflow's Import action instead.
+    """
+    reporter = RichReporter(quiet=quiet)
+    try:
+        layout = user_settings.load_project_layout()
+        base_dir = (project or Path.cwd()).resolve()
+        result = build.package_export(
+            base_dir, export.resolve(), reporter, layout, "restore"
+        )
+        reporter.show_package(result)
+        _save_report(report, "Merge export", result, reporter)
     except exceptions.IntentionalException as e:
         console.print(f"\n[bold][red]✗ Error:[/red][/bold] {e}\n")
         raise typer.Exit(code=1)

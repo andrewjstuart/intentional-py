@@ -206,29 +206,20 @@ def compare(
 
 def package(
     project_text: str,
-    mode: str,
-    config_text: str,
     export_text: str,
     style: str,
     reporter: Reporter,
-    rules: NamingRules | None = None,
     layout: ProjectLayout | None = None,
-    languages: LanguageSettings | None = None,
 ) -> PackageResult:
     layout = layout or ProjectLayout()
     project = project_dir(project_text)
-    mode = mode.upper()
-    default = layout.nl_config if mode == "NL" else layout.dd_config
-    config = resolve_config(project, config_text, default)
     export = _resolve_optional_export(project, export_text)
     if export is None:
         raise exceptions.ConfigurationError(
-            "Choose an agent export (zip) to merge this build into."
+            "Choose an agent export (zip) to merge the built intents into."
         )
     style = _validate_style(style)
-    return build_intents.package_export(
-        mode, config, config.parent, export, reporter, rules, layout, languages, style
-    )
+    return build_intents.package_export(project, export, reporter, layout, style)
 
 
 def design(

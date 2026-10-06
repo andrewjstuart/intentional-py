@@ -41,10 +41,9 @@ def test_package_export_adds_a_new_intent_and_leaves_others_alone(
     config = dd_project(
         tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
     )
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
 
-    result = build_intents.package_export(
-        "DD", config, tmp_path, export, FakeReporter()
-    )
+    result = build_intents.package_export(tmp_path, export, FakeReporter())
 
     assert result.added == ["A.Pay"]
     assert result.removed == []
@@ -69,7 +68,16 @@ def test_package_export_adds_a_new_intent_and_leaves_others_alone(
     }
 
 
-def test_package_export_force_removes_a_marked_intent(tmp_path: Path) -> None:
+def test_package_export_never_deletes_an_intent_only_the_config_removed(
+    tmp_path: Path,
+) -> None:
+    # packaging doesn't rebuild or know about '-'/'--' rows, or any config at all -
+    # an intent removed from the intents folder by a past build still stays in the
+    # export when packaging on its own, surfaced as "unmarked" rather than deleted,
+    # the same as any other intent only in the export (e.g. another module's).
+    # Deleting it from the export too needs either the combined build-and-merge
+    # flow (intents()'s own `export` parameter, with the removal row still present)
+    # or removing it from the export by hand.
     export = tmp_path / "agent.zip"
     _make_export(
         export,
@@ -79,50 +87,35 @@ def test_package_export_force_removes_a_marked_intent(tmp_path: Path) -> None:
             "intents/A.Pay_usersays_en.json": "[]",
         },
     )
-    config = dd_project(tmp_path, ["--A.Pay,Ctx,en,pay,,1,FALSE"], {})
-    reporter = FakeReporter()
+    config = dd_project(
+        tmp_path,
+        ["A.Pay,Ctx,en,pay,,1,FALSE", "A.Help,Ctx,en,help,,1,FALSE"],
+        {"pay": "pay my bill\n", "help": "help me\n"},
+    )
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
+    assert (tmp_path / "intents" / "A.Pay.json").exists()
 
-    result = build_intents.package_export("DD", config, tmp_path, export, reporter)
+    config.write_text(
+        "--A.Pay,Ctx,en,pay,,1,FALSE\nA.Help,Ctx,en,help,,1,FALSE\n", encoding="utf-8"
+    )
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
+    assert not (tmp_path / "intents" / "A.Pay.json").exists()
 
-    assert reporter.questions == []
-    assert sorted(result.removed) == ["A.Pay.json", "A.Pay_usersays_en.json"]
+    result = build_intents.package_export(tmp_path, export, FakeReporter())
+
+    assert result.unmarked == ["A.Pay"]
     contents = _read_zip(result.output)
-    assert "intents/A.Pay.json" not in contents
-    assert "intents/A.Pay_usersays_en.json" not in contents
+    assert "intents/A.Pay.json" in contents
+    assert "intents/A.Help.json" in contents
     assert contents["agent.json"] == "{}"
 
 
-def test_package_export_asks_before_removing_with_a_single_dash(tmp_path: Path) -> None:
+def test_package_export_requires_an_existing_intents_folder(tmp_path: Path) -> None:
     export = tmp_path / "agent.zip"
-    _make_export(
-        export,
-        {
-            "intents/A.Pay.json": json.dumps({"name": "A.Pay"}),
-            "intents/A.Pay_usersays_en.json": "[]",
-        },
-    )
-    config = dd_project(tmp_path, ["-A.Pay,Ctx,en,pay,,1,FALSE"], {})
-    reporter = FakeReporter(answer=True)
-
-    result = build_intents.package_export("DD", config, tmp_path, export, reporter)
-
-    assert reporter.questions == ["Remove the intents marked for removal"]
-    assert sorted(result.removed) == ["A.Pay.json", "A.Pay_usersays_en.json"]
-
-
-def test_package_export_aborts_when_removal_is_declined(tmp_path: Path) -> None:
-    export = tmp_path / "agent.zip"
-    _make_export(export, {"intents/A.Pay.json": json.dumps({"name": "A.Pay"})})
-    original = export.read_bytes()
-    config = dd_project(tmp_path, ["-A.Pay,Ctx,en,pay,,1,FALSE"], {})
-    reporter = FakeReporter(answer=False)
+    _make_export(export, {"agent.json": "{}"})
 
     with pytest.raises(exceptions.IntentionalException):
-        build_intents.package_export("DD", config, tmp_path, export, reporter)
-
-    # nothing was written: neither the export nor any new copy next to it
-    assert export.read_bytes() == original
-    assert list(tmp_path.glob("agent_*.zip")) == []
+        build_intents.package_export(tmp_path, export, FakeReporter())
 
 
 def test_package_export_detects_a_nested_intents_folder(tmp_path: Path) -> None:
@@ -137,10 +130,9 @@ def test_package_export_detects_a_nested_intents_folder(tmp_path: Path) -> None:
     config = dd_project(
         tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
     )
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
 
-    result = build_intents.package_export(
-        "DD", config, tmp_path, export, FakeReporter()
-    )
+    result = build_intents.package_export(tmp_path, export, FakeReporter())
 
     contents = _read_zip(result.output)
     assert "MyAgent/intents/A.Pay.json" in contents
@@ -165,9 +157,10 @@ def test_package_export_import_style_is_partial_and_never_deletes(
     config = dd_project(
         tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
     )
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     result = build_intents.package_export(
-        "DD", config, tmp_path, export, FakeReporter(), style="import"
+        tmp_path, export, FakeReporter(), style="import"
     )
 
     assert result.style == "import"
@@ -187,49 +180,20 @@ def test_package_export_import_style_is_partial_and_never_deletes(
     assert "entities/Color.json" not in contents
 
 
-def test_package_export_import_style_lists_removals_for_manual_deletion(
-    tmp_path: Path,
-) -> None:
-    export = tmp_path / "agent.zip"
-    _make_export(
-        export,
-        {
-            "agent.json": "{}",
-            "intents/A.Pay.json": json.dumps({"name": "A.Pay"}),
-            "intents/A.Pay_usersays_en.json": "[]",
-        },
-    )
-    config = dd_project(tmp_path, ["--A.Pay,Ctx,en,pay,,1,FALSE"], {})
-    reporter = FakeReporter()
-
-    result = build_intents.package_export(
-        "DD", config, tmp_path, export, reporter, style="import"
-    )
-
-    # 'import' can't delete, so nothing is asked and nothing is removed from the zip -
-    # the intent is only listed, to delete from the agent by hand
-    assert reporter.questions == []
-    assert result.removed == []
-    assert result.needs_manual_removal == ["A.Pay"]
-    # a removal row builds nothing, so there's nothing of A.Pay's to add either -
-    # the agent's own copy, left untouched, is what gets deleted by hand instead
-    contents = _read_zip(result.output)
-    assert "intents/A.Pay.json" not in contents
-    assert contents == {}
-
-
-def test_package_cli_runs_with_the_default_style(tmp_path: Path) -> None:
+def test_merge_cli_runs_a_complete_zip(tmp_path: Path) -> None:
     from typer.testing import CliRunner
 
     from intentional_py.intentional import app
 
     export = tmp_path / "agent.zip"
     _make_export(export, {"agent.json": "{}", "intents/Old.json": "{}"})
-    dd_project(tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"})
+    config = dd_project(
+        tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
+    )
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
 
     result = CliRunner().invoke(
-        app,
-        ["package", "--export", str(export), "--config", str(tmp_path / "intents.cfg")],
+        app, ["merge", "--export", str(export), "--project", str(tmp_path)]
     )
 
     assert result.exit_code == 0, result.stdout
@@ -237,30 +201,40 @@ def test_package_cli_runs_with_the_default_style(tmp_path: Path) -> None:
     assert list(tmp_path.glob("agent_restore_*.zip"))
 
 
-def test_package_cli_rejects_an_invalid_style(tmp_path: Path) -> None:
+def test_package_cli_runs_a_partial_zip(tmp_path: Path) -> None:
+    from typer.testing import CliRunner
+
+    from intentional_py.intentional import app
+
+    export = tmp_path / "agent.zip"
+    _make_export(export, {"agent.json": "{}", "intents/Old.json": "{}"})
+    config = dd_project(
+        tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
+    )
+    build_intents.intents("DD", config, tmp_path, FakeReporter())
+
+    result = CliRunner().invoke(
+        app, ["package", "--export", str(export), "--project", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "import" in result.stdout.lower()
+    assert list(tmp_path.glob("agent_import_*.zip"))
+
+
+def test_package_cli_requires_an_existing_intents_folder(tmp_path: Path) -> None:
     from typer.testing import CliRunner
 
     from intentional_py.intentional import app
 
     export = tmp_path / "agent.zip"
     _make_export(export, {"agent.json": "{}"})
-    dd_project(tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"})
 
     result = CliRunner().invoke(
-        app,
-        [
-            "package",
-            "--export",
-            str(export),
-            "--config",
-            str(tmp_path / "intents.cfg"),
-            "--style",
-            "bogus",
-        ],
+        app, ["package", "--export", str(export), "--project", str(tmp_path)]
     )
 
     assert result.exit_code != 0
-    assert "Invalid style" in result.stdout
 
 
 def test_build_with_export_writes_both_the_intents_folder_and_a_package(

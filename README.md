@@ -26,10 +26,12 @@ The GUI also has built-in help: select **?** > **Help**, or press **F1**.
 |-|-|
 | [Build DD intents](docs/user-guide.md#build-directed-dialog-dd-intents) | Creates directed dialog intents from `intents.cfg` and the phrase files. |
 | [Build NL intents](docs/user-guide.md#build-natural-language-nl-intents) | Creates the NL config from the NL phrase files, then the intents. |
-| [Extract](docs/user-guide.md#extract-phrases-from-excel) | Saves the phrases from an Excel workbook as phrase files. |
 | [Validate](docs/user-guide.md#validate-a-project) | Checks the config and phrase files without building anything. |
+| [Extract](docs/user-guide.md#extract-phrases-from-excel) | Saves the phrases from an Excel workbook as phrase files. |
+| [Create Config](docs/user-guide.md#create-the-config-from-the-design-document) | Creates `intents.cfg` from the Excel design document. |
 | [Compare](docs/user-guide.md#compare-with-an-agent-export) | Shows what a build would change compared with an agent export. |
-| [Design doc](docs/user-guide.md#create-the-config-from-the-design-document) | Creates `intents.cfg` from the Excel design document. |
+| [Merge](docs/user-guide.md#merge-or-package-into-an-agent-export) | Merges the intents already built into a complete copy of an agent export. |
+| [Package](docs/user-guide.md#merge-or-package-into-an-agent-export) | Packages the intents already built into a partial copy of an agent export. |
 
 Every completed job can optionally be saved as a [Markdown or CSV report](docs/user-guide.md#save-a-job-report).
 
@@ -61,7 +63,7 @@ Intent Creation/
 
 These names are Intentional's own convention, not a Dialogflow requirement, and can be changed (see [Project folder](docs/user-guide.md#project-folder)).
 
-**GUI**: start `intentional.exe`, choose the **Project folder**, and on the **Build DD** tab select **Build DD intents**. The results show below the tabs, and **Open folder** opens the `intents` folder.
+**GUI**: start `intentional.exe`, choose the **Project folder**, and on the **Build DD** tab select **Build Intents**. The results show below the tabs, and **Open folder** opens the `intents` folder.
 
 **CLI**: from the project folder, run:
 
@@ -78,7 +80,7 @@ From source, use `uv run intentional` for the GUI and `uv run intentional-cli` f
 
 A third front end, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — no install, nothing uploaded anywhere; it all runs in the tab. It reuses the same core as the CLI and GUI, so a project's config and phrase files validate identically everywhere.
 
-Open a project (a zip, or start empty) and run as many tasks against it as you like — Validate, Build DD/NL, Extract, Compare, and Design doc, the same as the CLI/GUI — with each task's output immediately available to the next, and a **Download project** button whenever you want the result.
+Open a project (a zip or a folder, or start empty) and run as many tasks against it as you like — Build DD/NL, Validate, Extract, Create Config, Compare, Merge, and Package, the same as the CLI/GUI — with each task's output immediately available to the next, and a **Download project** button whenever you want the result.
 
 Try it hosted, with nothing to install or run: **[andrewjstuart.github.io/intentional-py](https://andrewjstuart.github.io/intentional-py/)**. Or run it from source — double-click `web/run.bat` (Windows) or `web/run.sh` (Linux/macOS), or from a terminal:
 
