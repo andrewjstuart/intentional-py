@@ -86,6 +86,38 @@ def test_check_rows_warns_when_default_language_removal_leaves_other_languages(
     )
 
 
+def test_check_rows_does_not_warn_about_its_own_default_language(
+    tmp_path: Path,
+) -> None:
+    # a duplicate default-language row (the phrase-swap feature) alongside the removal
+    # row for the same intent/language shouldn't produce a nonsensical "removing 'en'
+    # also removes its en files" warning - only an *other* language should trigger it
+    config = tmp_path / "intents.cfg"
+    config.write_text("A.Old,Ctx,en,old,,,\n--A.Old,Ctx,en,old2,,,\n", encoding="utf-8")
+
+    _rows, _errors, warnings, _removals = validate.preflight_config(
+        config, tmp_path, "DD"
+    )
+
+    assert not any("also removes its" in warning for warning in warnings)
+
+
+def test_check_rows_deduplicates_conflicting_dash_and_double_dash_rows(
+    tmp_path: Path,
+) -> None:
+    # the same intent+language marked for removal twice, once with '-' and once with
+    # '--': should collapse to a single RemovalRow, confirmed (since '--' is there)
+    config = tmp_path / "intents.cfg"
+    config.write_text("-A.Old,Ctx,en,old,,,\n--A.Old,Ctx,en,old,,,\n", encoding="utf-8")
+
+    _rows, _errors, _warnings, removals = validate.preflight_config(
+        config, tmp_path, "DD"
+    )
+
+    assert len(removals) == 1
+    assert removals[0].confirmed is True
+
+
 def test_check_rows_removal_alone_does_not_synthesize_a_build_row(
     tmp_path: Path,
 ) -> None:
@@ -180,6 +212,9 @@ def test_validate_reports_a_pending_removal(tmp_path: Path) -> None:
 
     result = validate.validate(config, tmp_path, NullReporter())
 
-    details = result.configs[0].details
-    assert any("marked for removal" in detail for detail in details)
-    assert any("will ask for confirmation first" in detail for detail in details)
+    check = result.configs[0]
+    # a removal-only config isn't "empty" - nothing says the config has no data
+    assert check.ok
+    assert not any("does not contain data" in detail for detail in check.details)
+    assert any("marked for removal" in detail for detail in check.details)
+    assert any("will ask for confirmation first" in detail for detail in check.details)

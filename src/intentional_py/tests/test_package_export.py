@@ -216,3 +216,48 @@ def test_package_export_import_style_lists_removals_for_manual_deletion(
     contents = _read_zip(result.output)
     assert "intents/A.Pay.json" not in contents
     assert contents == {}
+
+
+def test_package_cli_runs_with_the_default_style(tmp_path: Path) -> None:
+    from typer.testing import CliRunner
+
+    from intentional_py.intentional import app
+
+    export = tmp_path / "agent.zip"
+    _make_export(export, {"agent.json": "{}", "intents/Old.json": "{}"})
+    dd_project(tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"})
+
+    result = CliRunner().invoke(
+        app,
+        ["package", "--export", str(export), "--config", str(tmp_path / "intents.cfg")],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    assert "restore" in result.stdout.lower()
+    assert list(tmp_path.glob("agent_restore_*.zip"))
+
+
+def test_package_cli_rejects_an_invalid_style(tmp_path: Path) -> None:
+    from typer.testing import CliRunner
+
+    from intentional_py.intentional import app
+
+    export = tmp_path / "agent.zip"
+    _make_export(export, {"agent.json": "{}"})
+    dd_project(tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"})
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "package",
+            "--export",
+            str(export),
+            "--config",
+            str(tmp_path / "intents.cfg"),
+            "--style",
+            "bogus",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid style" in result.stdout

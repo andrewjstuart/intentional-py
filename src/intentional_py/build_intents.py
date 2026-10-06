@@ -129,10 +129,11 @@ def package_export(
       '-'/'--' removal row also deletes its files from the copy (same
       confirm-first-for-a-single-'-' rule as a regular build); everything else carries
       over unchanged.
-    - "import": a partial zip of just the new/changed intents (plus agent.json/
-      package.json), since Import only adds or overwrites and never deletes. A
-      removal row has no effect on the zip here - those intents are listed in the
-      result's `needs_manual_removal` instead, to delete from the agent by hand.
+    - "import": a partial zip of just the new/changed intents, since Import only adds
+      or overwrites and never deletes; agent.json/package.json aren't included, since
+      this tool never writes them. A removal row has no effect on the zip here - those
+      intents are listed in the result's `needs_manual_removal` instead, to delete
+      from the agent by hand.
 
     The export itself is never modified; the copy is written next to it with the style
     and a timestamp appended to its name.

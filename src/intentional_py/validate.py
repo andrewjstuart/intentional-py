@@ -69,7 +69,9 @@ def check_rows(
     fatal_errors: list[str] = []
     warnings: list[str] = []
     normalized_rows: list[list[str]] = []
-    removals: list[models.RemovalRow] = []
+    # (intent, language) -> RemovalRow, deduplicating the same intent+language marked
+    # for removal by more than one row (e.g. both '-' and '--')
+    removal_rows: dict[tuple[str, str], models.RemovalRow] = {}
     # (language, context, phrase) -> {intent: row number}, for the same-context duplicate check
     phrase_owners: dict[tuple[str, str, str], dict[str, int]] = {}
     intent_languages: dict[str, list[tuple[int, str]]] = {}
@@ -111,14 +113,20 @@ def check_rows(
         if parsed.removal:
             # never built, and excluded from the default-language-row synthesis below -
             # a lone removal row shouldn't cause a brand new build row to be invented
-            removals.append(
-                models.RemovalRow(
+            key = (parsed.intent, language)
+            existing = removal_rows.get(key)
+            if existing is not None:
+                # the same intent+language marked for removal more than once (e.g. both
+                # '-' and '--'): keep the first row's number, but a '--' anywhere means
+                # no confirmation is needed, even if another row for it was just '-'
+                existing.confirmed = existing.confirmed or parsed.remove_confirmed
+            else:
+                removal_rows[key] = models.RemovalRow(
                     row_number=row_number,
                     intent=parsed.intent,
                     language=language,
                     confirmed=parsed.remove_confirmed,
                 )
-            )
             continue
 
         if intent:
@@ -228,6 +236,7 @@ def check_rows(
                     )
     warnings.extend(_duplicate_phrase_warnings(phrase_owners))
 
+    removals = sorted(removal_rows.values(), key=lambda removal: removal.row_number)
     removals_by_intent: dict[str, list[models.RemovalRow]] = {}
     for removal in removals:
         removals_by_intent.setdefault(removal.intent, []).append(removal)
@@ -240,7 +249,11 @@ def check_rows(
         # removing the default-language row removes the whole intent; warn if another
         # language is still being built for it and wasn't itself marked for removal
         still_built = sorted(
-            {language for _row_number, language in intent_languages.get(intent, [])}
+            {
+                language
+                for _row_number, language in intent_languages.get(intent, [])
+                if language != languages.default_language
+            }
         )
         if still_built:
             warnings.append(
@@ -390,7 +403,7 @@ def validate(
             file, base_dir, None, rules, layout, languages
         )
         used_languages.update(row[2] for row in rows if row[2] != "dtmf")
-        if not rows and not errors:
+        if not rows and not errors and not removals:
             errors = ["The config file does not contain data."]
         details = [f"Error: {error}" for error in errors]
         details += [f"Warning: {warning}" for warning in warnings]
