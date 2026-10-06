@@ -48,6 +48,8 @@ def summary_rows(result: Result) -> list[tuple[str, str]]:
             rows.append(("NoMatch", str(result.nomatch)))
         if result.removed:
             rows.append(("Removed", str(len(result.removed))))
+        if result.package:
+            rows.append(("Package style", result.package.style))
         return rows
     if isinstance(result, ExtractResult):
         return [
@@ -104,6 +106,7 @@ def summary_tiles(result: Result) -> list[tuple[str, str]]:
             "Languages",
             "NoMatch",
             "Removed",
+            "Package style",
         ]
         return [(name, by_name[name]) for name in ordered if name in by_name]
     return rows
@@ -115,6 +118,40 @@ def change_rows(result: CompareResult | PackageResult) -> list[list[str]]:
         ["Changed", change.name, "; ".join(change.details)] for change in result.changed
     )
     return rows
+
+
+def _package_issues(package: PackageResult) -> list[Issue]:
+    """Shared by BuildResult (when it has a `package`, from `intents(export=...)`) and
+    a standalone PackageResult, so the wording can't drift between the two."""
+    issues: list[Issue] = []
+    if package.removed:
+        issues.append(
+            (
+                "warning",
+                "",
+                f"Removed from the package zip (marked with '-'/'--'): {', '.join(package.removed)}.",
+            )
+        )
+    if package.needs_manual_removal:
+        issues.append(
+            (
+                "warning",
+                "",
+                "Marked for removal, but 'import' can't delete from the agent - "
+                "remove by hand: " + ", ".join(package.needs_manual_removal) + ".",
+            )
+        )
+    if package.unmarked:
+        issues.append(
+            (
+                "warning",
+                "",
+                f"Only in {package.source} (not built by this config, left as-is): "
+                + ", ".join(package.unmarked)
+                + ".",
+            )
+        )
+    return issues
 
 
 def result_issues(
@@ -162,37 +199,11 @@ def result_issues(
                     ),
                 )
             )
+        if result.package:
+            issues.extend(_package_issues(result.package))
         return issues
     if isinstance(result, PackageResult):
-        issues = []
-        if result.removed:
-            issues.append(
-                (
-                    "warning",
-                    "",
-                    f"Removed (marked with '-'/'--'): {', '.join(result.removed)}.",
-                )
-            )
-        if result.needs_manual_removal:
-            issues.append(
-                (
-                    "warning",
-                    "",
-                    "Marked for removal, but 'import' can't delete from the agent - "
-                    "remove by hand: " + ", ".join(result.needs_manual_removal) + ".",
-                )
-            )
-        if result.unmarked:
-            issues.append(
-                (
-                    "warning",
-                    "",
-                    f"Only in {result.source} (not built by this config, left as-is): "
-                    + ", ".join(result.unmarked)
-                    + ".",
-                )
-            )
-        return issues
+        return _package_issues(result)
     return []
 
 

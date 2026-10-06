@@ -141,6 +141,30 @@ class RichReporter:
                     "their files are still in the intents folder: "
                     f"{', '.join(changes.removed)}. Use --clean to remove them."
                 )
+        if result.package:
+            package = result.package
+            self.message(
+                "info",
+                f"Also merged into a '{package.style}' copy of {package.source}: "
+                f"{len(package.added)} added, {len(package.changed)} changed, "
+                f"{package.unchanged} unchanged.",
+            )
+            if package.removed:
+                self.message(
+                    "info",
+                    f"[yellow]Removed from the copy[/yellow]: {', '.join(package.removed)}.",
+                )
+            if package.needs_manual_removal and not self._hidden("warning"):
+                self.console.print(
+                    "[yellow]Warning:[/yellow] Dialogflow's Import can't delete intents; remove "
+                    f"{', '.join(package.needs_manual_removal)} from the agent by hand, or use "
+                    "--style restore instead."
+                )
+            if package.output:
+                self.message(
+                    "info",
+                    f"[green]Updated export written to[/green] [blue]{package.output}[/blue]",
+                )
 
     def show_compare(self, result: CompareResult) -> None:
         self.table(
@@ -192,7 +216,8 @@ class RichReporter:
             )
         if result.removed:
             self.table(
-                ["Removed (marked with '-'/'--')"], [[name] for name in result.removed]
+                ["Removed from the package zip (marked with '-'/'--')"],
+                [[name] for name in result.removed],
             )
         if result.needs_manual_removal:
             self.table(

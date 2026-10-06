@@ -83,6 +83,9 @@ class BuildResult:
     removed: list[str] = field(
         default_factory=list
     )  # file names deleted by a '-'/'--' removal row
+    package: PackageResult | None = (
+        None  # this build merged into an export zip too, when `export` was given
+    )
 
 
 @dataclass

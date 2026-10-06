@@ -30,6 +30,33 @@ def _removed_table(names: list[str], title: str) -> Table | None:
     return (title, ["Intent"], [[name] for name in names]) if names else None
 
 
+def _package_tables(package: PackageResult) -> list[Table]:
+    """Shared by BuildResult (when it has a `package`, from `intents(export=...)`) and
+    a standalone PackageResult - everything except the Output table, since that's
+    folded into the build's own Output table in the BuildResult case."""
+    tables: list[Table] = []
+    changes = _changes(package, f"Differences from {package.source}")
+    if changes:
+        tables.append(changes)
+    removed = _removed_table(
+        package.removed, "Removed from the package zip (marked with '-'/'--')"
+    )
+    if removed:
+        tables.append(removed)
+    manual = _removed_table(
+        package.needs_manual_removal,
+        "Marked for removal, but 'import' can't delete - remove by hand",
+    )
+    if manual:
+        tables.append(manual)
+    unmarked = _removed_table(
+        package.unmarked, f"Only in {package.source} (not built by this config)"
+    )
+    if unmarked:
+        tables.append(unmarked)
+    return tables
+
+
 def _tables(result: Result) -> list[Table]:
     if isinstance(result, BuildResult):
         tables: list[Table] = []
@@ -60,6 +87,11 @@ def _tables(result: Result) -> list[Table]:
             output.append(["Intents written to", str(result.output_dir)])
         if result.backup:
             output.append(["Previous intents saved to", str(result.backup)])
+        if result.package:
+            tables.extend(_package_tables(result.package))
+            output.append(["Package style", result.package.style])
+            if result.package.output:
+                output.append(["Updated export written to", str(result.package.output)])
         if output:
             tables.append(("Output", ["Item", "Location"], output))
         return tables
@@ -75,24 +107,7 @@ def _tables(result: Result) -> list[Table]:
             tables.append(removed)
         return tables
     if isinstance(result, PackageResult):
-        tables = []
-        changes = _changes(result, f"Differences from {result.source}")
-        if changes:
-            tables.append(changes)
-        removed = _removed_table(result.removed, "Removed (marked with '-'/'--')")
-        if removed:
-            tables.append(removed)
-        manual = _removed_table(
-            result.needs_manual_removal,
-            "Marked for removal, but 'import' can't delete - remove by hand",
-        )
-        if manual:
-            tables.append(manual)
-        unmarked = _removed_table(
-            result.unmarked, f"Only in {result.source} (not built by this config)"
-        )
-        if unmarked:
-            tables.append(unmarked)
+        tables = _package_tables(result)
         output = [["Package style", result.style]]
         if result.output:
             output.append(["Updated export written to", str(result.output)])

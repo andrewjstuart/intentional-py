@@ -261,3 +261,59 @@ def test_package_cli_rejects_an_invalid_style(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "Invalid style" in result.stdout
+
+
+def test_build_with_export_writes_both_the_intents_folder_and_a_package(
+    tmp_path: Path,
+) -> None:
+    export = tmp_path / "agent.zip"
+    _make_export(
+        export, {"agent.json": "{}", "intents/Old.json": json.dumps({"name": "Old"})}
+    )
+    config = dd_project(
+        tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
+    )
+
+    result = build_intents.intents(
+        "DD", config, tmp_path, FakeReporter(), export=export
+    )
+
+    # the intents folder is still written the same way as without `export`
+    assert (tmp_path / "intents" / "A.Pay.json").exists()
+    assert (tmp_path / "intents" / "A.Pay_usersays_en.json").exists()
+    # ...and a package was merged in the same call, with no separate step
+    assert result.package is not None
+    assert result.package.style == "restore"
+    assert result.package.added == ["A.Pay"]
+    assert result.package.output is not None
+    contents = _read_zip(result.package.output)
+    assert "intents/A.Pay.json" in contents
+    assert "intents/Old.json" in contents
+
+
+def test_build_without_export_does_not_touch_any_zip(tmp_path: Path) -> None:
+    config = dd_project(
+        tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
+    )
+
+    result = build_intents.intents("DD", config, tmp_path, FakeReporter())
+
+    assert result.package is None
+    assert list(tmp_path.glob("*.zip")) == []
+
+
+def test_build_with_export_supports_the_import_style(tmp_path: Path) -> None:
+    export = tmp_path / "agent.zip"
+    _make_export(export, {"intents/Old.json": json.dumps({"name": "Old"})})
+    config = dd_project(
+        tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
+    )
+
+    result = build_intents.intents(
+        "DD", config, tmp_path, FakeReporter(), export=export, package_style="import"
+    )
+
+    assert result.package.style == "import"
+    contents = _read_zip(result.package.output)
+    assert set(contents) == {"intents/A.Pay.json", "intents/A.Pay_usersays_en.json"}
+    assert "intents/Old.json" not in contents

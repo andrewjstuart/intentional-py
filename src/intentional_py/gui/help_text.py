@@ -53,6 +53,8 @@ Edit config… opens the config file as a table: add, edit, reorder or delete ro
 Clear the intents folder first zips everything in the intents folder and removes it before building, so intents that are no longer in the config are not left behind to be imported. Without it, the results list any intents that are no longer built but are still in the folder.
 
 Each build lists what changed since the previous build in the intents folder.
+
+Agent export (optional): also merges this same build into a copy of that export zip, in the same step - no separate Package run needed. Nothing zip-related happens without it. Choose a Package style first: restore (default) for a complete copy; import for a partial copy of just the new/changed intents. Either way the export itself is never modified; the copy is written next to it with the style and a timestamp added to its name. See the Compare help section for more on packaging on its own, without rebuilding.
 """,
     "Build NL": """\
 Builds natural language intents from the phrase files in Training Phrases\\<language>\\NL.
@@ -61,6 +63,7 @@ Builds natural language intents from the phrase files in Training Phrases\\<lang
 • Context: the context used by all NL intents; prefilled from the Settings tab's NL defaults (GetIntent unless changed).
 • Reuse existing config: build from the current NL config instead of recreating it from the phrase files.
 • Lowercase actions: also writes a lowercase action for clients whose NL actions are lowercase.
+• Agent export (optional) and Package style: the same as Build DD's - also merges this build into a copy of the export zip, in the same step.
 
 File names control the intents:
 • BILLING.txt becomes the intent RTL.Billing with the action BILLING.
@@ -106,6 +109,13 @@ The results list the intents a build would add, the intents that would change (c
 Intents only in the export are not built by this config. They may belong to other modules, or be intents that should now be deleted from the agent by hand.
 
 IDs and timestamps are ignored, since they change with every build and export.
+
+Package merges a build straight into a copy of the export zip, matching one of Dialogflow's own actions, so it can be used straight away instead of adding and removing intents by hand - choose a Package style first, then press Package instead of Compare. (The Build DD/Build NL tabs have their own Agent export/Package style fields too, for merging in the same step as the build itself, instead of a separate Package run afterward.)
+
+• restore (default): a complete copy, which replaces the whole agent. New/changed intents are added, and a '-'/'--' removal row also deletes its files from the copy.
+• import: a partial copy with just the new/changed intents, which only adds or overwrites and never deletes. A removal row has no effect here - those intents are listed to delete from the agent by hand instead.
+
+Either way, the export itself is never modified - the copy is written next to it with the style and a timestamp added to its name. Package needs the export zip itself, not a folder, unlike Compare.
 """,
     "Design doc": """\
 Creates a config file from the Excel design document.

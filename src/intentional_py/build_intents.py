@@ -26,6 +26,8 @@ def intents(
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
     languages: models.LanguageSettings | None = None,
+    export: Path | None = None,
+    package_style: str = "restore",
 ) -> BuildResult:
     """Build the intents described in the config file, after the preflight checks in validate.py.
 
@@ -41,11 +43,19 @@ def intents(
             original hardcoded layout when not given.
         languages (LanguageSettings | None): supported language codes/names; defaults to
             the original hardcoded set (en/es/fr) when not given.
+        export (Path | None): an agent export zip to also merge this same build into,
+            in one step instead of a separate Package run; the intents folder is
+            always written the same way either way. Nothing zip-related happens
+            without this - the default is still just the intents folder.
+        package_style (str): "restore" (default) or "import"; see package_export().
+            Only meaningful when `export` is given.
 
     Returns:
-        BuildResult: counts, changes since the previous build, and output folder.
+        BuildResult: counts, changes since the previous build, the output folder, and
+        (when `export` is given) the merge into it as `package`.
     """
     layout = layout or models.ProjectLayout()
+    languages = languages or models.LanguageSettings()
     files_to_write, result, t1_start, removals = _generate(
         mode, config, base_dir, reporter, rules, layout, languages
     )
@@ -75,9 +85,7 @@ def intents(
             for path in previous:
                 path.unlink()
 
-    result.removed = _remove_marked_intents(
-        removals, output_dir, reporter, languages or models.LanguageSettings()
-    )
+    result.removed = _remove_marked_intents(removals, output_dir, reporter, languages)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for file, data in files_to_write.items():
@@ -85,6 +93,10 @@ def intents(
             json.dump(data, output, indent=4)
 
     result.output_dir = output_dir
+    if export is not None:
+        result.package = _merge_into_export(
+            files_to_write, removals, export, reporter, languages, package_style
+        )
     result.elapsed = perf_counter() - t1_start
     return result
 
@@ -136,12 +148,32 @@ def package_export(
       from the agent by hand.
 
     The export itself is never modified; the copy is written next to it with the style
-    and a timestamp appended to its name.
+    and a timestamp appended to its name. Writes nothing to the intents folder - see
+    intents()'s own `export`/`package_style` parameters to do both in one step.
     """
     languages = languages or models.LanguageSettings()
     files_to_write, _result, t1_start, removals = _generate(
         mode, config, base_dir, reporter, rules, layout, languages
     )
+    result = _merge_into_export(
+        files_to_write, removals, export, reporter, languages, style
+    )
+    result.elapsed = perf_counter() - t1_start
+    return result
+
+
+def _merge_into_export(
+    files_to_write: dict,
+    removals: list[models.RemovalRow],
+    export: Path,
+    reporter: Reporter,
+    languages: models.LanguageSettings,
+    style: str,
+) -> PackageResult:
+    """Shared by intents() (building and packaging in one step) and package_export()
+    (packaging an existing build's output without rebuilding it): the actual zip merge,
+    see package_export()'s docstring for the "restore"/"import" styles.
+    """
     diff = comparing.compare(
         _summarize(files_to_write), comparing.load(export), str(export)
     )
@@ -193,7 +225,6 @@ def package_export(
         result.removed = sorted(Path(name).name for name in removed_arcnames)
         comparing.merge_export(export, files_to_write, removed_arcnames, prefix, output)
     result.output = output
-    result.elapsed = perf_counter() - t1_start
     return result
 
 

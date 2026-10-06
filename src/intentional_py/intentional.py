@@ -124,6 +124,21 @@ def main(
             help="Zip and remove everything in the intents folder before building, so no old intents are left.",
         ),
     ] = False,
+    export: Annotated[
+        Path | None,
+        typer.Option(
+            "--export",
+            "-e",
+            help="Agent export zip to also merge this build into, in the same step (see the 'package' command). Nothing zip-related happens without this.",
+        ),
+    ] = None,
+    style: Annotated[
+        str,
+        typer.Option(
+            "--style",
+            help="Only used with --export. 'restore': a complete zip, which replaces the whole agent. 'import': a partial zip of just the new/changed intents, which only adds or overwrites.",
+        ),
+    ] = constants.DEFAULT_PACKAGE_STYLE,
     report: Annotated[
         Path | None,
         typer.Option(
@@ -150,6 +165,12 @@ def main(
         layout = user_settings.load_project_layout()
         # the config's folder holds the training phrases and receives the intents
         config = (config or Path(layout.dd_config)).resolve()
+        style = style.lower()
+        if export is not None and style not in constants.VALID_PACKAGE_STYLES:
+            console.print(
+                f"\n[bold][red]✗ Error:[/red][/bold] Invalid style: {style}. Valid styles: restore, import\n"
+            )
+            raise typer.Exit(code=1)
         try:
             result = build.intents(
                 "DD",
@@ -160,6 +181,8 @@ def main(
                 user_settings.load_naming_rules(),
                 layout,
                 user_settings.load_language_settings(),
+                export.resolve() if export else None,
+                style,
             )
             reporter.show_build(result)
             _save_report(report, "Build DD intents", result, reporter)
@@ -227,6 +250,21 @@ def natural_language(
             help="Zip and remove everything in the intents folder before building, so no old intents are left.",
         ),
     ] = False,
+    export: Annotated[
+        Path | None,
+        typer.Option(
+            "--export",
+            "-e",
+            help="Agent export zip to also merge this build into, in the same step (see the 'package' command). Nothing zip-related happens without this.",
+        ),
+    ] = None,
+    style: Annotated[
+        str,
+        typer.Option(
+            "--style",
+            help="Only used with --export. 'restore': a complete zip, which replaces the whole agent. 'import': a partial zip of just the new/changed intents, which only adds or overwrites.",
+        ),
+    ] = constants.DEFAULT_PACKAGE_STYLE,
     report: Annotated[
         Path | None,
         typer.Option(
@@ -255,6 +293,12 @@ def natural_language(
     context = context or user_settings.load_nl_defaults().context
     # the config's folder holds the training phrases and receives the intents
     config = (config or Path(layout.nl_config)).resolve()
+    style = style.lower()
+    if export is not None and style not in constants.VALID_PACKAGE_STYLES:
+        console.print(
+            f"\n[bold][red]✗ Error:[/red][/bold] Invalid style: {style}. Valid styles: restore, import\n"
+        )
+        raise typer.Exit(code=1)
     try:
         # rebuild the NL config unless --reuse is given and it exists; ask for a vertical if missing
         file_not_exist: bool = not config.exists()
@@ -279,6 +323,8 @@ def natural_language(
             user_settings.load_naming_rules(),
             layout,
             user_settings.load_language_settings(),
+            export.resolve() if export else None,
+            style,
         )
         reporter.show_build(result)
         _save_report(report, "Build NL intents", result, reporter)
@@ -603,7 +649,7 @@ def package(
         str,
         typer.Option(
             "--style",
-            help="'restore': a complete zip for Dialogflow's Restore, which replaces the whole agent. 'import': a partial zip of just the new/changed intents for Dialogflow's Import, which only adds or overwrites (a removal row can't be applied this way - it's listed to remove by hand instead).",
+            help="'restore': a complete zip, which replaces the whole agent. 'import': a partial zip of just the new/changed intents, which only adds or overwrites (a removal row can't be applied this way - it's listed to remove by hand instead).",
         ),
     ] = constants.DEFAULT_PACKAGE_STYLE,
     quiet: Annotated[

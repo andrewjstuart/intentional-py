@@ -13,10 +13,12 @@ from intentional_py.web.actions import (
     build_nl_project,
     compare_project,
     design_project,
+    download_package,
     download_project,
     extract_project,
     new_project,
     open_project,
+    package_project,
     project_files,
     validate_project,
 )
@@ -166,6 +168,82 @@ def test_build_nl_project_builds_from_phrase_files(tmp_path: Path) -> None:
     assert result["summary"]
 
 
+def test_build_dd_project_also_merges_into_an_export_when_given(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    dd_project(project, ["A.Pay,Ctx,en,pay,,,"], {"pay": "pay my bill"})
+    open_project(_zip_dir(project))
+    export_buffer = io.BytesIO()
+    with zipfile.ZipFile(export_buffer, "w") as archive:
+        archive.writestr("agent.json", "{}")
+        archive.writestr("intents/Old.json", '{"name": "Old"}')
+
+    result = json.loads(
+        build_dd_project(export_bytes=export_buffer.getvalue(), export_filename="e.zip")
+    )
+
+    # the intents folder is still written the same way as without an export
+    assert "intents/A.Pay.json" in json.loads(project_files())["files"]
+    assert ("Package style", "restore") in [tuple(row) for row in result["summary"]]
+    assert result["output_name"].startswith("export_restore_")
+    with zipfile.ZipFile(io.BytesIO(download_package())) as archive:
+        names = set(archive.namelist())
+    assert "intents/A.Pay.json" in names
+    assert "intents/Old.json" in names
+
+
+def test_build_dd_project_without_an_export_has_no_package(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    dd_project(project, ["A.Pay,Ctx,en,pay,,,"], {"pay": "pay my bill"})
+    open_project(_zip_dir(project))
+
+    result = json.loads(build_dd_project())
+
+    assert result["output_name"] is None
+    assert "Package style" not in [row[0] for row in result["summary"]]
+    with pytest.raises(exceptions.ConfigurationError):
+        download_package()
+
+
+def test_build_dd_project_rejects_an_invalid_style(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    dd_project(project, ["A.Pay,Ctx,en,pay,,,"], {"pay": "pay my bill"})
+    open_project(_zip_dir(project))
+    export_buffer = io.BytesIO()
+    with zipfile.ZipFile(export_buffer, "w") as archive:
+        archive.writestr("agent.json", "{}")
+
+    with pytest.raises(exceptions.ConfigurationError):
+        build_dd_project(
+            export_bytes=export_buffer.getvalue(),
+            export_filename="e.zip",
+            style="bogus",
+        )
+
+
+def test_build_dd_project_clears_a_stale_package_from_an_earlier_build(
+    tmp_path: Path,
+) -> None:
+    # a later build in the same session that doesn't merge into an export shouldn't
+    # leave an earlier run's merged zip downloadable
+    project = tmp_path / "project"
+    dd_project(project, ["A.Pay,Ctx,en,pay,,,"], {"pay": "pay my bill"})
+    open_project(_zip_dir(project))
+    export_buffer = io.BytesIO()
+    with zipfile.ZipFile(export_buffer, "w") as archive:
+        archive.writestr("agent.json", "{}")
+        archive.writestr("intents/Old.json", '{"name": "Old"}')
+
+    build_dd_project(export_bytes=export_buffer.getvalue(), export_filename="e.zip")
+    download_package()  # does not raise - a package exists from the run above
+
+    build_dd_project()
+
+    with pytest.raises(exceptions.ConfigurationError):
+        download_package()
+
+
 def test_extract_project_writes_phrase_files_into_the_project(data_dir: Path) -> None:
     excel_bytes = (data_dir / "NL_English_Data.xlsm").read_bytes()
     new_project()
@@ -203,6 +281,51 @@ def test_compare_project_reports_differences(tmp_path: Path) -> None:
 
     assert result["added"] == ["A.Two"]
     assert result["unchanged"] == 1
+
+
+def test_package_project_merges_into_a_copy_of_the_export(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    config = dd_project(project, ["A.One,Ctx,en,one,,,"], {"one": "one"})
+    build_intents.intents("DD", config, project, FakeReporter())
+    export_buffer = io.BytesIO()
+    with zipfile.ZipFile(export_buffer, "w") as archive:
+        archive.writestr("agent.json", "{}")
+        for path in (project / "intents").glob("*.json"):
+            archive.write(path, arcname=f"intents/{path.name}")
+    config.write_text("A.One,Ctx,en,one,,,\nA.Two,Ctx,en,one,,,\n", encoding="utf-8")
+    open_project(_zip_dir(project))
+
+    result = json.loads(package_project(export_buffer.getvalue(), "export.zip"))
+
+    assert result["style"] == "restore"
+    assert result["added"] == ["A.Two"]
+    assert result["output_name"].startswith("export_restore_")
+
+    with zipfile.ZipFile(io.BytesIO(download_package())) as archive:
+        names = set(archive.namelist())
+    assert "intents/A.Two.json" in names
+    assert "intents/A.One.json" in names
+    assert "agent.json" in names
+
+
+def test_package_project_rejects_an_invalid_style(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    dd_project(project, ["A.One,Ctx,en,one,,,"], {"one": "one"})
+    build_intents.intents("DD", project / "intents.cfg", project, FakeReporter())
+    export_buffer = io.BytesIO()
+    with zipfile.ZipFile(export_buffer, "w") as archive:
+        for path in (project / "intents").glob("*.json"):
+            archive.write(path, arcname=f"intents/{path.name}")
+    open_project(_zip_dir(project))
+
+    with pytest.raises(exceptions.ConfigurationError):
+        package_project(export_buffer.getvalue(), "export.zip", style="bogus")
+
+
+def test_download_package_without_running_first_is_rejected() -> None:
+    new_project()
+    with pytest.raises(exceptions.ConfigurationError):
+        download_package()
 
 
 def test_extract_then_build_nl_without_reuploading(data_dir: Path) -> None:

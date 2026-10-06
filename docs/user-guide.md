@@ -150,7 +150,7 @@ Each task is a tab in the GUI and a command on the CLI.
 | Extract phrases from Excel | Extract | `intentional-cli extract` |
 | Check a project without building | Validate | `intentional-cli validate` |
 | Compare with an agent export | Compare | `intentional-cli compare` |
-| Package an updated agent export | *(CLI only for now)* | `intentional-cli package` |
+| Package an updated agent export | Compare (**Package…** button) | `intentional-cli package` |
 | Create the config from the design document | Design doc | `intentional-cli design` |
 
 ### Build directed dialog (DD) intents
@@ -161,6 +161,7 @@ Reads `intents.cfg` (or the chosen config) and writes the intent JSON files to t
 - Each build is compared with the previous build in the `intents` folder, and the result shows how many intents were added, changed and unchanged.
 - Intents that are no longer in the config are listed as a warning, because their files are still in the `intents` folder and would be imported.
 - **Clear the intents folder first** (`--clean`) zips everything in the `intents` folder to `intents_<date>_<time>.zip` in the project folder and removes it before building, so only the current intents are left. This also removes intents built from a different config into the same folder.
+- **Agent export (optional)** (`--export`): also merges this same build into a copy of that export zip, in the same step - no separate [Package](#package-an-updated-agent-export) run needed. Nothing zip-related happens without it, and the `intents` folder is written exactly the same either way. Add **Package style** (`--style`) to choose which Dialogflow action the copy is for (`restore`, the default, or `import`).
 
 ### Build natural language (NL) intents
 
@@ -170,6 +171,7 @@ Creates `intents_nl.cfg` from the phrase files in `Training Phrases/<language>/N
 - **Context** (`-c`): the context for every NL intent. Defaults to the saved `nl-defaults` context (`GetIntent` unless changed).
 - **Lowercase actions** (`-lc`): also writes each action in lowercase, for clients that coded the NL actions that way.
 - **Reuse existing config** (`--reuse`): builds from the existing `intents_nl.cfg` instead of creating it again.
+- **Agent export (optional)** (`--export`) and **Package style** (`--style`): the same as for [Build DD](#build-directed-dialog-dd-intents) - also merges this build into a copy of the export zip, in the same step.
 
 When the config is created:
 
@@ -220,17 +222,22 @@ IDs and timestamps are ignored, since they change with every build and export. F
 
 ### Package an updated agent export
 
-> **Experimental:** only available on the CLI so far. The `intents/` folder's exact location inside the zip is detected from the export's own contents rather than hardcoded, since only one real export has been checked so far. Report anything that looks wrong.
+> **Experimental:** the `intents/` folder's exact location inside the zip is detected from the export's own contents rather than hardcoded, since only one real export has been checked so far. Report anything that looks wrong.
 
-Merges a build into a copy of an agent export zip, matching one of Dialogflow ES's own **Import**/**Restore** actions, so the copy can be used straight away instead of adding and removing intents by hand:
+Merges a build into a copy of an agent export zip, matching one of Dialogflow ES's own **Import**/**Restore** actions, so the copy can be used straight away instead of adding and removing intents by hand. This can be done two ways:
+
+- **As part of a regular build**, in one step: add the export (and, if needed, the style) on the **Build DD**/**Build NL** tab, or `--export`/`--style` on `intentional-cli`/`intentional-cli nl`. The `intents` folder is written exactly the same either way; nothing zip-related happens unless an export is given.
+- **On its own, without rebuilding**: the **Compare** tab's **Package…** button, or `intentional-cli package --export agent.zip`. Useful to package a build that's already up to date, without redoing it.
+
+Either way:
 
 1. Export the agent, the same as for [Compare with an agent export](#compare-with-an-agent-export). The export's confirmed layout is a top-level `intents/` folder (where the intent and training-phrase JSON live) alongside `agent.json` and `package.json`, plus other folders such as `entities/`.
-2. Run `intentional-cli package --export agent.zip`. Add `--mode NL` for an NL config, `--config` for a config other than the standard one, and `--style` to choose which Dialogflow action the result is for (see below; `restore` is the default).
+2. Choose a **Package style** (`--style`; see below - `restore` is the default).
 
-The **export itself is never modified.** A copy is written next to it, named after it with the style and a timestamp added (e.g. `agent_restore_2026-01-15_143022.zip`). Which style to use depends on which Dialogflow action the copy will be imported with:
+The **export itself is never modified.** A copy is written next to it (downloaded, on the web version), named after it with the style and a timestamp added (e.g. `agent_restore_2026-01-15_143022.zip`). Which style to use depends on which Dialogflow action the copy will be imported with:
 
-- **`--style restore`** (default): a **complete** copy of the export, for Dialogflow's **Restore** action, which replaces the whole agent - anything missing from the zip is deleted from the agent. New and changed intents from this build are added, replacing any existing file with the same name; a `-`/`--` [removal row](#special-values) also deletes its files from the copy, with the same confirm-first-for-a-single-`-` rule as a regular build. Everything else (other intents, entities, `agent.json`, `package.json`) is carried over unchanged.
-- **`--style import`**: a **partial** copy with just this build's new or changed intents, for Dialogflow's **Import** action, which only adds new intents and overwrites ones with the same name, and never deletes. `agent.json`/`package.json` aren't included, since this tool never writes them. A removal row has no effect on the zip in this style, since there's nothing Import can do with it - those intents are listed in the result instead, to delete from the agent by hand.
+- **`restore`** (default): a **complete** copy of the export, which replaces the whole agent - anything missing from the zip is deleted from the agent. New and changed intents from this build are added, replacing any existing file with the same name; a `-`/`--` [removal row](#special-values) also deletes its files from the copy, with the same confirm-first-for-a-single-`-` rule as a regular build. Everything else (other intents, entities, `agent.json`, `package.json`) is carried over unchanged.
+- **`import`**: a **partial** copy with just this build's new or changed intents, which only adds new intents and overwrites ones with the same name, and never deletes. `agent.json`/`package.json` aren't included, since this tool never writes them. A removal row has no effect on the zip in this style, since there's nothing Import can do with it - those intents are listed in the result instead, to delete from the agent by hand.
 
 Either way, intents only in the export (not built by this config, and not marked for removal) are listed, same as Compare, in case any should be deleted from the agent by hand.
 
@@ -279,7 +286,7 @@ Below the tabs, the results of the last job are shown:
 - **Details**: tables for the job, such as the validation checklist, intents with machine learning off, the NL config summary, changes since the previous build, and where extracted phrases and their backup were saved.
 - **Log**: every message from the job as plain text.
 
-The recent project folders, the NL options, the Extract and Compare choices and **Clear the intents folder first** are remembered between sessions, in `%APPDATA%\Intentional\settings.json` on Windows (`~/.config/intentional/settings.json` elsewhere).
+The recent project folders, the NL options, the Extract and Compare choices, **Clear the intents folder first** and the last **Package style** chosen are remembered between sessions, in `%APPDATA%\Intentional\settings.json` on Windows (`~/.config/intentional/settings.json` elsewhere).
 
 ## The CLI
 
@@ -291,8 +298,8 @@ Every command has `--help`, and `-q` / `--quiet` to show less output. Every task
 
 | Command | Options |
 |-|-|
-| *(none)*: build DD intents | `--config <file>` (default from `project-layout`, originally `intents.cfg`), `--clean` |
-| `nl` (or `natural-language`): build NL intents | `-v` / `--vertical <prefix>`, `-c` / `--context <name>` (default from `nl-defaults`, originally `GetIntent`), `-lc` / `--lowercase`, `-r` / `--reuse`, `--config <file>` (default from `project-layout`, originally `intents_nl.cfg`), `--clean` |
+| *(none)*: build DD intents | `--config <file>` (default from `project-layout`, originally `intents.cfg`), `--clean`, `-e` / `--export <zip>`, `--style restore\|import` (default `restore`) |
+| `nl` (or `natural-language`): build NL intents | `-v` / `--vertical <prefix>`, `-c` / `--context <name>` (default from `nl-defaults`, originally `GetIntent`), `-lc` / `--lowercase`, `-r` / `--reuse`, `--config <file>` (default from `project-layout`, originally `intents_nl.cfg`), `--clean`, `-e` / `--export <zip>`, `--style restore\|import` (default `restore`) |
 | `extract` (or `x`) | `-f` / `--file <workbook>`, `-m` / `--mode DD\|NL` (default `NL`), `-l` / `--lang <code>` (default `en`; valid codes come from `language-settings`) |
 | `validate` | `--config <file>` |
 | `compare` | `-e` / `--export <zip or folder>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
@@ -312,6 +319,8 @@ Every command has `--help`, and `-q` / `--quiet` to show less output. Every task
 uv run intentional-cli
 uv run intentional-cli --config "C:\Projects\Billing\intents.cfg"
 uv run intentional-cli --clean
+uv run intentional-cli --export agent.zip
+uv run intentional-cli --export agent.zip --style import
 uv run intentional-cli nl -v FIN -c GetIntent -lc
 uv run intentional-cli nl --reuse
 uv run intentional-cli extract
@@ -341,9 +350,10 @@ python web/serve.py
 This builds the project wheel automatically if it's missing or out of date, serves the `web` folder on `localhost`, and opens it in your browser.
 
 - **Open project** from a zipped project folder (the same layout as the GUI/CLI: config file(s) and `Training Phrases`), or **Start empty project** to begin with nothing.
-- **Task**: choose one from the dropdown; the fields below change to match what it needs. Extract and Design doc also need a single Excel file; Compare also needs an agent export zip.
+- **Task**: choose one from the dropdown; the fields below change to match what it needs. Extract and Design doc also need a single Excel file; Compare and Package need an agent export zip (optional for Build DD/Build NL, which can also merge into one in the same step); Package (and a build with an export given) also need a style (see [Package an updated agent export](#package-an-updated-agent-export)).
 - Run as many tasks as you like against the same open project — Extract's phrases are immediately there for Build NL, Design doc's config is immediately there for Build DD, with no downloading or re-uploading in between.
 - **Download project**, next to the open project's file count, zips the current state at any point — the config, phrases, and any built `intents` folder.
+- Running **Package** - or **Build DD**/**Build NL** with an export given - shows a **Download `<name>`** button once it finishes, for the merged copy of the export. The export you uploaded is never modified, and the merged copy isn't added to the project (even when it came from a build), so it has its own download button instead of being part of **Download project**.
 - **? Help** (top-right): the same per-task explanations as the GUI's Help window, opening on the section for the currently selected task.
 - The page follows the browser's light/dark mode by default; the button next to **? Help** overrides and remembers the choice.
 

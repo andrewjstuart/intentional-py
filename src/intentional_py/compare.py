@@ -190,12 +190,11 @@ def merge_export(
     prefix: str,
     output: Path,
 ) -> None:
-    """Write `output` as a complete copy of `export`, suitable for Dialogflow's
-    Restore (which replaces the whole agent, so anything missing is deleted): each of
-    `files_to_write` is added, or replaces its existing intents/ entry, and every name
-    in `removed_arcnames` is dropped; everything else - other intents, entities,
-    agent.json, package.json - is carried over unchanged. `export` itself is never
-    modified."""
+    """Write `output` as a complete copy of `export` (which replaces the whole agent,
+    so anything missing is deleted): each of `files_to_write` is added, or replaces
+    its existing intents/ entry, and every name in `removed_arcnames` is dropped;
+    everything else - other intents, entities, agent.json, package.json - is carried
+    over unchanged. `export` itself is never modified."""
     new_arcnames = {
         f"{prefix}{Path(file).name}": data for file, data in files_to_write.items()
     }
@@ -220,13 +219,13 @@ def write_import_zip(
     prefix: str,
     output: Path,
 ) -> None:
-    """Write `output` as a minimal zip for Dialogflow's Import (which only adds new
-    intents and overwrites ones with the same name, and never deletes): just this
-    build's intent files, nothing from the export itself - agent.json/package.json
-    aren't written by this tool, so there's nothing of ours to merge into them, and
-    Import leaves everything else alone anyway. A '-'/'--' removal row has no effect
-    here, since Import can't delete; those intents still need removing from the agent
-    by hand (see build_intents.package_export()'s `needs_manual_removal`).
+    """Write `output` as a minimal zip (which only adds new intents and overwrites
+    ones with the same name, and never deletes): just this build's intent files,
+    nothing from the export itself - agent.json/package.json aren't written by this
+    tool, so there's nothing of ours to merge into them, and Import leaves everything
+    else alone anyway. A '-'/'--' removal row has no effect here, since Import can't
+    delete; those intents still need removing from the agent by hand (see
+    build_intents.package_export()'s `needs_manual_removal`).
     """
     with (
         utils.file_errors(output),

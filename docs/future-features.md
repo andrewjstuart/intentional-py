@@ -41,25 +41,28 @@ Ideas that have been discussed but not built yet, with the steps to build each o
 
 ## Import zip merged into an agent export
 
-**Status:** implemented for the CLI (`intentional-cli package --style restore|import`, see the [user guide](user-guide.md#package-an-updated-agent-export)) and covered by [test_package_export.py](../src/intentional_py/tests/test_package_export.py), but only against a synthetic zip - it still needs checking against a real Dialogflow ES export, and a GUI/web front end.
+**Status:** implemented for the CLI (`intentional-cli package --style restore|import`, and `--export`/`--style` on the default build command and `nl`), GUI (the **Build DD**/**Build NL** tabs' own export/style fields, and the **Compare** tab's **Package…** button for packaging without rebuilding) and web (the same on the **Build DD intents**/**Build NL intents** tasks, plus the standalone **Package into an agent export** task) - see the [user guide](user-guide.md#package-an-updated-agent-export). Covered by [test_package_export.py](../src/intentional_py/tests/test_package_export.py) (core), [test_gui_actions.py](../src/intentional_py/tests/test_gui_actions.py) and [test_web_actions.py](../src/intentional_py/tests/test_web_actions.py), but only against synthetic zips so far - it still needs checking against a real Dialogflow ES export.
 
 **What it does:** takes the current agent export, adds or replaces the intents from a build, and produces a new zip matching one of Dialogflow's own actions:
 
-- `restore`: a **complete** zip, for the **Restore** action, which replaces the whole agent - anything missing is deleted. A `-`/`--` removal row deletes its files from the copy too.
-- `import`: a **partial** zip of just the new/changed intents, for the **Import** action, which only adds or overwrites and never deletes. `agent.json`/`package.json` aren't included, since this tool never writes them and Import leaves them alone anyway. A removal row has no effect on the zip in this style (there's nothing Import can do with it); those intents are listed in the result to delete from the agent by hand instead.
+- `restore`: a **complete** zip, which replaces the whole agent - anything missing is deleted. A `-`/`--` removal row deletes its files from the copy too.
+- `import`: a **partial** zip of just the new/changed intents, which only adds or overwrites and never deletes. `agent.json`/`package.json` aren't included, since this tool never writes them and Import leaves them alone anyway. A removal row has no effect on the zip in this style (there's nothing Import can do with it); those intents are listed in the result to delete from the agent by hand instead.
+
+A build (`intentional-cli`/`nl`, the **Build DD**/**Build NL** tabs or tasks) can merge into an export in the very same step, instead of needing a separate Package run afterward - give it an export (and a style, if not `restore`) and the `intents` folder is written **and** the copy is merged, in one call; give it nothing and only the `intents` folder is written, exactly as before. `build_intents.intents()`'s `export`/`package_style` parameters and `package_export()` (for packaging an existing build without rebuilding it) share the same merge logic (`_merge_into_export()`), so the two can never drift apart; the build's own result (`BuildResult.package`) nests a `PackageResult` built the exact same way.
 
 **Considerations**
 
 - The export's layout is now confirmed: a top-level `intents/` folder (where the intent and usersays JSON live), `agent.json` and `package.json` at the root, and other folders for entities etc. `compare._intents_prefix()` still detects the `intents/` location from the zip's own contents rather than hardcoding it, as a safety net in case some exports differ (e.g. nest it under an agent-name folder) - this hasn't come up yet.
-- Which Dialogflow action keeps the rest of the agent unchanged, and which can delete, is also confirmed: **Restore** replaces everything (so a `restore`-style zip has to be complete), **Import** only adds/overwrites and never deletes (so a `-`/`--` removal row needs a `restore`-style zip to actually take effect - `package_export()` surfaces this as `needs_manual_removal` when `import` is chosen instead).
+- Which Dialogflow action keeps the rest of the agent unchanged, and which can delete, is also confirmed: **Restore** replaces everything (so a `restore`-style zip has to be complete), **Import** only adds/overwrites and never deletes (so a `-`/`--` removal row needs a `restore`-style zip to actually take effect - `package_export()`/a build with `export` given surfaces this as `needs_manual_removal` when `import` is chosen instead).
 - Intents that are no longer used still have to be deleted from the agent by hand unless marked with a `-`/`--` [removal row](user-guide.md#special-values) **and** packaged with `--style restore`. The result lists everything else only in the export as "only in the export" either way.
 - Entities (`entities/`) and agent settings in the export are kept unchanged by `restore` style - carried over as-is rather than parsed, since this tool doesn't build them - and left out of an `import`-style zip entirely, since Import would leave them alone anyway.
+- Merging into an export needs the export **zip** itself on the GUI/web (unlike Compare, which also accepts an unzipped export folder or an `intents` folder), since merging has to copy entries out of the zip; `gui/actions.py`'s `_resolve_optional_export()` rejects a folder with a friendly error instead of letting a `BadZipFile` surface as a traceback.
+- The merged copy isn't added to the GUI/web project (it isn't part of the project, and the export it came from wasn't either). On the web version it's held in memory by `web/actions.py`'s `_last_package` and offered through its own `download_package()`/**Download `<name>`** button, parallel to **Download project** - cleared whenever a later build doesn't merge into one, so a stale zip can't be downloaded once its button is gone.
 
 **Remaining steps**
 
-1. Test both actions with a copy of a real agent's export to confirm `package_export()`'s assumptions (particularly that `import` really does leave unmentioned intents/entities alone) - adjust `compare.py`'s zip handling if anything differs.
-2. Add a GUI **Package** button (likely a second action on the **Compare** tab, since it needs the same export file and shows the same comparison first, with a choice of style) and a web action, mirroring how `compare` is wired into `gui/actions.py` and `web/actions.py`.
-3. Once confirmed against a real export, remove the "experimental" caveat from the user guide.
+1. Test both actions with a copy of a real agent's export to confirm the merge's assumptions (particularly that `import` really does leave unmentioned intents/entities alone) - adjust `compare.py`'s zip handling if anything differs.
+2. Once confirmed against a real export, remove the "experimental" caveat from the user guide.
 
 ---
 
