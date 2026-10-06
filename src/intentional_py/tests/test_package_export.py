@@ -1,7 +1,8 @@
 """Tests for build_intents.package_export(): merging a build into a copy of an agent
-export zip. The export's own layout (entries outside intents/, and whether intents/ is
-nested under an agent-name folder) is guessed from a synthetic zip here - the exact
-shape will need checking against a real Dialogflow export once one is available.
+export zip, in either of Dialogflow ES's own styles: "restore" (a complete zip, since
+Restore replaces the whole agent) or "import" (a partial zip of just the new/changed
+intents, since Import only adds or overwrites and never deletes). The confirmed export
+layout is a top-level intents/ folder alongside agent.json and package.json.
 """
 
 import json
@@ -50,7 +51,7 @@ def test_package_export_adds_a_new_intent_and_leaves_others_alone(
     assert result.unmarked == ["Old"]
     assert result.output is not None
     assert result.output.parent == export.parent
-    assert result.output.name.startswith("agent_")
+    assert result.output.name.startswith("agent_restore_")
     assert result.output.name.endswith(".zip")
     assert result.output != export
 
@@ -145,3 +146,73 @@ def test_package_export_detects_a_nested_intents_folder(tmp_path: Path) -> None:
     assert "MyAgent/intents/A.Pay.json" in contents
     assert "MyAgent/intents/A.Pay_usersays_en.json" in contents
     assert "MyAgent/agent.json" in contents
+
+
+def test_package_export_import_style_is_partial_and_never_deletes(
+    tmp_path: Path,
+) -> None:
+    export = tmp_path / "agent.zip"
+    _make_export(
+        export,
+        {
+            "agent.json": "{}",
+            "package.json": "{}",
+            "entities/Color.json": "[]",
+            "intents/Old.json": json.dumps({"name": "Old"}),
+            "intents/Old_usersays_en.json": "[]",
+        },
+    )
+    config = dd_project(
+        tmp_path, ["A.Pay,Ctx,en,pay,,1,FALSE"], {"pay": "pay my bill\n"}
+    )
+
+    result = build_intents.package_export(
+        "DD", config, tmp_path, export, FakeReporter(), style="import"
+    )
+
+    assert result.style == "import"
+    assert result.added == ["A.Pay"]
+    assert result.removed == []
+    assert result.output.name.startswith("agent_import_")
+
+    contents = _read_zip(result.output)
+    assert set(contents) == {
+        "intents/A.Pay.json",
+        "intents/A.Pay_usersays_en.json",
+    }
+    # neither the export's own agent.json/package.json, nor unmentioned entries
+    # (other intents, entities), are carried over - this tool doesn't write
+    # agent.json/package.json, and Import leaves everything else alone anyway
+    assert "intents/Old.json" not in contents
+    assert "entities/Color.json" not in contents
+
+
+def test_package_export_import_style_lists_removals_for_manual_deletion(
+    tmp_path: Path,
+) -> None:
+    export = tmp_path / "agent.zip"
+    _make_export(
+        export,
+        {
+            "agent.json": "{}",
+            "intents/A.Pay.json": json.dumps({"name": "A.Pay"}),
+            "intents/A.Pay_usersays_en.json": "[]",
+        },
+    )
+    config = dd_project(tmp_path, ["--A.Pay,Ctx,en,pay,,1,FALSE"], {})
+    reporter = FakeReporter()
+
+    result = build_intents.package_export(
+        "DD", config, tmp_path, export, reporter, style="import"
+    )
+
+    # 'import' can't delete, so nothing is asked and nothing is removed from the zip -
+    # the intent is only listed, to delete from the agent by hand
+    assert reporter.questions == []
+    assert result.removed == []
+    assert result.needs_manual_removal == ["A.Pay"]
+    # a removal row builds nothing, so there's nothing of A.Pay's to add either -
+    # the agent's own copy, left untouched, is what gets deleted by hand instead
+    contents = _read_zip(result.output)
+    assert "intents/A.Pay.json" not in contents
+    assert contents == {}

@@ -21,7 +21,7 @@ Ideas that have been discussed but not built yet, with the steps to build each o
 - Credentials must never be stored in the repository or in `settings.json`. Prefer Google's own sign-in (`gcloud auth application-default login`) so the tool never handles a key file. If service-account keys are used, keep them outside the project folder.
 - Changes made through the API are immediate, so a dry run (the existing `compare` feature) should always be shown and confirmed first.
 - Every upload should be logged: who, when, which agent, and which intents were created, updated or deleted.
-- Deleting intents is the riskiest part and should be a separate, explicit confirmation.
+- Deleting intents is the riskiest part and should be a separate, explicit confirmation. The `batch_update_intents`/`batch_delete_intents` split below is the API equivalent of the `import`/`restore` package styles in [Import zip merged into an agent export](#import-zip-merged-into-an-agent-export) - an upload command could reuse that same `-`/`--` removal-row marking to decide what to delete, instead of a separate `--delete-missing` flag.
 
 **Implementation steps**
 
@@ -41,22 +41,24 @@ Ideas that have been discussed but not built yet, with the steps to build each o
 
 ## Import zip merged into an agent export
 
-**Status:** implemented for the CLI (`intentional-cli package`, see the [user guide](user-guide.md#package-an-updated-agent-export)) and covered by [test_package_export.py](../src/intentional_py/tests/test_package_export.py), but only against a synthetic zip - it still needs checking against a real Dialogflow ES export, and a GUI/web front end.
+**Status:** implemented for the CLI (`intentional-cli package --style restore|import`, see the [user guide](user-guide.md#package-an-updated-agent-export)) and covered by [test_package_export.py](../src/intentional_py/tests/test_package_export.py), but only against a synthetic zip - it still needs checking against a real Dialogflow ES export, and a GUI/web front end.
 
-**What it does:** takes the current agent export, adds or replaces the intents from a build, and produces a new zip that can be imported, so the agent is not left missing the intents that this config does not build.
+**What it does:** takes the current agent export, adds or replaces the intents from a build, and produces a new zip matching one of Dialogflow's own actions:
+
+- `restore`: a **complete** zip, for the **Restore** action, which replaces the whole agent - anything missing is deleted. A `-`/`--` removal row deletes its files from the copy too.
+- `import`: a **partial** zip of just the new/changed intents, for the **Import** action, which only adds or overwrites and never deletes. `agent.json`/`package.json` aren't included, since this tool never writes them and Import leaves them alone anyway. A removal row has no effect on the zip in this style (there's nothing Import can do with it); those intents are listed in the result to delete from the agent by hand instead.
 
 **Considerations**
 
-- **Restore** replaces the whole agent with the zip, which would delete any intent not in it. That is why a zip of only the new intents is not safe.
-- **Import** is documented as adding new intents and replacing ones with the same name, while keeping the rest. This still needs verifying with a test agent - `package_export()` currently assumes it (see `compare.merge_export()`).
-- Intents that are no longer used still have to be deleted from the agent by hand, unless marked with a `-`/`--` [removal row](user-guide.md#special-values), in which case they're removed from the copy too. The result still lists the rest as "only in the export".
-- Entities (`entities/`) and agent settings in the export are kept unchanged - carried over as-is rather than parsed, since this tool doesn't build them.
-- The `intents/` folder's exact location inside the zip (root, or nested under an agent-name folder) is detected from the zip's own contents (`compare._intents_prefix()`) rather than assumed, since this hasn't been confirmed against a real export yet.
+- The export's layout is now confirmed: a top-level `intents/` folder (where the intent and usersays JSON live), `agent.json` and `package.json` at the root, and other folders for entities etc. `compare._intents_prefix()` still detects the `intents/` location from the zip's own contents rather than hardcoding it, as a safety net in case some exports differ (e.g. nest it under an agent-name folder) - this hasn't come up yet.
+- Which Dialogflow action keeps the rest of the agent unchanged, and which can delete, is also confirmed: **Restore** replaces everything (so a `restore`-style zip has to be complete), **Import** only adds/overwrites and never deletes (so a `-`/`--` removal row needs a `restore`-style zip to actually take effect - `package_export()` surfaces this as `needs_manual_removal` when `import` is chosen instead).
+- Intents that are no longer used still have to be deleted from the agent by hand unless marked with a `-`/`--` [removal row](user-guide.md#special-values) **and** packaged with `--style restore`. The result lists everything else only in the export as "only in the export" either way.
+- Entities (`entities/`) and agent settings in the export are kept unchanged by `restore` style - carried over as-is rather than parsed, since this tool doesn't build them - and left out of an `import`-style zip entirely, since Import would leave them alone anyway.
 
 **Remaining steps**
 
-1. Test **Import** and **Restore** with a copy of a real agent's export to confirm `package_export()`'s assumptions (that intents/ is found correctly, and that unmentioned intents/entities really are left alone by Import) - adjust `compare.py`'s zip handling if the real layout differs.
-2. Add a GUI **Package** button (likely a second action on the **Compare** tab, since it needs the same export file and shows the same comparison first) and a web action, mirroring how `compare` is wired into `gui/actions.py` and `web/actions.py`.
+1. Test both actions with a copy of a real agent's export to confirm `package_export()`'s assumptions (particularly that `import` really does leave unmentioned intents/entities alone) - adjust `compare.py`'s zip handling if anything differs.
+2. Add a GUI **Package** button (likely a second action on the **Compare** tab, since it needs the same export file and shows the same comparison first, with a choice of style) and a web action, mirroring how `compare` is wired into `gui/actions.py` and `web/actions.py`.
 3. Once confirmed against a real export, remove the "experimental" caveat from the user guide.
 
 ---

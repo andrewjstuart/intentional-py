@@ -169,6 +169,7 @@ class RichReporter:
             )
 
     def show_package(self, result: PackageResult) -> None:
+        self.message("info", f"Package style: [cyan]{result.style}[/cyan]")
         self.table(
             ["Time", "Added", "Changed", "Unchanged", "Removed", "Only in export"],
             [
@@ -192,6 +193,11 @@ class RichReporter:
         if result.removed:
             self.table(
                 ["Removed (marked with '-'/'--')"], [[name] for name in result.removed]
+            )
+        if result.needs_manual_removal:
+            self.table(
+                ["Marked for removal, but 'import' can't delete - remove by hand"],
+                [[name] for name in result.needs_manual_removal],
             )
         if result.unmarked:
             self.table(

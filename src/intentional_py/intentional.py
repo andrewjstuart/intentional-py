@@ -599,6 +599,13 @@ def package(
             help="Config file to build from. (default: intents.cfg, or intents_nl.cfg for NL)",
         ),
     ] = None,
+    style: Annotated[
+        str,
+        typer.Option(
+            "--style",
+            help="'restore': a complete zip for Dialogflow's Restore, which replaces the whole agent. 'import': a partial zip of just the new/changed intents for Dialogflow's Import, which only adds or overwrites (a removal row can't be applied this way - it's listed to remove by hand instead).",
+        ),
+    ] = constants.DEFAULT_PACKAGE_STYLE,
     quiet: Annotated[
         bool,
         typer.Option("--quiet", "-q", help="Use this flag to suppress most output."),
@@ -613,7 +620,7 @@ def package(
     ] = None,
 ) -> None:
     """
-    Merge this config's build into a copy of an agent export zip, ready to re-import: new or changed intents are added, and a '-'/'--' removal row also deletes its files from the copy.
+    Merge this config's build into a copy of an agent export zip, matching Dialogflow's own Import/Restore actions: new or changed intents are added either way, and a '-'/'--' removal row also deletes its files from a 'restore'-style copy (an 'import'-style copy lists them to remove by hand instead, since Import can't delete).
     """
     reporter = RichReporter(quiet=quiet)
     try:
@@ -621,6 +628,11 @@ def package(
         if mode not in constants.VALID_MODES:
             raise exceptions.ConfigurationError(
                 f"Invalid mode: {mode}. Valid modes: DD, NL"
+            )
+        style = style.lower()
+        if style not in constants.VALID_PACKAGE_STYLES:
+            raise exceptions.ConfigurationError(
+                f"Invalid style: {style}. Valid styles: restore, import"
             )
         layout = user_settings.load_project_layout()
         default = layout.nl_config if mode == "NL" else layout.dd_config
@@ -634,6 +646,7 @@ def package(
             user_settings.load_naming_rules(),
             layout,
             user_settings.load_language_settings(),
+            style,
         )
         reporter.show_package(result)
         _save_report(report, "Package export", result, reporter)

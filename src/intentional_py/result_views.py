@@ -64,12 +64,15 @@ def summary_rows(result: Result) -> list[tuple[str, str]]:
         ]
     if isinstance(result, PackageResult):
         rows = [
+            ("Style", result.style),
             ("Added", str(len(result.added))),
             ("Changed", str(len(result.changed))),
             ("Unchanged", str(result.unchanged)),
         ]
         if result.removed:
             rows.append(("Removed", str(len(result.removed))))
+        if result.needs_manual_removal:
+            rows.append(("Needs manual removal", str(len(result.needs_manual_removal))))
         if result.unmarked:
             rows.append(("Only in export", str(len(result.unmarked))))
         return rows
@@ -168,6 +171,15 @@ def result_issues(
                     "warning",
                     "",
                     f"Removed (marked with '-'/'--'): {', '.join(result.removed)}.",
+                )
+            )
+        if result.needs_manual_removal:
+            issues.append(
+                (
+                    "warning",
+                    "",
+                    "Marked for removal, but 'import' can't delete from the agent - "
+                    "remove by hand: " + ", ".join(result.needs_manual_removal) + ".",
                 )
             )
         if result.unmarked:

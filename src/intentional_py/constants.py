@@ -124,6 +124,13 @@ ALL_DIALOGFLOW_LANGUAGES = {
 VALID_MODES = {"DD", "NL"}
 DEFAULT_MODE = "DD"
 
+# Package output styles, matching Dialogflow ES's own Import/Restore actions:
+# "restore" is a complete zip (Restore replaces the whole agent, so anything
+# missing is deleted); "import" is a partial zip of just the new/changed intents
+# (Import only adds or overwrites, and never deletes).
+VALID_PACKAGE_STYLES = {"restore", "import"}
+DEFAULT_PACKAGE_STYLE = "restore"
+
 # DTMF (Dual-Tone Multi-Frequency) valid values
 VALID_DTMF_VALUES = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "#", "*"}
 

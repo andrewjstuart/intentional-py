@@ -220,18 +220,19 @@ IDs and timestamps are ignored, since they change with every build and export. F
 
 ### Package an updated agent export
 
-> **Experimental:** only available on the CLI so far, and the export's internal layout is detected rather than hardcoded, since it hasn't been checked against every kind of Dialogflow ES export yet. Report anything that looks wrong.
+> **Experimental:** only available on the CLI so far. The `intents/` folder's exact location inside the zip is detected from the export's own contents rather than hardcoded, since only one real export has been checked so far. Report anything that looks wrong.
 
-Merges a build into a copy of an agent export zip, so the copy can be imported straight back into Dialogflow instead of adding and removing intents by hand:
+Merges a build into a copy of an agent export zip, matching one of Dialogflow ES's own **Import**/**Restore** actions, so the copy can be used straight away instead of adding and removing intents by hand:
 
-1. Export the agent, the same as for [Compare with an agent export](#compare-with-an-agent-export).
-2. Run `intentional-cli package --export agent.zip`. Add `--mode NL` for an NL config, and `--config` for a config other than the standard one.
+1. Export the agent, the same as for [Compare with an agent export](#compare-with-an-agent-export). The export's confirmed layout is a top-level `intents/` folder (where the intent and training-phrase JSON live) alongside `agent.json` and `package.json`, plus other folders such as `entities/`.
+2. Run `intentional-cli package --export agent.zip`. Add `--mode NL` for an NL config, `--config` for a config other than the standard one, and `--style` to choose which Dialogflow action the result is for (see below; `restore` is the default).
 
-The **export itself is never modified.** A copy is written next to it, named after it with a timestamp added (e.g. `agent_2026-01-15_143022.zip`):
+The **export itself is never modified.** A copy is written next to it, named after it with the style and a timestamp added (e.g. `agent_restore_2026-01-15_143022.zip`). Which style to use depends on which Dialogflow action the copy will be imported with:
 
-- New and changed intents from this build are added to the copy, replacing any existing file with the same name.
-- A `-`/`--` [removal row](#special-values) also deletes its files from the copy, with the same confirm-first-for-a-single-`-` rule as a regular build.
-- Everything else in the export (its `agent.json`, `package.json`, entities, and any intent this config doesn't mention or mark for removal) is carried over unchanged. Intents only in the export are listed, same as Compare, in case any should be deleted from the agent by hand.
+- **`--style restore`** (default): a **complete** copy of the export, for Dialogflow's **Restore** action, which replaces the whole agent - anything missing from the zip is deleted from the agent. New and changed intents from this build are added, replacing any existing file with the same name; a `-`/`--` [removal row](#special-values) also deletes its files from the copy, with the same confirm-first-for-a-single-`-` rule as a regular build. Everything else (other intents, entities, `agent.json`, `package.json`) is carried over unchanged.
+- **`--style import`**: a **partial** copy with just this build's new or changed intents, for Dialogflow's **Import** action, which only adds new intents and overwrites ones with the same name, and never deletes. `agent.json`/`package.json` aren't included, since this tool never writes them. A removal row has no effect on the zip in this style, since there's nothing Import can do with it - those intents are listed in the result instead, to delete from the agent by hand.
+
+Either way, intents only in the export (not built by this config, and not marked for removal) are listed, same as Compare, in case any should be deleted from the agent by hand.
 
 ### Create the config from the design document
 
@@ -295,7 +296,7 @@ Every command has `--help`, and `-q` / `--quiet` to show less output. Every task
 | `extract` (or `x`) | `-f` / `--file <workbook>`, `-m` / `--mode DD\|NL` (default `NL`), `-l` / `--lang <code>` (default `en`; valid codes come from `language-settings`) |
 | `validate` | `--config <file>` |
 | `compare` | `-e` / `--export <zip or folder>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
-| `package` | `-e` / `--export <zip>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>` |
+| `package` | `-e` / `--export <zip>` (required), `-m` / `--mode DD\|NL` (default `DD`), `--config <file>`, `--style restore\|import` (default `restore`) |
 | `design` | `-f` / `--file <workbook>` (required), `-s` / `--sheet <name>`, `--config <file>` (default from `project-layout`, originally `intents.cfg`) |
 | `naming-rules` | `--set-intent-forbidden-chars <chars>`, `--set-context-discouraged-chars <chars>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\naming_rules.json` on Windows, `~/.config/intentional/naming_rules.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
 | `project-layout` | `--set-training-phrases-dir <name>`, `--set-intents-dir <name>`, `--set-nl-subfolder <name>`, `--set-dd-config <file>`, `--set-nl-config <file>`, `--reset`. With no options, shows the current values. Saved to the user's profile (`%APPDATA%\Intentional\project_layout.json` on Windows, `~/.config/intentional/project_layout.json` elsewhere), so it applies to every project, on the CLI and the GUI, until changed again. |
@@ -321,6 +322,7 @@ uv run intentional-cli validate --config test.cfg --report validation.md
 uv run intentional-cli compare --export agent.zip
 uv run intentional-cli compare --export agent.zip --mode NL
 uv run intentional-cli package --export agent.zip
+uv run intentional-cli package --export agent.zip --style import
 uv run intentional-cli design --file "Billing design.xlsx"
 uv run intentional-cli design --file "Billing design.xlsx" --sheet Intents --config billing.cfg
 uv run intentional-cli gui --project "C:\Projects\Billing"

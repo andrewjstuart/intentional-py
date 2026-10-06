@@ -47,13 +47,17 @@ class PackageResult:
     """Merging a build into a copy of an agent export zip; see build_intents.package_export()."""
 
     source: Path  # the export zip given to merge into; never modified
+    style: str = "restore"  # "restore" (complete zip) or "import" (partial, additive)
     output: Path | None = None  # the new, timestamped copy written next to it
     added: list[str] = field(default_factory=list)
     changed: list[IntentChange] = field(default_factory=list)
     unchanged: int = 0
     removed: list[str] = field(
         default_factory=list
-    )  # file names deleted by a '-'/'--' removal row
+    )  # file names deleted from the zip by a '-'/'--' removal row ("restore" style only)
+    needs_manual_removal: list[str] = field(
+        default_factory=list
+    )  # intents marked for removal that "import" style can't delete; remove by hand
     unmarked: list[str] = field(
         default_factory=list
     )  # only in the export, not built by this config and not marked for removal

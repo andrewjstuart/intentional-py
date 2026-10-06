@@ -82,19 +82,21 @@ def _tables(result: Result) -> list[Table]:
         removed = _removed_table(result.removed, "Removed (marked with '-'/'--')")
         if removed:
             tables.append(removed)
+        manual = _removed_table(
+            result.needs_manual_removal,
+            "Marked for removal, but 'import' can't delete - remove by hand",
+        )
+        if manual:
+            tables.append(manual)
         unmarked = _removed_table(
             result.unmarked, f"Only in {result.source} (not built by this config)"
         )
         if unmarked:
             tables.append(unmarked)
+        output = [["Package style", result.style]]
         if result.output:
-            tables.append(
-                (
-                    "Output",
-                    ["Item", "Location"],
-                    [["Updated export written to", str(result.output)]],
-                )
-            )
+            output.append(["Updated export written to", str(result.output)])
+        tables.append(("Output", ["Item", "Location"], output))
         return tables
     if isinstance(result, ValidateResult):
         checks = result_views.checks(result)

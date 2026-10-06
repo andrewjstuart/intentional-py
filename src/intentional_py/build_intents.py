@@ -119,16 +119,23 @@ def package_export(
     rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
     languages: models.LanguageSettings | None = None,
+    style: str = "restore",
 ) -> PackageResult:
-    """Merge this config's build into a copy of an agent export zip, ready to re-import:
-    new or changed intents are added to the copy, and any '-'/'--' removal row also
-    deletes its files from it (same confirm-first-for-a-single-'-' rule as a regular
-    build). The export itself is never modified; the copy is written next to it with a
-    timestamp appended to its name.
+    """Merge this config's build into a copy of an agent export zip, matching one of
+    Dialogflow ES's own Import/Restore actions:
 
-    The export's internal layout (where its intents/ folder lives) is detected from its
-    own contents rather than assumed, since different exports may nest it differently -
-    this is the part most likely to need adjusting once a real export is available.
+    - "restore" (default): a complete copy of the export, since Restore replaces the
+      whole agent - anything missing is deleted. New/changed intents are added, and a
+      '-'/'--' removal row also deletes its files from the copy (same
+      confirm-first-for-a-single-'-' rule as a regular build); everything else carries
+      over unchanged.
+    - "import": a partial zip of just the new/changed intents (plus agent.json/
+      package.json), since Import only adds or overwrites and never deletes. A
+      removal row has no effect on the zip here - those intents are listed in the
+      result's `needs_manual_removal` instead, to delete from the agent by hand.
+
+    The export itself is never modified; the copy is written next to it with the style
+    and a timestamp appended to its name.
     """
     languages = languages or models.LanguageSettings()
     files_to_write, _result, t1_start, removals = _generate(
@@ -140,35 +147,50 @@ def package_export(
 
     prefix, names = comparing.export_contents(export)
     name_set = set(names)
-    targets = [
-        (removal, arcnames)
-        for removal in removals
-        if (
-            arcnames := comparing.removal_arcnames(removal, prefix, name_set, languages)
-        )
-    ]
-    _confirm_removals(targets, reporter, lambda name: Path(name).name)
-    removed_arcnames: set[str] = set()
-    for removal, arcnames in targets:
-        for arcname in arcnames:
-            removed_arcnames.add(arcname)
-            reporter.message(
-                "info",
-                f"[yellow]Removed[/yellow] {Path(arcname).name} (row {removal.row_number})",
-            )
-
     marked_intents = {removal.intent for removal in removals}
-    result = PackageResult(source=export)
+
+    result = PackageResult(source=export, style=style)
     result.added = diff.added
     result.changed = diff.changed
     result.unchanged = diff.unchanged
     result.unmarked = sorted(
         name for name in diff.removed if name not in marked_intents
     )
-    result.removed = sorted(Path(name).name for name in removed_arcnames)
 
-    output = export.with_name(f"{export.stem}_{utils.timestamp()}{export.suffix}")
-    comparing.merge_export(export, files_to_write, removed_arcnames, prefix, output)
+    output = export.with_name(
+        f"{export.stem}_{style}_{utils.timestamp()}{export.suffix}"
+    )
+    if style == "import":
+        if marked_intents:
+            result.needs_manual_removal = sorted(marked_intents)
+            reporter.message(
+                "warning",
+                "[yellow]Dialogflow's Import can't delete intents[/yellow]; remove "
+                + ", ".join(result.needs_manual_removal)
+                + " from the agent by hand, or use --style restore instead.",
+            )
+        comparing.write_import_zip(files_to_write, prefix, output)
+    else:
+        targets = [
+            (removal, arcnames)
+            for removal in removals
+            if (
+                arcnames := comparing.removal_arcnames(
+                    removal, prefix, name_set, languages
+                )
+            )
+        ]
+        _confirm_removals(targets, reporter, lambda name: Path(name).name)
+        removed_arcnames: set[str] = set()
+        for removal, arcnames in targets:
+            for arcname in arcnames:
+                removed_arcnames.add(arcname)
+                reporter.message(
+                    "info",
+                    f"[yellow]Removed[/yellow] {Path(arcname).name} (row {removal.row_number})",
+                )
+        result.removed = sorted(Path(name).name for name in removed_arcnames)
+        comparing.merge_export(export, files_to_write, removed_arcnames, prefix, output)
     result.output = output
     result.elapsed = perf_counter() - t1_start
     return result
