@@ -19,6 +19,7 @@ import json
 import shutil
 import tempfile
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
 
 from intentional_py import (
@@ -120,6 +121,25 @@ def open_project(zip_bytes: bytes) -> str:
         for name in archive.namelist():
             utils.safe_join(_workspace, name)
         archive.extractall(_workspace)
+    return _project_status()
+
+
+def open_project_files(entries: Iterable[tuple[str, bytes]]) -> str:
+    """Start this session's project from a chosen folder's files - the directory-picker
+    alternative to open_project()'s zip upload, for a browser that can offer one (e.g.
+    via a folder <input>'s webkitRelativePath). `entries` is (relative path, bytes)
+    pairs, one per file, with the picked folder itself already stripped off each path."""
+    new_project()
+    workspace = _require_workspace()
+    pairs = [(str(rel_path), bytes(data)) for rel_path, data in entries]
+    # reject a path (e.g. '../../etc/passwd') that would land outside the workspace,
+    # before writing anything
+    for rel_path, _ in pairs:
+        utils.safe_join(workspace, rel_path)
+    for rel_path, data in pairs:
+        target = workspace / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     return _project_status()
 
 
@@ -349,43 +369,25 @@ def compare_project(
         shutil.rmtree(upload_dir, ignore_errors=True)
 
 
-def package_project(
-    export_bytes: bytes,
-    export_filename: str,
-    mode: str = "DD",
-    config_name: str = "",
-    style: str = "restore",
-) -> str:
-    """Merge the current project's build into a copy of an uploaded agent export zip,
-    matching Dialogflow's own Import/Restore actions. The copy itself is held in
-    memory for download_package() instead of being written into the project
-    workspace, since it isn't part of the project.
+def _package_project(export_bytes: bytes, export_filename: str, style: str) -> str:
+    """Shared by merge_project()/package_project(): merges the current project's
+    already-built intents into a copy of an uploaded agent export zip, matching
+    Dialogflow's own Restore/Import actions. Doesn't build anything - DD and NL
+    builds both write to the same intents folder, so there's no mode or config to
+    choose here, just whatever is already there; build first if it needs updating.
+    The copy itself is held in memory for download_package() instead of being
+    written into the project workspace, since it isn't part of the project.
     """
     global _last_package
     workspace = _require_workspace()
     layout = ProjectLayout()
-    style = style.lower()
-    if style not in constants.VALID_PACKAGE_STYLES:
-        raise exceptions.ConfigurationError(
-            f"Invalid style: {style}. Valid styles: restore, import"
-        )
     upload_dir = Path(tempfile.mkdtemp(prefix="intentional_web_upload_"))
     try:
-        default = layout.nl_config if mode == "NL" else layout.dd_config
-        config = Path(workspace, config_name or default)
         export_path = upload_dir / f"export{Path(export_filename).suffix or '.zip'}"
         export_path.write_bytes(export_bytes)
         reporter = WebReporter()
         result = build_intents.package_export(
-            mode,
-            config,
-            workspace,
-            export_path,
-            reporter,
-            NamingRules(),
-            layout,
-            None,
-            style,
+            workspace, export_path, reporter, layout, style
         )
         _last_package = (
             (result.output.read_bytes(), result.output.name) if result.output else None
@@ -408,6 +410,20 @@ def package_project(
         return json.dumps(payload)
     finally:
         shutil.rmtree(upload_dir, ignore_errors=True)
+
+
+def merge_project(export_bytes: bytes, export_filename: str) -> str:
+    """Merge the current project's already-built intents into a *complete* copy of an
+    uploaded agent export zip, for Dialogflow's Restore action. See
+    _package_project() for what this does and doesn't need."""
+    return _package_project(export_bytes, export_filename, "restore")
+
+
+def package_project(export_bytes: bytes, export_filename: str) -> str:
+    """Merge the current project's already-built intents into a *partial* copy of an
+    uploaded agent export zip, for Dialogflow's Import action. See
+    _package_project() for what this does and doesn't need."""
+    return _package_project(export_bytes, export_filename, "import")
 
 
 def download_package() -> bytes:

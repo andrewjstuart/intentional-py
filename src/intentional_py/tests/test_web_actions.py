@@ -16,8 +16,10 @@ from intentional_py.web.actions import (
     download_package,
     download_project,
     extract_project,
+    merge_project,
     new_project,
     open_project,
+    open_project_files,
     package_project,
     project_files,
     validate_project,
@@ -78,6 +80,27 @@ def test_open_project_rejects_a_zip_slip_entry() -> None:
 
     with pytest.raises(exceptions.ConfigurationError):
         open_project(buffer.getvalue())
+
+
+def test_open_project_files_writes_each_entry_into_the_workspace() -> None:
+    result = json.loads(
+        open_project_files(
+            [
+                ("intents.cfg", b"A.Pay,Ctx,en,pay,,,"),
+                ("Training Phrases/en/pay.txt", b"pay my bill"),
+            ]
+        )
+    )
+
+    assert sorted(result["files"]) == [
+        "Training Phrases/en/pay.txt",
+        "intents.cfg",
+    ]
+
+
+def test_open_project_files_rejects_a_path_traversal_entry() -> None:
+    with pytest.raises(exceptions.ConfigurationError):
+        open_project_files([("../../evil.cfg", b"A.Pay,Ctx,en,pay,,,")])
 
 
 def test_validate_project_passes_for_a_valid_project(tmp_path: Path) -> None:
@@ -283,7 +306,9 @@ def test_compare_project_reports_differences(tmp_path: Path) -> None:
     assert result["unchanged"] == 1
 
 
-def test_package_project_merges_into_a_copy_of_the_export(tmp_path: Path) -> None:
+def test_merge_project_merges_into_a_complete_copy_of_the_export(
+    tmp_path: Path,
+) -> None:
     project = tmp_path / "project"
     config = dd_project(project, ["A.One,Ctx,en,one,,,"], {"one": "one"})
     build_intents.intents("DD", config, project, FakeReporter())
@@ -294,8 +319,9 @@ def test_package_project_merges_into_a_copy_of_the_export(tmp_path: Path) -> Non
             archive.write(path, arcname=f"intents/{path.name}")
     config.write_text("A.One,Ctx,en,one,,,\nA.Two,Ctx,en,one,,,\n", encoding="utf-8")
     open_project(_zip_dir(project))
+    build_dd_project()  # merge reflects what's actually built, not just the config
 
-    result = json.loads(package_project(export_buffer.getvalue(), "export.zip"))
+    result = json.loads(merge_project(export_buffer.getvalue(), "export.zip"))
 
     assert result["style"] == "restore"
     assert result["added"] == ["A.Two"]
@@ -308,18 +334,31 @@ def test_package_project_merges_into_a_copy_of_the_export(tmp_path: Path) -> Non
     assert "agent.json" in names
 
 
-def test_package_project_rejects_an_invalid_style(tmp_path: Path) -> None:
+def test_package_project_packages_just_the_new_or_changed_intents(
+    tmp_path: Path,
+) -> None:
     project = tmp_path / "project"
-    dd_project(project, ["A.One,Ctx,en,one,,,"], {"one": "one"})
-    build_intents.intents("DD", project / "intents.cfg", project, FakeReporter())
+    config = dd_project(project, ["A.One,Ctx,en,one,,,"], {"one": "one"})
+    build_intents.intents("DD", config, project, FakeReporter())
     export_buffer = io.BytesIO()
     with zipfile.ZipFile(export_buffer, "w") as archive:
+        archive.writestr("agent.json", "{}")
         for path in (project / "intents").glob("*.json"):
             archive.write(path, arcname=f"intents/{path.name}")
+    config.write_text("A.One,Ctx,en,one,,,\nA.Two,Ctx,en,one,,,\n", encoding="utf-8")
     open_project(_zip_dir(project))
+    build_dd_project()
 
-    with pytest.raises(exceptions.ConfigurationError):
-        package_project(export_buffer.getvalue(), "export.zip", style="bogus")
+    result = json.loads(package_project(export_buffer.getvalue(), "export.zip"))
+
+    assert result["style"] == "import"
+    assert result["added"] == ["A.Two"]
+    assert result["output_name"].startswith("export_import_")
+
+    with zipfile.ZipFile(io.BytesIO(download_package())) as archive:
+        names = set(archive.namelist())
+    assert "intents/A.Two.json" in names
+    assert "agent.json" not in names
 
 
 def test_download_package_without_running_first_is_rejected() -> None:
