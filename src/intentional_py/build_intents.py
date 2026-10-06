@@ -123,43 +123,64 @@ def compare_build(
 
 
 def package_export(
-    mode: str,
-    config: Path,
     base_dir: Path,
     export: Path,
     reporter: Reporter,
-    rules: models.NamingRules | None = None,
     layout: models.ProjectLayout | None = None,
-    languages: models.LanguageSettings | None = None,
     style: str = "restore",
 ) -> PackageResult:
-    """Merge this config's build into a copy of an agent export zip, matching one of
-    Dialogflow ES's own Import/Restore actions:
+    """Merge the intents already built in base_dir's intents folder into a copy of an
+    agent export zip, matching one of Dialogflow ES's own Import/Restore actions:
 
     - "restore" (default): a complete copy of the export, since Restore replaces the
-      whole agent - anything missing is deleted. New/changed intents are added, and a
-      '-'/'--' removal row also deletes its files from the copy (same
-      confirm-first-for-a-single-'-' rule as a regular build); everything else carries
-      over unchanged.
+      whole agent - anything missing is deleted. New/changed intents are added;
+      everything else (including any intent only in the export, never built here)
+      carries over unchanged.
     - "import": a partial zip of just the new/changed intents, since Import only adds
       or overwrites and never deletes; agent.json/package.json aren't included, since
-      this tool never writes them. A removal row has no effect on the zip here - those
-      intents are listed in the result's `needs_manual_removal` instead, to delete
-      from the agent by hand.
+      this tool never writes them.
+
+    Unlike intents()'s own `export`/`package_style` parameters, this doesn't build
+    anything - DD and NL builds both write to the same intents folder, so there's no
+    config or mode to pick here, just whatever is already there. Build first if the
+    intents folder needs updating. There's no config here to carry a '-'/'--' row's
+    intent forward either, so an intent removed from a past build stays in the export
+    unless deleted from it by hand (or from `restore`-style, with `-`/`--` still in
+    the config, via intents()'s combined build-and-merge instead) - packaging on its
+    own never deletes anything already in the export that it didn't just replace.
 
     The export itself is never modified; the copy is written next to it with the style
-    and a timestamp appended to its name. Writes nothing to the intents folder - see
-    intents()'s own `export`/`package_style` parameters to do both in one step.
+    and a timestamp appended to its name.
     """
-    languages = languages or models.LanguageSettings()
-    files_to_write, _result, t1_start, removals = _generate(
-        mode, config, base_dir, reporter, rules, layout, languages
-    )
+    layout = layout or models.ProjectLayout()
+    output_dir = Path(base_dir, layout.intents_dir)
+    if not output_dir.is_dir():
+        raise exceptions.FileSystemError(
+            f"[red]No intents folder to package: [blue]{output_dir}[/blue][/red]\n"
+            "Build the intents first."
+        )
+    t1_start = perf_counter()
+    files_to_write = _read_existing_intents(output_dir)
+    if not files_to_write:
+        raise exceptions.ValidationError(
+            f"[red]The intents folder is empty[/red]: [cyan]{output_dir}[/cyan]\n"
+            "Build the intents first."
+        )
     result = _merge_into_export(
-        files_to_write, removals, export, reporter, languages, style
+        files_to_write, [], export, reporter, models.LanguageSettings(), style
     )
     result.elapsed = perf_counter() - t1_start
     return result
+
+
+def _read_existing_intents(output_dir: Path) -> dict[Path, dict]:
+    """Every intent/usersays JSON file already in an intents folder, keyed by path -
+    for packaging a build that's already up to date, without rebuilding it."""
+    files: dict[Path, dict] = {}
+    for path in sorted(output_dir.glob("*.json")):
+        with utils.file_errors(path):
+            files[path] = json.loads(path.read_text(encoding="utf-8-sig"))
+    return files
 
 
 def _merge_into_export(
