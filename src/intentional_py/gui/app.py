@@ -43,6 +43,13 @@ POLL_MS = 100
 EXCEL_TYPES = [("Excel files", "*.xlsb *.xlsm *.xlsx"), ("All files", "*.*")]
 CONFIG_TYPES = [("Config files", "*.cfg"), ("All files", "*.*")]
 ZIP_TYPES = [("Agent export", "*.zip"), ("All files", "*.*")]
+# Build DD/NL's optional in-step merge, matching the CLI/web's Merge ("restore")
+# vs Package ("import") split - None leaves the export field's file (if any) unused.
+PACKAGE_CHOICES: dict[str, str | None] = {
+    "None": None,
+    "Merge (restore - complete)": "restore",
+    "Zip (import - partial)": "import",
+}
 
 
 def _window_icon() -> tk.PhotoImage | None:
@@ -303,10 +310,12 @@ class App(ctk.CTk):
         self.mode_tabs = tabs
         self._build_dd_tab(self._tab(tabs, "Build DD"))
         self._build_nl_tab(self._tab(tabs, "Build NL"))
-        self._build_extract_tab(self._tab(tabs, "Extract"))
         self._build_validate_tab(self._tab(tabs, "Validate"))
+        self._build_extract_tab(self._tab(tabs, "Extract"))
+        self._build_design_tab(self._tab(tabs, "Create Config"))
         self._build_compare_tab(self._tab(tabs, "Compare"))
-        self._build_design_tab(self._tab(tabs, "Design doc"))
+        self._build_merge_tab(self._tab(tabs, "Merge"))
+        self._build_package_tab(self._tab(tabs, "Package"))
         self._build_settings_tab(self._tab(tabs, "Settings"))
 
     def _on_mode_tab_changed(self) -> None:
@@ -334,19 +343,21 @@ class App(ctk.CTk):
         )
         options = ctk.CTkFrame(tab, fg_color="transparent")
         options.grid(row=2, column=1, sticky="w")
-        ctk.CTkLabel(options, text="Package style").grid(row=0, column=0, **PAD)
-        self.dd_package_style = ctk.CTkOptionMenu(
-            options, values=["restore", "import"], width=90
+        ctk.CTkLabel(options, text="Package").grid(row=0, column=0, **PAD)
+        self.dd_package_choice = ctk.CTkOptionMenu(
+            options, values=list(PACKAGE_CHOICES), width=200
         )
-        self.dd_package_style.grid(row=0, column=1, **PAD)
+        self.dd_package_choice.grid(row=0, column=1, **PAD)
         self._hint(
             tab,
             3,
+            "Builds directed dialog intents from a config file using Training Phrases and "
+            "writes them to the intents folder. Runs the same checks as Validate first. "
             "Training phrases are read from, and intents written to, the config file's folder.",
         )
         self._clean_checkbox(tab, 4)
         self._run_button(
-            tab, 5, "Build DD intents", self._run_dd, edit=(self.dd_config, "DD")
+            tab, 5, "Build Intents", self._run_dd, edit=(self.dd_config, "DD")
         )
 
     def _build_nl_tab(self, tab: ctk.CTkFrame) -> None:
@@ -376,13 +387,19 @@ class App(ctk.CTk):
         ).grid(row=0, column=2, **PAD)
         style_row = ctk.CTkFrame(tab, fg_color="transparent")
         style_row.grid(row=5, column=1, sticky="w")
-        ctk.CTkLabel(style_row, text="Package style").grid(row=0, column=0, **PAD)
-        self.nl_package_style = ctk.CTkOptionMenu(
-            style_row, values=["restore", "import"], width=90
+        ctk.CTkLabel(style_row, text="Package").grid(row=0, column=0, **PAD)
+        self.nl_package_choice = ctk.CTkOptionMenu(
+            style_row, values=list(PACKAGE_CHOICES), width=200
         )
-        self.nl_package_style.grid(row=0, column=1, **PAD)
+        self.nl_package_choice.grid(row=0, column=1, **PAD)
+        self._hint(
+            tab,
+            6,
+            "Builds natural language intents from your Training Phrases NL folder and "
+            "writes them to the intents folder. Runs the same checks as Validate first.",
+        )
         self._run_button(
-            tab, 6, "Build NL intents", self._run_nl, edit=(self.nl_config, "NL")
+            tab, 7, "Build Intents", self._run_nl, edit=(self.nl_config, "NL")
         )
 
     def _build_extract_tab(self, tab: ctk.CTkFrame) -> None:
@@ -402,7 +419,8 @@ class App(ctk.CTk):
         self._hint(
             tab,
             2,
-            "Phrases are saved under the project's Training Phrases folder; phrases being replaced are zipped first. "
+            "Pulls phrases out of an Excel workbook into text files Build NL/DD can read, "
+            "replacing what's already there (the old phrases are backed up first). "
             "More languages than these can be added on the Settings tab.",
         )
         self._run_button(tab, 3, "Extract phrases", self._run_extract)
@@ -415,7 +433,13 @@ class App(ctk.CTk):
             "Leave blank to check the standard config files",
             CONFIG_TYPES,
         )
-        self._run_button(tab, 1, "Validate", self._run_validate)
+        self._hint(
+            tab,
+            1,
+            "Checks the supplied config file and folder structure for possible issues, "
+            "without writing anything. Also done automatically as part of both build tasks.",
+        )
+        self._run_button(tab, 2, "Validate", self._run_validate)
 
     def _build_compare_tab(self, tab: ctk.CTkFrame) -> None:
         ctk.CTkLabel(tab, text="Agent export").grid(row=0, column=0, sticky="w", **PAD)
@@ -443,11 +467,6 @@ class App(ctk.CTk):
         ctk.CTkLabel(options, text="Mode").grid(row=0, column=0, **PAD)
         self.compare_mode = ctk.CTkOptionMenu(options, values=["DD", "NL"], width=90)
         self.compare_mode.grid(row=0, column=1, **PAD)
-        ctk.CTkLabel(options, text="Package style").grid(row=0, column=2, **PAD)
-        self.package_style = ctk.CTkOptionMenu(
-            options, values=["restore", "import"], width=90
-        )
-        self.package_style.grid(row=0, column=3, **PAD)
         self.compare_config = self._file_row(
             tab,
             2,
@@ -459,14 +478,34 @@ class App(ctk.CTk):
         self._hint(
             tab,
             3,
-            "Compare shows what a build would add or change, without writing anything. "
-            "Package writes a copy of the export zip merged with this build, ready to "
-            "re-import: 'restore' is a complete copy, 'import' has just the new/changed "
-            "intents. Either way the export itself is never modified.",
+            "Shows what a build would add or change in a Dialogflow agent export, without "
+            "writing or downloading anything. Needs access to a current export of the agent. "
+            "See the Merge and Package tabs to take the intents already built and merge them "
+            "into a copy of this same export, instead of adding and removing intents by hand.",
         )
-        self._run_button(
-            tab, 4, "Compare", self._run_compare, extra=("Package…", self._run_package)
+        self._run_button(tab, 4, "Compare", self._run_compare)
+
+    def _build_merge_tab(self, tab: ctk.CTkFrame) -> None:
+        self.merge_export = self._file_row(tab, 0, "Agent export", "", ZIP_TYPES)
+        self._hint(
+            tab,
+            1,
+            "Takes the intents already built and produces a complete copy of an agent "
+            "export, for Dialogflow's Restore action. Build Intents first if the folder "
+            "needs updating. The export itself is never modified.",
         )
+        self._run_button(tab, 2, "Merge", self._run_merge)
+
+    def _build_package_tab(self, tab: ctk.CTkFrame) -> None:
+        self.package_export = self._file_row(tab, 0, "Agent export", "", ZIP_TYPES)
+        self._hint(
+            tab,
+            1,
+            "Takes the intents already built and produces a partial copy of just the "
+            "new/changed intents, for Dialogflow's Import action. Build Intents first if "
+            "the folder needs updating. The export itself is never modified.",
+        )
+        self._run_button(tab, 2, "Package", self._run_package)
 
     def _build_design_tab(self, tab: ctk.CTkFrame) -> None:
         self.design_file = self._file_row(tab, 0, "Design document", "", EXCEL_TYPES)
@@ -483,11 +522,13 @@ class App(ctk.CTk):
         self._hint(
             tab,
             3,
-            "Machine Learning: TRUE (or blank) keeps it on; FALSE turns it off. "
-            "An existing config is backed up before it is replaced.",
+            "Creates a config file from an Excel design document, so you don't copy rows "
+            "by hand. Review it, then run Build Intents (DD) directly. Machine Learning: "
+            "TRUE (or blank) keeps it on; FALSE turns it off. An existing config is backed "
+            "up before it is replaced.",
         )
         self._run_button(
-            tab, 4, "Create config", self._run_design, edit=(self.design_config, "DD")
+            tab, 4, "Create Config", self._run_design, edit=(self.design_config, "DD")
         )
 
     def _build_settings_tab(self, tab: ctk.CTkFrame) -> None:
@@ -1016,9 +1057,8 @@ class App(ctk.CTk):
                 list(self.language_settings_snapshot.languages),
             ),
             (self.compare_mode, "compare_mode", ["DD", "NL"]),
-            (self.package_style, "package_style", ["restore", "import"]),
-            (self.dd_package_style, "package_style", ["restore", "import"]),
-            (self.nl_package_style, "package_style", ["restore", "import"]),
+            (self.dd_package_choice, "package_choice", list(PACKAGE_CHOICES)),
+            (self.nl_package_choice, "package_choice", list(PACKAGE_CHOICES)),
         ):
             if self.settings[key] in allowed:
                 menu.set(self.settings[key])
@@ -1037,7 +1077,7 @@ class App(ctk.CTk):
             extract_mode=self.xl_mode.get(),
             extract_language=self.xl_language.get(),
             compare_mode=self.compare_mode.get(),
-            package_style=self.package_style.get(),
+            package_choice=self.dd_package_choice.get(),
             check_updates=self.check_updates_var.get(),
         )
         settings.save(self.settings)
@@ -1079,14 +1119,23 @@ class App(ctk.CTk):
             self.dd_config.get(),
             self.clean_var.get(),
         )
-        export_text, style = self.dd_export.get(), self.dd_package_style.get()
+        style = PACKAGE_CHOICES[self.dd_package_choice.get()]
+        export_text = self.dd_export.get() if style else ""
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
         languages = user_settings.load_language_settings()
         self._start(
             "Build DD intents",
             lambda r: actions.build_dd(
-                project, config, r, clean, rules, layout, languages, export_text, style
+                project,
+                config,
+                r,
+                clean,
+                rules,
+                layout,
+                languages,
+                export_text,
+                style or "restore",
             ),
         )
 
@@ -1100,7 +1149,8 @@ class App(ctk.CTk):
             bool(self.nl_reuse.get()),
         )
         clean = self.clean_var.get()
-        export_text, style = self.nl_export.get(), self.nl_package_style.get()
+        style = PACKAGE_CHOICES[self.nl_package_choice.get()]
+        export_text = self.nl_export.get() if style else ""
         rules = user_settings.load_naming_rules()
         layout = user_settings.load_project_layout()
         nl_defaults = user_settings.load_nl_defaults()
@@ -1116,7 +1166,7 @@ class App(ctk.CTk):
                 nl_defaults,
                 languages,
                 export_text,
-                style,
+                style or "restore",
             ),
         )
 
@@ -1157,20 +1207,20 @@ class App(ctk.CTk):
             "Compare", lambda r: actions.compare(*values, r, rules, layout, languages)
         )
 
-    def _run_package(self) -> None:
-        values = (
-            self.project_entry.get(),
-            self.compare_mode.get(),
-            self.compare_config.get(),
-            self.export_entry.get(),
-            self.package_style.get(),
-        )
-        rules = user_settings.load_naming_rules()
+    def _run_merge(self) -> None:
+        values = (self.project_entry.get(), self.merge_export.get(), "restore")
         layout = user_settings.load_project_layout()
-        languages = user_settings.load_language_settings()
+        self._start(
+            "Merge export",
+            lambda r: actions.package(*values, r, layout),
+        )
+
+    def _run_package(self) -> None:
+        values = (self.project_entry.get(), self.package_export.get(), "import")
+        layout = user_settings.load_project_layout()
         self._start(
             "Package export",
-            lambda r: actions.package(*values, r, rules, layout, languages),
+            lambda r: actions.package(*values, r, layout),
         )
 
     def _run_design(self) -> None:

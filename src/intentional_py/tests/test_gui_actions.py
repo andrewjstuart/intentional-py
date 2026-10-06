@@ -50,10 +50,12 @@ def test_help_has_a_section_for_each_tab() -> None:
         "Getting started",
         "Build DD",
         "Build NL",
-        "Extract",
         "Validate",
+        "Extract",
+        "Create Config",
         "Compare",
-        "Design doc",
+        "Merge",
+        "Package",
         "Settings",
     ]
 
@@ -183,7 +185,7 @@ def test_package_rejects_an_export_folder(tmp_path: Path) -> None:
     folder.mkdir()
     with pytest.raises(exceptions.ConfigurationError):
         actions.package(
-            str(tmp_path), "DD", "", str(folder), "restore", GuiReporter(queue.Queue())
+            str(tmp_path), str(folder), "restore", GuiReporter(queue.Queue())
         )
 
 
