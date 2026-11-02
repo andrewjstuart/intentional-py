@@ -15,6 +15,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('src/intentional_py/gui/icon.png', 'intentional_py/gui'),
+        ('src/intentional_py/gui/icon.ico', 'intentional_py/gui'),
         ('src/intentional_py/gui/theme.json', 'intentional_py/gui'),
     ],
     hiddenimports=[],
