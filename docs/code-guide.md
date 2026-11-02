@@ -18,14 +18,14 @@ A map of the source code: what each file does, how the files work together, and 
 
 ## The big picture
 
-The code has three layers. The **core** does the work (reads configs and phrases, writes the intent JSON) and never prints anything or opens a window. The **front ends** — the CLI, the GUI, and an experimental browser version — collect the user's choices, call the core, and show the results in their own way.
+The code has three layers. The **core** does the work (reads configs and phrases, writes the intent JSON) and never prints anything or opens a window. The **front ends** — the CLI, the GUI, and a browser version — collect the user's choices, call the core, and show the results in their own way.
 
 ```mermaid
 flowchart TD
     CLI["CLI<br/>intentional.py"] --> RR["rich_reporter.py<br/>prints to the terminal"]
     GUI["GUI<br/>gui/app.py"] --> ACT["gui/actions.py<br/>form values to core calls"]
     ACT --> WRK["gui/worker.py<br/>runs jobs in the background"]
-    WEB["Web (experimental)<br/>web/index.html"] --> WACT["web/actions.py<br/>one open project per session"]
+    WEB["Web<br/>web/index.html"] --> WACT["web/actions.py<br/>one open project per session"]
     CLI --> CORE
     ACT --> CORE
     WACT --> CORE
@@ -95,20 +95,21 @@ The GUI is built with [CustomTkinter](https://customtkinter.tomschimansky.com/),
 
 | File | What it does |
 |-|-|
-| [gui/app.py](../src/intentional_py/gui/app.py) | **The main window**: the project folder row, one tab per task, a Settings tab (naming rules, project layout and NL defaults, since all three are project-wide rather than task-specific), the results panel, Help, saved reports, and the reusable duplicate-phrase dialog. The `_build_…` methods create the widgets, the `_run_…` methods start a job, and `_handle()` / `_finish()` show what the job reports. The largest file, but it only arranges and displays; the work is elsewhere. |
+| [gui/app.py](../src/intentional_py/gui/app.py) | **The main window**: a logo/"Intentional" heading (`_build_header()`, matching the web version's header), the project folder row, one tab per task, a Settings tab (naming rules, project layout and NL defaults, since all three are project-wide rather than task-specific), the results panel, Help, saved reports, and the reusable duplicate-phrase dialog. The `_build_…` methods create the widgets, the `_run_…` methods start a job, and `_handle()` / `_finish()` show what the job reports. The largest file, but it only arranges and displays; the work is elsewhere. |
 | [gui/actions.py](../src/intentional_py/gui/actions.py) | **What each Run button does**, without any widgets: turns the form values into a core call (`build_dd()`, `extract()`, …), and turns results into the figures, issues and tables the window shows (sharing the result-interpretation logic in `result_views.py` with `report.py`). Having no widgets means it can be tested without a screen. `build_dd()`/`build_nl()` take an optional export/style, shared with `package()` via `_resolve_optional_export()`/`_validate_style()`, so the **Build DD**/**Build NL** tabs can also merge into a copy of an export in the same step (see `BuildResult.package`); `package()` is the **Compare** tab's second button (**Package…**) for packaging on its own: unlike `compare()`, it rejects an unzipped export folder with a friendly error, since merging has to copy entries out of the zip itself. `_package_tables()` is shared by a `BuildResult.package` and a standalone `PackageResult`, so the two can't drift out of sync. |
 | [gui/worker.py](../src/intentional_py/gui/worker.py) | **Runs a job in the background** so the window doesn't freeze. `JobRunner` starts the job on another thread; `GuiReporter` is the GUI's reporter, which puts each message on a queue that the window reads every 100 ms. |
 | [gui/config_editor.py](../src/intentional_py/gui/config_editor.py) | The **Edit config…** window: the config as a table, a dialog to edit one row, and Check and Save. |
 | [gui/widgets.py](../src/intentional_py/gui/widgets.py) | Styling and table helpers shared by the main window and the config editor (colours, table style, column sizing). |
-| [gui/theme.json](../src/intentional_py/gui/theme.json) | The card-styled color theme (rounded, bordered frames; the same accent blue as the web version), loaded with `ctk.set_default_color_theme()` before the window is built. A full copy of CustomTkinter's built-in "blue" theme with just the corner radius/border/background values changed — CustomTkinter replaces the theme wholesale rather than merging it, so every widget type it looks up a key for must be present. |
+| [gui/theme.json](../src/intentional_py/gui/theme.json) | The card-styled color theme (rounded, bordered frames; default accent colors matching the web version's), loaded with `ctk.set_default_color_theme()` before the window is built. A full copy of CustomTkinter's built-in "blue" theme with just the corner radius/border/background/accent values changed — CustomTkinter replaces the theme wholesale rather than merging it, so every widget type it looks up a key for must be present. The **Accent color** menu (`ACCENT_PRESETS` in `gui/app.py`, the same hex values as the web version's picker) overrides these colors at runtime for all eight presets; see `_set_accent()`/`_restyle_accent_widgets()`. |
+| [gui/icon_render.py](../src/intentional_py/gui/icon_render.py) | Pure-stdlib rendering of the app icon (a rainbow-bordered speech bubble around a shaded box and checkmark badge) at any size/accent, used by `assets/generate_icon.py` to build the static icon/favicon family (baked at the default accent; the GUI's own window icon is static too, loaded from that file rather than re-rendered). See [development](development.md#the-app-icon). |
 | [gui/help_text.py](../src/intentional_py/gui/help_text.py) | The text of the Help window, one section per tab. Plain text, so it's easy to edit. |
-| [gui/settings.py](../src/intentional_py/gui/settings.py) | Saves and loads the remembered choices (recent projects, NL options, appearance mode) in `settings.json`. |
+| [gui/settings.py](../src/intentional_py/gui/settings.py) | Saves and loads the remembered choices (recent projects, NL options, appearance mode, accent color) in `settings.json`. |
 | [gui/updates.py](../src/intentional_py/gui/updates.py) | Asks GitHub for the latest release and compares its version with this one. |
 | [gui/\_\_main\_\_.py](../src/intentional_py/gui/__main__.py) | Lets `python -m intentional_py.gui` open the GUI. |
 
 ### Browser front end (web folder)
 
-An experimental third front end: the same core running in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly), with no server beyond serving the static page itself (see [development](development.md#running-the-web-version)). All six tasks are implemented.
+A third front end: the same core running in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly), with no server beyond serving the static page itself (see [development](development.md#running-the-web-version)). All eight tasks are implemented.
 
 | File | What it does |
 |-|-|
@@ -120,7 +121,7 @@ The static browser bundle itself lives in the repository's top-level `web/` fold
 
 | File | What it does |
 |-|-|
-| `web/index.html`, `web/app.js` | The page: loads Pyodide, installs the project wheel via `micropip` (using the filename `web/wheel-filename.txt` names), and calls one of `web/actions.py`'s functions per task. `app.js` is the only Pyodide-specific code in this front end — everything it calls into is plain, independently-tested Python. Also applies the light/dark theme (`prefers-color-scheme` by default, overridable and remembered via `localStorage`), and a **? Help** dialog with the same per-task explanations as the GUI's Help window, written directly in `index.html`. |
+| `web/index.html`, `web/app.js` | The page: loads Pyodide, installs the project wheel via `micropip` (using the filename `web/wheel-filename.txt` names), and calls one of `web/actions.py`'s functions per task. `app.js` is the only Pyodide-specific code in this front end — everything it calls into is plain, independently-tested Python. Also applies the light/dark theme (`prefers-color-scheme` by default, overridable and remembered via `localStorage`) and an accent color (eight presets, `[data-theme][data-accent]` CSS custom properties), a **? Help** dialog with the same per-task explanations as the GUI's Help window, and an inline SVG logo whose box/checkmark badge recolor with the chosen accent (the bubble's own border keeps a fixed rainbow) - all written directly in `index.html`. The layout is responsive (a centered brand/controls header, stacking fields) down to phone-sized screens. |
 | `web/serve.py` | The one command needed to try it: builds the project wheel into `web/` if it's missing or older than the source, writes `web/wheel-filename.txt` so `app.js` never hardcodes a version, then serves the folder on localhost and opens it. Pyodide needs its assets served over `http(s)`, not opened as a bare `file://` URL, so this is the smallest thing that satisfies that without running any real server. |
 | `web/run.bat`, `web/run.sh` | Double-click launchers for `serve.py`, for anyone who'd rather not open a terminal; pause on error so the window stays open if something fails. |
 | `web/intentional_py-*.whl`, `web/wheel-filename.txt` | A built copy of the project wheel, installed into Pyodide at page load, and the filename `app.js` reads to install it. Both are (re)generated automatically by `web/serve.py` (see [development](development.md#running-the-web-version)). |
@@ -158,7 +159,7 @@ These are in the repository's top folder.
 | `.python-version` | The Python version uv and compatible version managers select for local development. The package's supported range remains in `pyproject.toml`. |
 | `uv.lock` | The exact version of every dependency, written by `uv lock`, so every install is the same. |
 | `intentional-gui.spec`, `intentional-cli.spec` | Instructions for [PyInstaller](https://pyinstaller.org/) to build `intentional.exe` and `intentional-cli.exe`, including the app icon (`icon=`). |
-| `assets/generate_icon.py`, `assets/icon.png`, `assets/icon.ico` | Generates the app icon (see [development](development.md#the-app-icon)) and the source files it's built from; copies land in `src/intentional_py/gui/` (GUI window icon) and `web/` (favicon). |
+| `assets/generate_icon.py`, `assets/icon.png`, `assets/icon.ico`, `assets/icon.svg`, `assets/icon-logo.png` | Generates the app icon (see [development](development.md#the-app-icon)), using the shape/rendering in `gui/icon_render.py`; `icon-logo.png` is the original ChatGPT-generated design reference it was simplified from, and `icon.svg` is a hand-authored standalone copy used at the top of `README.md`. The generated files land in `src/intentional_py/gui/` (the GUI's window icon) and `web/` (favicon). |
 | `version_info.py` | Creates the version details shown in the executables' Windows file properties. |
 | `.github/workflows/` | The GitHub Actions workflows that test every change, build releases, and deploy the web version to GitHub Pages (see [development](development.md#releases-and-automated-builds) and [development](development.md#running-the-web-version)). |
 | `.github/dependabot.yml` | Tells Dependabot to suggest dependency updates weekly. |

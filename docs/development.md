@@ -51,20 +51,25 @@ The tests are in `src/intentional_py/tests` (see the [code guide](code-guide.md#
 
 ## The app icon
 
-The same simple checkmark icon (matching the ✔ already used throughout the CLI/GUI output) is used for the GUI window, both `.exe` files, and the web favicon. It's generated, not hand-edited: `assets/generate_icon.py` draws it with the standard library only (no imaging package dependency) and writes every copy the project needs:
+A speech bubble around a boxed checkmark (echoing the ✔ already used throughout the CLI/GUI output), simplified from the ChatGPT-generated `assets/icon-logo.png` design reference into flat, scalable shapes. The bubble's own border keeps that reference image's rainbow sweep regardless of accent; only the cube and the checkmark badge recolor. It's generated, not hand-edited: `intentional_py.gui.icon_render` draws it with the standard library only (no imaging package dependency), and `assets/generate_icon.py` calls it to write every static copy the project needs, baked at the default "blue" accent:
 
 ```bash
-python assets/generate_icon.py
+uv run python assets/generate_icon.py
 ```
 
 | File | Used by |
 |-|-|
 | `assets/icon.ico` | `icon=` in both PyInstaller spec files (the `.exe` file icon) |
 | `assets/icon.png` | The source PNG; not shipped anywhere by itself |
-| `src/intentional_py/gui/icon.png` | The GUI's window/taskbar icon at runtime (loaded via `importlib.resources`, so it works from source, frozen, or pip-installed) |
+| `src/intentional_py/gui/icon.png` | The GUI's window/taskbar icon, loaded once at startup via `importlib.resources`, and the logo next to "Intentional" in its in-window heading (`_build_header()`) |
 | `web/icon.png`, `web/favicon.ico` | The web version's favicon |
+| `assets/icon.svg` | A hand-authored standalone copy of the web header's inline SVG logo, used at the top of `README.md` for repo branding. Not generated - update it by hand if the shape changes (see below). |
 
-To change the icon, edit the drawing logic in `assets/generate_icon.py` (it's plain coordinate math, no image editor needed) and rerun it; commit the regenerated files alongside the script.
+The GUI's window/taskbar icon is static on purpose (`_window_icon()`), not accent-driven - a window icon that changed color while open would be an odd surprise, unlike an in-page logo. The GUI also shows the logo in-window, next to a bold "Intentional" heading above the project folder row (`_build_header()`), mirroring the web version's header brand. The web version's header logo is the one place the icon does recolor: an inline SVG (`web/index.html`'s `.logo-mark`) with the cube/checkmark badge following `var(--accent)`/`var(--accent-fg)` and `color-mix()` for the cube's shaded faces, while its bubble border keeps the same fixed rainbow `<linearGradient>` as the static icon. The **Accent color** picker's own colors (`ACCENT_PRESETS` in `gui/app.py`) are the same hex values as the web version's `--accent`/`--accent-hover` pairs, so the two front ends' accent system looks like one brand rather than two independently-tuned palettes; `gui/theme.json`'s default colors match the "blue" preset for the same reason. Keeping the GUI and web versions visually matched is a standing goal - check both when changing either's colors or branding.
+
+The CLI has no equivalent of its own (a terminal has no icon to recolor); the only touchpoint is `intentional-cli.exe`'s file/taskbar icon via `assets/icon.ico` above. A GitHub repository's social preview image (Settings > General > Social preview) also has to be uploaded manually rather than committed - `assets/icon.png` or a screenshot works for that if wanted.
+
+To change the icon's shape, edit the coordinates in `intentional_py/gui/icon_render.py` (plain coordinate math in a 64x64 design space, no image editor needed), then rerun `generate_icon.py` and commit the regenerated files alongside it.
 
 ## Packaging the Windows executables
 
@@ -89,7 +94,7 @@ The executables are created in the `dist` folder. The version is shown in the GU
 
 ## Running the web version
 
-An experimental third front end (see [code guide](code-guide.md#browser-front-end-web-folder)) that runs the core in the browser via [Pyodide](https://pyodide.org/), with no server beyond a static file server for the page itself. It isn't part of a release yet; try the hosted copy below, or run it from source:
+A third front end (see [code guide](code-guide.md#browser-front-end-web-folder)) that runs the core in the browser via [Pyodide](https://pyodide.org/), with no server beyond a static file server for the page itself. It isn't part of a release yet; try the hosted copy below, or run it from source:
 
 ```bash
 python web/serve.py
@@ -101,9 +106,11 @@ That's the one command needed: it builds the project wheel into `web/` if it's m
 
 The page's **? Help** button opens the same per-task explanations as the GUI's Help window, defined directly in `web/index.html`. Open or start a project once (a zip upload or a folder - a folder needs a browser that supports picking one, e.g. Chrome/Edge/Firefox/Safari - or empty), then run as many tasks against it as needed — each task's output is immediately available to the next, and **Download project** zips the current state at any point.
 
+The layout is responsive, down to phone-sized screens: the header's brand (logo/title) stays centered and its controls (Help/accent/theme) move below it on narrow widths rather than overlapping, and the form fields stack into a single column (`@media (max-width: 560px)`).
+
 A hosted copy also runs on [GitHub Pages](https://andrewjstuart.github.io/intentional-py/), kept up to date by `.github/workflows/pages.yml` on every push to `main` (the same build-the-wheel-and-serve-`web/`-folder idea as `serve.py`, just run once in CI instead of locally). This is the option for a machine where even opening a terminal isn't possible — nothing but a browser is needed. The one-time setup on GitHub is **Settings > Pages > Source: GitHub Actions**; after that the workflow deploys on its own.
 
-The page follows the browser's light/dark mode preference (`prefers-color-scheme`) by default; the toggle button overrides this and remembers the choice in the browser's `localStorage`, the web equivalent of `gui/settings.py`.
+The page follows the browser's light/dark mode preference (`prefers-color-scheme`) by default; the toggle button overrides this and remembers the choice in the browser's `localStorage`, the web equivalent of `gui/settings.py`. The accent color swatch button next to it works the same way, picking from eight presets defined as CSS custom properties in `web/index.html` (`[data-theme][data-accent]` rules); the GUI has an equivalent **Accent color** menu (`ACCENT_PRESETS` in `gui/app.py`).
 
 All eight tasks are implemented (`src/intentional_py/web/actions.py`, covered by `test_web_actions.py` like any other core-facing code — no browser needed to test it). They all operate on a single session workspace (a directory in Pyodide's virtual filesystem, created by `new_project`/`open_project`/`open_project_files` and held in a module-level global for as long as the page stays open), so later tasks see earlier tasks' output with no re-upload. Every task returns a JSON summary; `download_project` separately zips the workspace's current state on demand.
 

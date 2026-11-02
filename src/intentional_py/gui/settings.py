@@ -21,6 +21,7 @@ DEFAULTS: dict = {
     "package_choice": "None",
     "check_updates": True,
     "appearance_mode": "system",
+    "accent_color": "blue",
 }
 
 

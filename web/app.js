@@ -1,6 +1,6 @@
 // Web front end glue: loads Pyodide, installs the intentional_py wheel, and
 // calls into the unmodified core via src/intentional_py/web/actions.py.
-// This file is the only piece of this experimental front end that's
+// This file is the only piece of this front end that's
 // Pyodide-specific; the Python side (web/actions.py, web/reporter.py) is
 // plain CPython and has its own pytest coverage.
 
@@ -35,8 +35,11 @@ const projectFilesDetails = document.getElementById("projectFilesDetails");
 const projectFilesList = document.getElementById("projectFilesList");
 const resultEl = document.getElementById("result");
 const themeToggle = document.getElementById("themeToggle");
+const accentToggle = document.getElementById("accentToggle");
+const accentPopover = document.getElementById("accentPopover");
 
 const THEME_KEY = "intentional-web-theme";
+const ACCENT_KEY = "intentional-web-accent";
 
 // state: "loading" | "ready" | "error"; drives the badge's colour/dot via CSS.
 function setStatus(state, text) {
@@ -207,13 +210,13 @@ function currentTheme() {
 }
 
 function applyTheme(theme) {
-  if (theme) {
-    document.documentElement.dataset.theme = theme;
-  } else {
-    delete document.documentElement.dataset.theme;
-  }
-  // label shows the mode a click switches *to*
-  themeToggle.textContent = currentTheme() === "dark" ? "☀️ Light" : "🌙 Dark";
+  // Always set an explicit value (rather than deleting the attribute to fall back
+  // to the prefers-color-scheme media query) so the accent presets below, which
+  // are keyed off [data-theme], apply consistently either way.
+  const resolved = theme || (systemPrefersDark() ? "dark" : "light");
+  document.documentElement.dataset.theme = resolved;
+  // CSS shows the sun/moon icon for the theme a click switches *to*
+  themeToggle.setAttribute("aria-pressed", resolved === "dark" ? "true" : "false");
 }
 
 applyTheme(localStorage.getItem(THEME_KEY));
@@ -221,6 +224,50 @@ themeToggle.addEventListener("click", () => {
   const next = currentTheme() === "dark" ? "light" : "dark";
   localStorage.setItem(THEME_KEY, next);
   applyTheme(next);
+});
+
+// Accent color picker (same idea as the picker on andrewjstuart.com): a popover
+// of swatches that sets [data-accent], which the CSS accent presets key off.
+function applyAccent(accent) {
+  document.documentElement.dataset.accent = accent;
+  for (const swatch of accentPopover.querySelectorAll(".accent-swatch")) {
+    swatch.setAttribute("aria-pressed", swatch.dataset.accent === accent ? "true" : "false");
+  }
+}
+
+function closeAccentPopover() {
+  accentPopover.hidden = true;
+  accentToggle.setAttribute("aria-expanded", "false");
+}
+
+applyAccent(localStorage.getItem(ACCENT_KEY) || "blue");
+accentToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const isOpen = !accentPopover.hidden;
+  accentPopover.hidden = isOpen;
+  accentToggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+});
+accentPopover.addEventListener("click", (event) => {
+  const swatch = event.target.closest(".accent-swatch");
+  if (!swatch) return;
+  localStorage.setItem(ACCENT_KEY, swatch.dataset.accent);
+  applyAccent(swatch.dataset.accent);
+  closeAccentPopover();
+});
+document.addEventListener("click", (event) => {
+  if (
+    !accentPopover.hidden &&
+    !accentPopover.contains(event.target) &&
+    event.target !== accentToggle
+  ) {
+    closeAccentPopover();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !accentPopover.hidden) {
+    closeAccentPopover();
+    accentToggle.focus();
+  }
 });
 
 let pyodideInstance = null;

@@ -8,6 +8,7 @@ import queue
 import sys
 import threading
 import tkinter as tk
+import warnings
 import webbrowser
 from collections.abc import Callable
 from importlib.resources import as_file, files
@@ -51,14 +52,104 @@ PACKAGE_CHOICES: dict[str, str | None] = {
     "Zip (import - partial)": "import",
 }
 
+# Accent presets: the same hex values as the web version's picker (plus a
+# derived darkest shade for CTkOptionMenu's hover color, which the web CSS
+# doesn't need) - keeps the GUI, web, and the app icon's accent system looking
+# like one brand rather than three independently-tuned palettes. Each shade is
+# a (light appearance, dark appearance) pair. "blue" is the default.
+ACCENT_PRESETS: dict[str, dict[str, tuple[str, str]]] = {
+    "blue": {
+        "base": ("#1F6AA5", "#4098D7"),
+        "mid": ("#185480", "#5BABE6"),
+        "dark": ("#134264", "#4785B3"),
+    },
+    "orange": {
+        "base": ("#C2410C", "#FB923C"),
+        "mid": ("#9A3412", "#F97316"),
+        "dark": ("#78290E", "#C25A11"),
+    },
+    "green": {
+        "base": ("#16A34A", "#4ADE80"),
+        "mid": ("#15803D", "#22C55E"),
+        "dark": ("#106430", "#1B9A49"),
+    },
+    "red": {
+        "base": ("#DC2626", "#F87171"),
+        "mid": ("#B91C1C", "#EF4444"),
+        "dark": ("#901616", "#BA3535"),
+    },
+    "purple": {
+        "base": ("#7C3AED", "#A78BFA"),
+        "mid": ("#6D28D9", "#8B5CF6"),
+        "dark": ("#551FA9", "#6C48C0"),
+    },
+    "teal": {
+        "base": ("#0D9488", "#2DD4BF"),
+        "mid": ("#0F766E", "#14B8A6"),
+        "dark": ("#0C5C56", "#109081"),
+    },
+    "pink": {
+        "base": ("#DB2777", "#F472B6"),
+        "mid": ("#BE185D", "#EC4899"),
+        "dark": ("#941349", "#B83877"),
+    },
+    "gray": {
+        "base": ("#4B5563", "#9CA3AF"),
+        "mid": ("#374151", "#6B7280"),
+        "dark": ("#2B333F", "#535964"),
+    },
+}
+ACCENT_LABELS = [
+    ("Blue (default)", "blue"),
+    ("Orange", "orange"),
+    ("Green", "green"),
+    ("Red", "red"),
+    ("Purple", "purple"),
+    ("Teal", "teal"),
+    ("Pink", "pink"),
+    ("Gray", "gray"),
+]
+# Theme keys/fields driven by the accent preset, and which shade feeds each one.
+_ACCENT_THEME_FIELDS = (
+    ("CTkButton", "fg_color", "base"),
+    ("CTkButton", "hover_color", "mid"),
+    ("CTkCheckBox", "fg_color", "base"),
+    ("CTkCheckBox", "hover_color", "mid"),
+    ("CTkOptionMenu", "fg_color", "base"),
+    ("CTkOptionMenu", "button_color", "mid"),
+    ("CTkOptionMenu", "button_hover_color", "dark"),
+    ("CTkProgressBar", "progress_color", "base"),
+)
+# Widget classes whose colors come from the accent preset, keyed by theme.json name.
+_ACCENT_WIDGET_TYPES = {
+    "CTkButton": ctk.CTkButton,
+    "CTkCheckBox": ctk.CTkCheckBox,
+    "CTkOptionMenu": ctk.CTkOptionMenu,
+    "CTkProgressBar": ctk.CTkProgressBar,
+}
+
 
 def _window_icon() -> tk.PhotoImage | None:
-    """The taskbar/title-bar icon; None if it can't be found, so the window still opens."""
+    """The taskbar/title-bar icon; None if it can't be found, so the window still
+    opens. Static (not accent-driven): a window/taskbar icon that changed color
+    while open would be an odd surprise, unlike the in-page logo on the web version."""
     try:
         with as_file(files("intentional_py.gui") / "icon.png") as icon_path:
             return tk.PhotoImage(file=str(icon_path))
     except (FileNotFoundError, tk.TclError):
         return None
+
+
+def _header_logo_image() -> tk.PhotoImage | None:
+    """A small copy of the window icon for the in-window heading, matching the
+    logo next to the "Intentional" title on the web version."""
+    try:
+        with as_file(files("intentional_py.gui") / "icon.png") as icon_path:
+            full = tk.PhotoImage(file=str(icon_path))
+    except (FileNotFoundError, tk.TclError):
+        return None
+    factor = max(1, full.width() // 32)
+    return full.subsample(factor, factor)
 
 
 def _apply_theme() -> None:
@@ -69,6 +160,19 @@ def _apply_theme() -> None:
             ctk.set_default_color_theme(str(theme_path))
     except FileNotFoundError:
         pass
+
+
+def _apply_accent_theme(name: str) -> dict[str, dict[str, list]]:
+    """Writes the accent preset into ThemeManager.theme (new widgets pick it up
+    automatically) and returns a snapshot of the previous values, keyed the same
+    way, so already-built widgets using the old default can be found and updated."""
+    accent = ACCENT_PRESETS.get(name, ACCENT_PRESETS["blue"])
+    theme = ctk.ThemeManager.theme
+    previous: dict[str, dict[str, list]] = {}
+    for widget_key, field, shade in _ACCENT_THEME_FIELDS:
+        previous.setdefault(widget_key, {})[field] = list(theme[widget_key][field])
+        theme[widget_key][field] = list(accent[shade])
+    return previous
 
 
 def _card_fg_color() -> tuple:
@@ -189,10 +293,6 @@ class App(ctk.CTk):
         self.title(f"Intentional {__version__}")
         self.geometry("960x820")
         self.minsize(760, 660)
-        # kept as an attribute: Tk drops a PhotoImage once nothing references it
-        self._window_icon = _window_icon()
-        if self._window_icon is not None:
-            self.iconphoto(True, self._window_icon)
 
         self.runner = JobRunner()
         self.running = False
@@ -209,6 +309,10 @@ class App(ctk.CTk):
         self.editor: ConfigEditor | None = None
         self.confirmation_dialog = ConfirmationDialog(self)
         self.settings = settings.load()
+        # kept as an attribute: Tk drops a PhotoImage once nothing references it
+        self._window_icon = _window_icon()
+        if self._window_icon is not None:
+            self.iconphoto(True, self._window_icon)
         self.project_layout_snapshot = user_settings.load_project_layout()
         self.nl_defaults_snapshot = user_settings.load_nl_defaults()
         self.language_settings_snapshot = user_settings.load_language_settings()
@@ -219,11 +323,15 @@ class App(ctk.CTk):
         self.appearance_var = tk.StringVar(
             self, value=self.settings.get("appearance_mode", "system")
         )
+        self.accent_var = tk.StringVar(
+            self, value=self.settings.get("accent_color", "blue")
+        )
         self.update_url = updates.RELEASES_URL
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(3, weight=1)
         self._style_tables()
+        self._build_header()
         recent = [p for p in self.settings["recent_projects"] if Path(p).is_dir()]
         self._build_project_row(project or (Path(recent[0]) if recent else Path.cwd()))
         self._build_tabs()
@@ -237,9 +345,26 @@ class App(ctk.CTk):
 
     # ----- layout -----
 
+    def _build_header(self) -> None:
+        """Logo + "Intentional" heading, matching the web version's header brand."""
+        frame = ctk.CTkFrame(self, fg_color="transparent")
+        frame.grid(row=0, column=0, sticky="w", padx=12, pady=(12, 0))
+        logo = _header_logo_image()
+        if logo is not None:
+            # kept as an attribute: Tk drops a PhotoImage once nothing references it
+            self._header_logo = logo
+            with warnings.catch_warnings():
+                # a plain PhotoImage (not CTkImage) doesn't rescale on HighDPI displays,
+                # not worth a Pillow dependency for one small static logo
+                warnings.simplefilter("ignore", UserWarning)
+                ctk.CTkLabel(frame, image=logo, text="").pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(
+            frame, text="Intentional", font=ctk.CTkFont(size=20, weight="bold")
+        ).pack(side="left")
+
     def _build_project_row(self, project: Path) -> None:
         frame = ctk.CTkFrame(self)
-        frame.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 0))
+        frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(12, 0))
         frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(frame, text="Project folder").grid(
             row=0, column=0, sticky="w", **PAD
@@ -291,6 +416,15 @@ class App(ctk.CTk):
                 command=lambda mode=mode: self._set_appearance_mode(mode),
             )
         self.help_menu.add_cascade(label="Appearance", menu=appearance_menu)
+        accent_menu = tk.Menu(self.help_menu, tearoff=0)
+        for label, accent in ACCENT_LABELS:
+            accent_menu.add_radiobutton(
+                label=label,
+                variable=self.accent_var,
+                value=accent,
+                command=lambda accent=accent: self._set_accent(accent),
+            )
+        self.help_menu.add_cascade(label="Accent color", menu=accent_menu)
         self.help_menu.add_separator()
         self.help_menu.add_command(label="About Intentional", command=self._show_about)
         help_button = ctk.CTkButton(
@@ -306,7 +440,7 @@ class App(ctk.CTk):
 
     def _build_tabs(self) -> None:
         tabs = ctk.CTkTabview(self, height=260, command=self._on_mode_tab_changed)
-        tabs.grid(row=1, column=0, sticky="ew", padx=12, pady=(12, 0))
+        tabs.grid(row=2, column=0, sticky="ew", padx=12, pady=(12, 0))
         self.mode_tabs = tabs
         self._build_dd_tab(self._tab(tabs, "Build DD"))
         self._build_nl_tab(self._tab(tabs, "Build NL"))
@@ -763,7 +897,7 @@ class App(ctk.CTk):
 
     def _build_results(self) -> None:
         frame = ctk.CTkFrame(self)
-        frame.grid(row=2, column=0, sticky="nsew", padx=12, pady=12)
+        frame.grid(row=3, column=0, sticky="nsew", padx=12, pady=12)
         frame.grid_columnconfigure(0, weight=1)
         frame.grid_rowconfigure(3, weight=1)
 
@@ -879,6 +1013,38 @@ class App(ctk.CTk):
         settings.save(self.settings)
         # ttk isn't themed by CustomTkinter, so the result tables need restyling by hand
         self._style_tables()
+
+    def _set_accent(self, name: str) -> None:
+        previous = _apply_accent_theme(name)
+        for window in (self, self.help_window, self.editor, self.confirmation_dialog):
+            if window is not None:
+                self._restyle_accent_widgets(window, previous)
+        self.settings["accent_color"] = name
+        settings.save(self.settings)
+        # the selected-row highlight in result tables also follows the accent color
+        self._style_tables()
+
+    def _restyle_accent_widgets(
+        self, root: tk.Misc, previous: dict[str, dict[str, list]]
+    ) -> None:
+        """Recolors already-built widgets that were using the old accent default,
+        leaving any widget given an explicit custom color (e.g. the "gray"/"transparent"
+        Cancel buttons) untouched."""
+        for child in root.winfo_children():
+            for widget_key, widget_cls in _ACCENT_WIDGET_TYPES.items():
+                if not isinstance(child, widget_cls):
+                    continue
+                for field, old_value in previous[widget_key].items():
+                    current = child.cget(field)
+                    if (
+                        isinstance(current, (tuple, list))
+                        and list(current) == old_value
+                    ):
+                        child.configure(
+                            **{field: ctk.ThemeManager.theme[widget_key][field]}
+                        )
+                break
+            self._restyle_accent_widgets(child, previous)
 
     def _show_help(self) -> None:
         # the first time starts with the overview; after that, the section for the current tab
@@ -1504,6 +1670,7 @@ class App(ctk.CTk):
 
 def main(project: Path | None = None) -> None:
     _apply_theme()
+    _apply_accent_theme(settings.load().get("accent_color", "blue"))
     ctk.set_appearance_mode(settings.load().get("appearance_mode", "system"))
     App(project).mainloop()
 
@@ -1511,6 +1678,7 @@ def main(project: Path | None = None) -> None:
 def launch() -> None:
     """Entry point for the ``intentional`` command and ``intentional.exe``."""
     _apply_theme()
+    _apply_accent_theme(settings.load().get("accent_color", "blue"))
     ctk.set_appearance_mode(settings.load().get("appearance_mode", "system"))
     app = App()
     if len(sys.argv) > 1:

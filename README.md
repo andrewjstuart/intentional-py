@@ -1,3 +1,5 @@
+<img src="assets/icon.svg" width="64" height="64" align="left" alt="" />
+
 # Intentional
 
 [![Tests](https://github.com/andrewjstuart/intentional-py/actions/workflows/tests.yml/badge.svg)](https://github.com/andrewjstuart/intentional-py/actions/workflows/tests.yml)
@@ -6,7 +8,7 @@
 
 Intentional creates Dialogflow ES intents from a config file and training phrase files, ready to import into an agent. It was first written in Perl and converted to Python for easier use and maintenance.
 
-It has a graphical interface (GUI) and a command line (CLI), with the same features. Both run on Windows or Linux from source, or as standalone Windows executables that don't need Python: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI). An experimental browser-based version is also available (see [Web (experimental)](#web-experimental)).
+It has a graphical interface (GUI) and a command line (CLI), with the same features. Both run on Windows or Linux from source, or as standalone Windows executables that don't need Python: `intentional.exe` (GUI) and `intentional-cli.exe` (CLI). A browser-based version is also available (see [Web](#web)).
 
 ## Documentation
 
@@ -76,7 +78,7 @@ intentional-cli.exe --help            list every command
 
 From source, use `uv run intentional` for the GUI and `uv run intentional-cli` for the CLI, after `uv sync --extra gui` (see [Development](docs/development.md#running-from-source)).
 
-## Web (experimental)
+## Web
 
 A third front end, running entirely in the browser via [Pyodide](https://pyodide.org/) (Python compiled to WebAssembly) — no install, nothing uploaded anywhere; it all runs in the tab. It reuses the same core as the CLI and GUI, so a project's config and phrase files validate identically everywhere.
 
