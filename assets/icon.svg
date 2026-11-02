@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="logoRainbow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="25%" stop-color="#22c55e" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="70%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#d946ef" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="6" width="56" height="42" rx="12" fill="none" stroke="url(#logoRainbow)" stroke-width="3.4" />
+  <path d="M18 48 10 60" fill="none" stroke="url(#logoRainbow)" stroke-width="3.4" stroke-linecap="round" />
+  <polygon points="28,16 41,22.5 28,29 15,22.5" fill="#74A3C7" />
+  <polygon points="15,22.5 28,29 28,42 15,35.5" fill="#1F6AA5" />
+  <polygon points="28,29 41,22.5 41,35.5 28,42" fill="#154870" />
+  <circle cx="46" cy="40" r="10" fill="#1F6AA5" />
+  <path d="M42 40 45 43 51 35" fill="none" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
