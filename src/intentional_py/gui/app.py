@@ -129,15 +129,32 @@ _ACCENT_WIDGET_TYPES = {
 }
 
 
-def _window_icon() -> tk.PhotoImage | None:
-    """The taskbar/title-bar icon; None if it can't be found, so the window still
-    opens. Static (not accent-driven): a window/taskbar icon that changed color
-    while open would be an odd surprise, unlike the in-page logo on the web version."""
+def _window_icon(window: ctk.CTk) -> tk.PhotoImage | None:
+    """Sets the taskbar/title-bar icon; returns the PhotoImage (the caller must
+    keep a reference, or Tk drops it) or None if it can't be found, so the window
+    still opens. Static (not accent-driven): a window/taskbar icon that changed
+    color while open would be an odd surprise, unlike the in-page logo on the web
+    version.
+
+    On Windows, CTk schedules its own default-icon override shortly after startup
+    unless ``iconbitmap`` was already called (see CTk's _windows_set_titlebar_icon
+    in customtkinter's ctk_tk.py), which otherwise replaces our icon in the
+    taskbar/title bar with CustomTkinter's blue logo; calling it here first with
+    our own .ico avoids that."""
+    icon_image: tk.PhotoImage | None = None
     try:
         with as_file(files("intentional_py.gui") / "icon.png") as icon_path:
-            return tk.PhotoImage(file=str(icon_path))
+            icon_image = tk.PhotoImage(file=str(icon_path))
+            window.iconphoto(True, icon_image)
     except (FileNotFoundError, tk.TclError):
-        return None
+        pass
+    if sys.platform.startswith("win"):
+        try:
+            with as_file(files("intentional_py.gui") / "icon.ico") as ico_path:
+                window.iconbitmap(default=str(ico_path))
+        except (FileNotFoundError, tk.TclError):
+            pass
+    return icon_image
 
 
 def _header_logo_image() -> tk.PhotoImage | None:
@@ -310,9 +327,7 @@ class App(ctk.CTk):
         self.confirmation_dialog = ConfirmationDialog(self)
         self.settings = settings.load()
         # kept as an attribute: Tk drops a PhotoImage once nothing references it
-        self._window_icon = _window_icon()
-        if self._window_icon is not None:
-            self.iconphoto(True, self._window_icon)
+        self._window_icon = _window_icon(self)
         self.project_layout_snapshot = user_settings.load_project_layout()
         self.nl_defaults_snapshot = user_settings.load_nl_defaults()
         self.language_settings_snapshot = user_settings.load_language_settings()
@@ -346,9 +361,11 @@ class App(ctk.CTk):
     # ----- layout -----
 
     def _build_header(self) -> None:
-        """Logo + "Intentional" heading, matching the web version's header brand."""
+        """Logo + "Intentional" heading, version, and help button all on one row
+        (matching the web version's header brand), keeping the project row below
+        focused on just the project folder."""
         frame = ctk.CTkFrame(self, fg_color="transparent")
-        frame.grid(row=0, column=0, sticky="w", padx=12, pady=(12, 0))
+        frame.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 0))
         logo = _header_logo_image()
         if logo is not None:
             # kept as an attribute: Tk drops a PhotoImage once nothing references it
@@ -361,20 +378,10 @@ class App(ctk.CTk):
         ctk.CTkLabel(
             frame, text="Intentional", font=ctk.CTkFont(size=20, weight="bold")
         ).pack(side="left")
-
-    def _build_project_row(self, project: Path) -> None:
-        frame = ctk.CTkFrame(self)
-        frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(12, 0))
-        frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(frame, text="Project folder").grid(
-            row=0, column=0, sticky="w", **PAD
+        ctk.CTkLabel(frame, text=f"v{__version__}", text_color="gray").pack(
+            side="left", padx=(8, 0)
         )
-        self.project_entry = ctk.CTkComboBox(frame, values=self._recent_projects())
-        self.project_entry.set(str(project))
-        self.project_entry.grid(row=0, column=1, sticky="ew", **PAD)
-        ctk.CTkButton(
-            frame, text="Browse…", width=90, command=self._browse_project
-        ).grid(row=0, column=2, **PAD)
+        # packed (not yet shown) only once a newer version is found, see _show_update
         self.update_button = ctk.CTkButton(
             frame,
             text="",
@@ -384,11 +391,7 @@ class App(ctk.CTk):
             width=10,
             command=lambda: webbrowser.open(self.update_url),
         )
-        self.update_button.grid(row=0, column=3, padx=(10, 0))
-        self.update_button.grid_remove()
-        ctk.CTkLabel(frame, text=f"v{__version__}", text_color="gray").grid(
-            row=0, column=4, padx=(10, 0), pady=6
-        )
+
         self.help_menu = tk.Menu(self, tearoff=0)
         self.help_menu.add_command(
             label="Help", accelerator="F1", command=self._show_help
@@ -436,7 +439,21 @@ class App(ctk.CTk):
             text_color=("gray10", "gray90"),
             command=lambda: self._open_help_menu(help_button),
         )
-        help_button.grid(row=0, column=5, **PAD)
+        help_button.pack(side="right")
+
+    def _build_project_row(self, project: Path) -> None:
+        frame = ctk.CTkFrame(self)
+        frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(12, 0))
+        frame.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(frame, text="Project folder").grid(
+            row=0, column=0, sticky="w", **PAD
+        )
+        self.project_entry = ctk.CTkComboBox(frame, values=self._recent_projects())
+        self.project_entry.set(str(project))
+        self.project_entry.grid(row=0, column=1, sticky="ew", **PAD)
+        ctk.CTkButton(
+            frame, text="Browse…", width=90, command=self._browse_project
+        ).grid(row=0, column=2, **PAD)
 
     def _build_tabs(self) -> None:
         tabs = ctk.CTkTabview(self, height=260, command=self._on_mode_tab_changed)
@@ -1263,7 +1280,7 @@ class App(ctk.CTk):
         if updates.is_newer(version, __version__):
             self.update_url = url
             self.update_button.configure(text=f"Version {version} available")
-            self.update_button.grid()
+            self.update_button.pack(side="left", padx=(10, 0))
             if manual and messagebox.askyesno(
                 "Intentional",
                 f"Version {version} is available (you have {__version__}).\n\nOpen the download page?",

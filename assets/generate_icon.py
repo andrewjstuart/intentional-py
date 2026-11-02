@@ -63,6 +63,9 @@ def main() -> None:
     shutil.copy(icon_png, WEB_DIR / "icon.png")
     shutil.copy(icon_ico, WEB_DIR / "favicon.ico")
     shutil.copy(icon_png, GUI_PACKAGE_DIR / "icon.png")
+    # .ico (not just .png) is needed so the GUI can call iconbitmap() on Windows,
+    # which is what actually sticks in the taskbar (see gui/app.py's _window_icon)
+    shutil.copy(icon_ico, GUI_PACKAGE_DIR / "icon.ico")
 
     print(
         f"Wrote {icon_png}, {icon_ico}, and copies in {WEB_DIR} and {GUI_PACKAGE_DIR}"
